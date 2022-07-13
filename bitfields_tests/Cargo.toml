@@ -1,0 +1,11 @@
+[package]
+name = "bitfields_tests"
+version = "1.0.0"
+authors = ["Daniel Lehmann <danlehmannmuc@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bitfields = { path = "../bitfields" }
+arbitrary-int = "1.0.0"
