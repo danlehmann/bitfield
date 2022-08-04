@@ -428,3 +428,27 @@ fn bitfield_with_indexed_nonexhaustive_enum() {
 
     assert_eq!(0b10_01_10, BitfieldWithIndexedEnums::new_with_raw_value(0b01_10).with_nonexhaustive(2, NonExhaustiveEnum::Two).raw_value());
 }
+
+#[test]
+fn bitfield_with_u8_enum() {
+    #[bitenum(bits: 8, exhaustive: false)]
+    #[derive(Eq, PartialEq, Debug)]
+    pub enum NonExhaustiveEnum {
+        Zero = 0b00,
+        One = 0b01,
+        Two = 0b10000010,
+    }
+
+    #[bitfield(u64, default: 0)]
+    pub struct BitfieldWithIndexedEnums {
+        #[bits(6..=13, rw)]
+        val8: Option<NonExhaustiveEnum>,
+    }
+
+    assert_eq!(Ok(NonExhaustiveEnum::Zero), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000000_000000).val8());
+    assert_eq!(Ok(NonExhaustiveEnum::One), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000001_000000).val8());
+    assert_eq!(Ok(NonExhaustiveEnum::Two), BitfieldWithIndexedEnums::new_with_raw_value(0b00_10000010_000000).val8());
+
+    assert_eq!(Err(0b00100000), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00100000_000000).val8());
+}
+

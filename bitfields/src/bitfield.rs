@@ -384,7 +384,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 match custom_type {
                     CustomType::No => quote! { field_value },
                     CustomType::Yes(_) => {
-                        quote! { field_value.raw_value().value() }
+                        if number_of_bits == 8 || number_of_bits == 16 || number_of_bits == 32 || number_of_bits == 64 || number_of_bits == 128 {
+                            quote! { field_value.raw_value() }
+                        } else {
+                            quote! { field_value.raw_value().value() }
+                        }
                     }
                 };
 
