@@ -1,4 +1,4 @@
-use arbitrary_int::u4;
+use arbitrary_int::{u13, u2, u3, u30, u4, u57};
 use bitfields::bitfield;
 use bitfields::bitenum;
 
@@ -19,13 +19,13 @@ fn test_getter_and_setter() {
     #[bitfield(u128, default: 0)]
     struct Test2 {
         #[bits(98..=127, rw)]
-        val128: u128,
+        val30: u30,
 
         #[bits(41..=97, rw)]
-        val64: u64,
+        val57: u57,
 
         #[bits(28..=40, rw)]
-        val32: u32,
+        val13: u13,
 
         #[bits(12..=27, rw)]
         val16: u16,
@@ -34,22 +34,22 @@ fn test_getter_and_setter() {
         baudrate: u8,
 
         #[bits(0..=3, rw)]
-        some_other_bits: u8,
+        some_other_bits: u4,
     }
 
     let t = Test2::new_with_raw_value(0xAE42315A_2134FE06_3412345A_2134FE06);
-    assert_eq!(0x2B908C56, t.val128());
-    assert_eq!(0x1109A7F_031A091A, t.val64());
-    assert_eq!(0x5A2, t.val32());
+    assert_eq!(u30::new(0x2B908C56), t.val30());
+    assert_eq!(u57::new(0x1109A7F_031A091A), t.val57());
+    assert_eq!(u13::new(0x5A2), t.val13());
     assert_eq!(0x134F, t.val16());
     assert_eq!(0xE0, t.baudrate());
-    assert_eq!(0x6, t.some_other_bits());
+    assert_eq!(u4::new(0x6), t.some_other_bits());
 
     let t = Test2::new()
         .with_baudrate(0x12)
-        .with_some_other_bits(0x2);
+        .with_some_other_bits(u4::new(0x2));
     assert_eq!(0x12, t.baudrate());
-    assert_eq!(0x2, t.some_other_bits());
+    assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0x0122, t.raw_value);
 }
 
@@ -90,10 +90,10 @@ fn test_bool() {
         n: u8,
 
         #[bits(10..=12, w)]
-        m: u8,
+        m: u3,
 
         #[bits(13..=15, r)]
-        o: u8,
+        o: u3,
     }
 
     let t = Test::new();
@@ -192,24 +192,24 @@ fn proper_unmasking() {
     #[bitfield(u16, default: 0)]
     pub struct TestStruct {
         #[bits(0..=1, rw)]
-        a: u8,
+        a: u2,
 
         #[bits(2..=3, rw)]
-        b: u8,
+        b: u2,
 
         #[bits(4..=5, rw)]
-        c: u8,
+        c: u2,
     }
 
     let s1 = TestStruct::new()
-        .with_a(0b11)
-        .with_b(0b11)
-        .with_c(0b11);
+        .with_a(u2::new(0b11))
+        .with_b(u2::new(0b11))
+        .with_c(u2::new(0b11));
 
     assert_eq!(0b111111, s1.raw_value());
 
     let s2 = s1
-        .with_b(0b00);
+        .with_b(u2::new(0b00));
     assert_eq!(0b110011, s2.raw_value());
 }
 
@@ -306,51 +306,27 @@ fn repeated_bitrange_without_stride() {
     #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
          #[bits(0..=3, rw)]
-         nibble: [u8; 16],
+         nibble: [u4; 16],
     }
 
     const VALUE: u64 = 0x12345678_ABCDEFFF;
     let nibble = Nibble64::new_with_raw_value(VALUE);
 
-    assert_eq!(0xF, nibble.nibble(0));
-    assert_eq!(0xF, nibble.nibble(1));
-    assert_eq!(0xF, nibble.nibble(2));
-    assert_eq!(0xE, nibble.nibble(3));
-    assert_eq!(0xD, nibble.nibble(4));
-    assert_eq!(0xC, nibble.nibble(5));
+    assert_eq!(u4::new(0xF), nibble.nibble(0));
+    assert_eq!(u4::new(0xF), nibble.nibble(1));
+    assert_eq!(u4::new(0xF), nibble.nibble(2));
+    assert_eq!(u4::new(0xE), nibble.nibble(3));
+    assert_eq!(u4::new(0xD), nibble.nibble(4));
+    assert_eq!(u4::new(0xC), nibble.nibble(5));
 
-    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, 0x3).raw_value());
-    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, 0x2).raw_value());
-    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, 0xA).raw_value());
-    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, 0xE).raw_value());
+    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, u4::new(0x3)).raw_value());
+    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, u4::new(0x2)).raw_value());
+    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, u4::new(0xA)).raw_value());
+    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, u4::new(0xE)).raw_value());
 }
 
 #[test]
 fn repeated_bitrange_with_stride_equals_width() {
-    #[bitfield(u64, default: 0)]
-    pub struct Nibble64 {
-         #[bits(0..=3, rw, stride: 4)]
-         nibble: [u8; 16],
-    }
-
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
-    let nibble = Nibble64::new_with_raw_value(VALUE);
-
-    assert_eq!(0xF, nibble.nibble(0));
-    assert_eq!(0xF, nibble.nibble(1));
-    assert_eq!(0xF, nibble.nibble(2));
-    assert_eq!(0xE, nibble.nibble(3));
-    assert_eq!(0xD, nibble.nibble(4));
-    assert_eq!(0xC, nibble.nibble(5));
-
-    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, 0x3).raw_value());
-    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, 0x2).raw_value());
-    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, 0xA).raw_value());
-    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, 0xE).raw_value());
-}
-
-#[test]
-fn repeated_bitrange_with_arbitrary_int_with_stride_equals_width() {
     #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
          #[bits(0..=3, rw, stride: 4)]
@@ -378,18 +354,35 @@ fn repeated_bitrange_with_stride_greater_than_width() {
     #[bitfield(u64, default: 0)]
     pub struct EvenNibble64 {
         #[bits(0..=3, rw, stride: 8)]
-        even_nibble: [u8; 8],
+        even_nibble: [u4; 8],
     }
 
     const VALUE: u64 = 0x12345678_ABCDEFFF;
     let even_nibble = EvenNibble64::new_with_raw_value(VALUE);
 
-    assert_eq!(0xF, even_nibble.even_nibble(0));
-    assert_eq!(0xF, even_nibble.even_nibble(1));
-    assert_eq!(0xD, even_nibble.even_nibble(2));
-    assert_eq!(0xB, even_nibble.even_nibble(3));
-    assert_eq!(0x8, even_nibble.even_nibble(4));
-    assert_eq!(0x6, even_nibble.even_nibble(5));
+    assert_eq!(u4::new(0xF), even_nibble.even_nibble(0));
+    assert_eq!(u4::new(0xF), even_nibble.even_nibble(1));
+    assert_eq!(u4::new(0xD), even_nibble.even_nibble(2));
+    assert_eq!(u4::new(0xB), even_nibble.even_nibble(3));
+    assert_eq!(u4::new(0x8), even_nibble.even_nibble(4));
+    assert_eq!(u4::new(0x6), even_nibble.even_nibble(5));
+}
+
+#[test]
+fn repeated_bitrange_with_stride_greater_than_width_basic_type() {
+    #[bitfield(u64, default: 0)]
+    pub struct EvenByte64 {
+        #[bits(0..=7, rw, stride: 16)]
+        even_byte: [u8; 4],
+    }
+
+    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    let even_byte = EvenByte64::new_with_raw_value(VALUE);
+
+    assert_eq!(0xFF, even_byte.even_byte(0));
+    assert_eq!(0xCD, even_byte.even_byte(1));
+    assert_eq!(0x78, even_byte.even_byte(2));
+    assert_eq!(0x34, even_byte.even_byte(3));
 }
 
 #[test]

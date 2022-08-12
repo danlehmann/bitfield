@@ -275,8 +275,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             Some(b) => (b, quote! { #ty } ),
         };
 
-        if number_of_bits > field_type_size {
-            panic!("bitfield!: Field {} has type {}, but too many bits ({}) are being used for it", field_name, ty.to_token_stream().to_string(), number_of_bits);
+        if number_of_bits != field_type_size {
+            panic!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream().to_string(), number_of_bits);
         }
 
         // Verify bounds for arrays
@@ -378,13 +378,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 } else {
                     // Extract arbitrary int (e.g. u7), using one of the extract methods
-
-                    // If a custom type is provided, it has to match the number of bits exactly
-                    if let Some(custom_type_size) = field_type_size_from_data_type {
-                        if custom_type_size != number_of_bits {
-                            panic!("bitfield!: Field {} is declared as custom type {:?}, which doesn't match the number of bits {}.", field_name, custom_type_size, number_of_bits);
-                        }
-                    }
                     let custom_type = TokenStream2::from_str(format!("arbitrary_int::u{}", number_of_bits).as_str()).unwrap();
                     let extract = TokenStream2::from_str(format!("extract_u{}", base_data_size).as_str()).unwrap();
                     if indexed_count.is_some() {
