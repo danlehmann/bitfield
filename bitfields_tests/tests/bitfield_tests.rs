@@ -1,3 +1,4 @@
+use arbitrary_int::u4;
 use bitfields::bitfield;
 use bitfields::bitenum;
 
@@ -17,6 +18,18 @@ fn test_construction() {
 fn test_getter_and_setter() {
     #[bitfield(u128, default: 0)]
     struct Test2 {
+        #[bits(98..=127, rw)]
+        val128: u128,
+
+        #[bits(41..=97, rw)]
+        val64: u64,
+
+        #[bits(28..=40, rw)]
+        val32: u32,
+
+        #[bits(12..=27, rw)]
+        val16: u16,
+
         #[bits(4..=11, rw)]
         baudrate: u8,
 
@@ -24,7 +37,11 @@ fn test_getter_and_setter() {
         some_other_bits: u8,
     }
 
-    let t = Test2::new_with_raw_value(0xFE06);
+    let t = Test2::new_with_raw_value(0xAE42315A_2134FE06_3412345A_2134FE06);
+    assert_eq!(0x2B908C56, t.val128());
+    assert_eq!(0x1109A7F_031A091A, t.val64());
+    assert_eq!(0x5A2, t.val32());
+    assert_eq!(0x134F, t.val16());
     assert_eq!(0xE0, t.baudrate());
     assert_eq!(0x6, t.some_other_bits());
 
@@ -33,6 +50,29 @@ fn test_getter_and_setter() {
         .with_some_other_bits(0x2);
     assert_eq!(0x12, t.baudrate());
     assert_eq!(0x2, t.some_other_bits());
+    assert_eq!(0x0122, t.raw_value);
+}
+
+#[test]
+fn test_getter_and_setter_arbitrary_uint() {
+    #[bitfield(u128, default: 0)]
+    struct Test2 {
+        #[bits(4..=11, rw)]
+        baudrate: u8,
+
+        #[bits(0..=3, rw)]
+        some_other_bits: u4,
+    }
+
+    let t = Test2::new_with_raw_value(0xFE06);
+    assert_eq!(0xE0, t.baudrate());
+    assert_eq!(u4::new(0x6), t.some_other_bits());
+
+    let t = Test2::new()
+        .with_baudrate(0x12)
+        .with_some_other_bits(u4::new(0x2));
+    assert_eq!(0x12, t.baudrate());
+    assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0x0122, t.raw_value);
 }
 
@@ -307,6 +347,30 @@ fn repeated_bitrange_with_stride_equals_width() {
     assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, 0x2).raw_value());
     assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, 0xA).raw_value());
     assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, 0xE).raw_value());
+}
+
+#[test]
+fn repeated_bitrange_with_arbitrary_int_with_stride_equals_width() {
+    #[bitfield(u64, default: 0)]
+    pub struct Nibble64 {
+         #[bits(0..=3, rw, stride: 4)]
+         nibble: [u4; 16],
+    }
+
+    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    let nibble = Nibble64::new_with_raw_value(VALUE);
+
+    assert_eq!(u4::new(0xF), nibble.nibble(0));
+    assert_eq!(u4::new(0xF), nibble.nibble(1));
+    assert_eq!(u4::new(0xF), nibble.nibble(2));
+    assert_eq!(u4::new(0xE), nibble.nibble(3));
+    assert_eq!(u4::new(0xD), nibble.nibble(4));
+    assert_eq!(u4::new(0xC), nibble.nibble(5));
+
+    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, u4::new(0x3)).raw_value());
+    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, u4::new(0x2)).raw_value());
+    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, u4::new(0xA)).raw_value());
+    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, u4::new(0xE)).raw_value());
 }
 
 #[test]

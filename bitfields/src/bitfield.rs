@@ -1,10 +1,35 @@
 use proc_macro::TokenStream;
 use std::ops::{Deref, Range};
+use std::str::FromStr;
 
 use proc_macro2::TokenTree;
 use quote::{quote, ToTokens};
 use syn::{Data, DeriveInput, Type, PathArguments, GenericArgument};
 use syn::__private::TokenStream2;
+
+/// Returns true if the number can be expressed by a regular data type like u8 or u32.
+/// 1 is also true, as it can be expressed as a bool
+fn is_int_size_regular_type(size: usize) -> bool {
+    return size == 1 || size == 8 || size == 16 || size == 32 || size == 64 || size == 128;
+}
+
+fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
+    if !s.starts_with("u") || s.len() < 2 {
+        return Err(());
+    }
+
+    let size = usize::from_str(s.split_at(1).1);
+    match size {
+        Ok(size) => {
+            if size > 1 && size < 128 && !is_int_size_regular_type(size) {
+                Ok(size)
+            } else {
+                Err(())
+            }
+        }
+        Err(_) => return Err(()),
+    }
+}
 
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
@@ -104,10 +129,13 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     "u16" | "i16" => Some(16),
                     "u32" | "i32" => Some(32),
                     "u64" | "i64" => Some(64),
+                    "u128" | "i128" => Some(128),
+                    "u1" => panic!("bitfield!: Field {} has datatype u1, which is not supported. Use bool instead", field_name),
+                    s if parse_arbitrary_int_type(s).is_ok() => Some(parse_arbitrary_int_type(s).unwrap()),
                     _ => None, // Enum type - size is the the number of bits
                 }
             }
-            _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64 and their arrays supported", ty.into_token_stream()),
+            _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g. u3, u62). Their arrays are also supported", ty.into_token_stream()),
         };
         let mut range: Option<Range<usize>> = None;
         let mut provide_getter = false;
@@ -228,23 +256,23 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             Some(ref range) => (range.start, range.end - range.start),
             None => panic!("bitfield!: Expected valid range, e.g. bits(1..=8, rw) or bit(4, r)")
         };
-        let (field_type_size, (primitive_type, bounded_constructor)) = match field_type_size_from_data_type {
+        let (field_type_size, primitive_type) = match field_type_size_from_data_type {
             None => (number_of_bits, {
                 if number_of_bits <= 8 {
-                    (quote! { u8 }, Some(quote! { new }))
+                    quote! { u8 }
                 } else if number_of_bits <= 16 {
-                    (quote! { u16 }, Some(quote! { new }))
+                    quote! { u16 }
                 } else if number_of_bits <= 32 {
-                    (quote! { u32 }, Some(quote! { new }))
+                    quote! { u32 }
                 } else if number_of_bits <= 64 {
-                    (quote! { u64 }, Some(quote! { new }))
+                    quote! { u64 }
                 } else if number_of_bits <= 128 {
-                    (quote! { u128 }, Some(quote! { new }))
+                    quote! { u128 }
                 } else {
                     panic!("bitfield!: number_of_bits is to large!")
                 }
             }),
-            Some(b) => (b, (quote! { #ty }, None) ),
+            Some(b) => (b, quote! { #ty } ),
         };
 
         if number_of_bits > field_type_size {
@@ -316,9 +344,15 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             (CustomType::No, ty.clone(), ty.clone())
         };
 
+        let use_regular_int = match field_type_size_from_data_type {
+            Some(i) => is_int_size_regular_type(i),
+            None => is_int_size_regular_type(number_of_bits),
+        };
+
         let getter =
             if provide_getter {
-                let extracted_bits =
+                let extracted_bits = if use_regular_int {
+                    // Extract standard type (u8, u16 etc)
                     if indexed_count.is_some() {
                         let indexed_stride = indexed_stride.unwrap();
                         if field_type_size == 1 {
@@ -341,26 +375,39 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                                 }
                             }
                         }
-                    };
+                    }
+                } else {
+                    // Extract arbitrary int (e.g. u7), using one of the extract methods
 
-                let converted =
-                    match &custom_type {
-                        CustomType::No => extracted_bits,
-                        CustomType::Yes(convert_type) => {
-                            if number_of_bits == 8 || number_of_bits == 16 || number_of_bits == 32 || number_of_bits == 64 || number_of_bits == 128 {
-                                quote! {
-                                    let extracted_bits = #extracted_bits;
-                                    #convert_type::new_with_raw_value(extracted_bits)
-                                }
-                            } else {
-                                quote! {
-                                    let extracted_bits = #extracted_bits;
-                                    let bounded = arbitrary_int::UInt::<#primitive_type, #number_of_bits>:: #bounded_constructor (extracted_bits);
-                                    #convert_type::new_with_raw_value(bounded)
-                                }
-                            }
+                    // If a custom type is provided, it has to match the number of bits exactly
+                    if let Some(custom_type_size) = field_type_size_from_data_type {
+                        if custom_type_size != number_of_bits {
+                            panic!("bitfield!: Field {} is declared as custom type {:?}, which doesn't match the number of bits {}.", field_name, custom_type_size, number_of_bits);
                         }
-                    };
+                    }
+                    let custom_type = TokenStream2::from_str(format!("arbitrary_int::u{}", number_of_bits).as_str()).unwrap();
+                    let extract = TokenStream2::from_str(format!("extract_u{}", base_data_size).as_str()).unwrap();
+                    if indexed_count.is_some() {
+                        let indexed_stride = indexed_stride.unwrap();
+                        quote! {
+                            #custom_type::#extract(self.raw_value, #lowest_bit + index * #indexed_stride)
+                        }
+                    } else {
+                        quote! {
+                            #custom_type::#extract(self.raw_value, #lowest_bit)
+                        }
+                    }
+                };
+
+                let converted = match &custom_type {
+                    CustomType::No => extracted_bits,
+                    CustomType::Yes(convert_type) => {
+                        quote! {
+                            let extracted_bits = #extracted_bits;
+                            #convert_type::new_with_raw_value(extracted_bits)
+                        }
+                    }
+                };
 
                 if indexed_count.is_some() {
                     quote! {
@@ -382,9 +429,15 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         let setter = if provide_setter {
             let argument_converted =
                 match custom_type {
-                    CustomType::No => quote! { field_value },
+                    CustomType::No => {
+                        if use_regular_int {
+                            quote! { field_value }
+                        } else {
+                            quote! { field_value.value() }
+                        }
+                    }
                     CustomType::Yes(_) => {
-                        if number_of_bits == 8 || number_of_bits == 16 || number_of_bits == 32 || number_of_bits == 64 || number_of_bits == 128 {
+                        if use_regular_int {
                             quote! { field_value.raw_value() }
                         } else {
                             quote! { field_value.raw_value().value() }
@@ -478,6 +531,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #( #accessors )*
         }
     };
-    //println!("Expanded: {}", expanded.to_string());
+    // println!("Expanded: {}", expanded.to_string());
     TokenStream::from(expanded)
 }

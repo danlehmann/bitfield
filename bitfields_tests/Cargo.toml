@@ -8,4 +8,4 @@ edition = "2021"
 
 [dependencies]
 bitfields = { path = "../bitfields" }
-arbitrary-int = "1.0.0"
+arbitrary-int = "1.1.0"
