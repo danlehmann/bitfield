@@ -36,7 +36,7 @@ have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlyi
 - Each field is annotated with the range of bits that are used by the field. The data type must match the number of bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
 - bool fields are declared as "bit", all other fields as "bits"
 - Valid data types for fields are the basic types u8, u16, u32, u64, u128, bool as well as enums (see below) or types like u1, u2, u3 from [arbitrary-int](https://crates.io/crates/arbitrary-int)
-- Bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2, bit(2) is 0x4, bit(15) is 0x8000 and so on.
+- Bit numbering is LSB0, which means that bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2, bit(2) is 0x4, bit(15) is 0x8000 and so on. An MSB0 mode (to match documentation of some big endian devices) can be added later, if there is demand.
 - Fields are declared as "r" for read-only, "w" for write-only or "rw" as read/write. In the example above, all fields are read-only as this specific register is only used to read values.
 
 ## Enumerations
