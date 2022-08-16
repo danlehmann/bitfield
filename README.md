@@ -95,3 +95,15 @@ struct NibbleBits64 {
     nibble_bit3: [bool; 16],
 }
 ```
+
+## Usage
+Eventhough bitfields feel somewhat like structs, they are internally implemented as simple data types like u32. Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will return a new bitfield with that field modified.
+
+```
+let a = NibbleBits64::new_with_raw_value(0x12345678_ABCDEFFF);
+// Read a value
+assert_eq!(u4::new(0xE), a.nibble(3));
+// Change a value
+let b = a.with_nibble(0, u4::new(0x3))
+assert_eq!(0x12345678_ABCDEFF3, nibble.raw_value());
+```
