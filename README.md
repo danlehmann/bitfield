@@ -1,5 +1,13 @@
 # bitbybit: Bit fields and bit enums
-This crate provides bit fields and enums that are backed by bits.
+This crate provides macros that create bit fields and bit enums, which are useful in bit packing code (e.g. in drivers or networking code).
+
+Some highlights:
+- Highly efficient and 100% safe code that is just as good and hand-writen shifts and masks,
+- Full compatibility with const contexts,
+- Useable in no-std environments,
+- Strong compile time guarantees (for example, taking 5 bits out of a bitfield and putting them into another won't even need to compile a bounds check),
+- Automatic creation of bitenums, which allow converting enums to/from numbers,
+- Array support within bitfields to represent repeating bit patterns.
 
 ## Basic declaration
 
