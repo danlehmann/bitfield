@@ -1,6 +1,6 @@
 use arbitrary_int::{u13, u2, u3, u30, u4, u57};
-use bitfields::bitfield;
-use bitfields::bitenum;
+use bitbybit::bitfield;
+use bitbybit::bitenum;
 
 #[test]
 fn test_construction() {
@@ -387,7 +387,7 @@ fn repeated_bitrange_with_stride_greater_than_width_basic_type() {
 
 #[test]
 fn bitfield_with_enum_exhaustive() {
-    #[bitenum(bits: 2, exhaustive: true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum ExhaustiveEnum {
         Zero = 0b00,
@@ -413,7 +413,7 @@ fn bitfield_with_enum_exhaustive() {
 
 #[test]
 fn bitfield_with_enum_nonexhaustive() {
-    #[bitenum(bits: 2, exhaustive: false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,
@@ -441,7 +441,7 @@ fn bitfield_with_enum_nonexhaustive() {
 
 #[test]
 fn bitfield_with_indexed_exhaustive_enum() {
-    #[bitenum(bits: 2, exhaustive: true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum ExhaustiveEnum {
         Zero = 0b00,
@@ -465,7 +465,7 @@ fn bitfield_with_indexed_exhaustive_enum() {
 
 #[test]
 fn bitfield_with_indexed_nonexhaustive_enum() {
-    #[bitenum(bits: 2, exhaustive: false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,
@@ -488,7 +488,7 @@ fn bitfield_with_indexed_nonexhaustive_enum() {
 
 #[test]
 fn bitfield_with_u8_enum() {
-    #[bitenum(bits: 8, exhaustive: false)]
+    #[bitenum(u8, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,

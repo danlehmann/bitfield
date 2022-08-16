@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "bitfields",
-    "bitfields_tests",
+    "bitbybit",
+    "bitbybit-tests",
 ]
 

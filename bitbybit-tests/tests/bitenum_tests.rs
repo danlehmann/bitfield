@@ -1,9 +1,9 @@
-use bitfields::bitenum;
+use bitbybit::bitenum;
 use arbitrary_int::{u2, u63};
 
 #[test]
 fn bitrange_with_enum_type_exhaustive_2() {
-    #[bitenum(bits: 2, exhaustive: true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0b00,
@@ -23,7 +23,7 @@ fn bitrange_with_enum_type_exhaustive_2() {
 
 #[test]
 fn bitrange_with_enum_type_nonexhaustive_2() {
-    #[bitenum(bits: 2, exhaustive: false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0b00,
@@ -43,7 +43,7 @@ fn bitrange_with_enum_type_nonexhaustive_2() {
 
 #[test]
 fn enum_without_other_derives() {
-    #[bitenum(bits: 2, exhaustive: true)]
+    #[bitenum(u2, exhaustive: true)]
     enum Foo {
         Zero = 0,
         One = 1,
@@ -60,7 +60,7 @@ fn enum_without_other_derives() {
 
 #[test]
 fn enum_with_8bits() {
-    #[bitenum(bits: 8, exhaustive: false)]
+    #[bitenum(u8, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -82,7 +82,7 @@ fn enum_with_8bits() {
 
 #[test]
 fn enum_with_16bits() {
-    #[bitenum(bits: 16, exhaustive: false)]
+    #[bitenum(u16, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -104,7 +104,7 @@ fn enum_with_16bits() {
 
 #[test]
 fn enum_with_32bits() {
-    #[bitenum(bits: 32, exhaustive: false)]
+    #[bitenum(u32, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -126,7 +126,7 @@ fn enum_with_32bits() {
 
 #[test]
 fn enum_with_63bits() {
-    #[bitenum(bits: 63, exhaustive: false)]
+    #[bitenum(u63, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     #[repr(u64)]
     enum Foo {
@@ -149,7 +149,7 @@ fn enum_with_63bits() {
 
 #[test]
 fn enum_with_64bits() {
-    #[bitenum(bits: 64, exhaustive: false)]
+    #[bitenum(u64, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     #[repr(u64)]
     enum Foo {

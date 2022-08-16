@@ -9,21 +9,17 @@ use syn::__private::TokenStream2;
 pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
 
-    let mut bits: Option<TokenStream2> = None;
+    let mut bits: Option<usize> = None;
     let mut exhaustive_value: Option<TokenStream2> = None;
 
     enum ArgumentType {
-        Bits,
         Exhaustive,
     }
     let mut next_expected: Option<ArgumentType> = None;
 
     fn handle_next_expected(next_expected: &Option<ArgumentType>, default_value: &mut Option<TokenStream2>, token_stream: TokenStream2) {
         match next_expected {
-            None => panic!("enum_raw_value!: Seen {}, but didn't expect anything. Example of valid syntax: #[enum_raw_value(bits: 3, exhaustive: false)]", token_stream.to_string()),
-            Some(ArgumentType::Bits) => {
-                *default_value = Some(token_stream);
-            }
+            None => panic!("enum_raw_value!: Seen {}, but didn't expect anything. Example of valid syntax: #[enum_raw_value(u3, exhaustive: false)]", token_stream.to_string()),
             Some(ArgumentType::Exhaustive) => {
                 *default_value = Some(token_stream);
             }
@@ -44,19 +40,30 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     handle_next_expected(&next_expected, &mut exhaustive_value, sym.to_token_stream());
                 } else {
                     match sym.to_string().as_str() {
-                        "bits" => {
-                            if bits.is_some() {
-                                panic!("enum_raw_value!: bits must only be specified at most once");
-                            }
-                            next_expected = Some(ArgumentType::Bits)
-                        }
                         "exhaustive" => {
                             if exhaustive_value.is_some() {
                                 panic!("enum_raw_value!: exhaustive must only be specified at most once");
                             }
                             next_expected = Some(ArgumentType::Exhaustive)
                         }
-                        _ => panic!("enum_raw_value!: Unexpected argument {}. Supported: 'exhaustive'", sym.to_string()),
+                        s => {
+                            // See if this is a base datatype like u3
+                            let size = if s.starts_with("u") {
+                                let num = usize::from_str(s.split_at(1).1);
+                                if let Ok(num) = num {
+                                    if num <= 64 { Some(num) } else { None }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            };
+
+                            match size {
+                                Some(size) => bits = Some(size),
+                                None => panic!("enum_raw_value!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym.to_string()),
+                            }
+                        },
                     }
                 }
             }
@@ -64,9 +71,6 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 // We end up here if we see a literal, like 'exhaustive: true'
                 let default_value = match next_expected {
                     None => { panic!() }
-                    Some(ArgumentType::Bits) => {
-                        &mut bits
-                    }
                     Some(ArgumentType::Exhaustive) => {
                         &mut exhaustive_value
                     }
@@ -79,24 +83,24 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }
 
-    let (bit_count, base_data_type, bounded_data_type, result_constructor, bounded_getter) = match bits {
-        None => panic!("enum_raw_value!: bits argument needed, for example #[enum_raw_value(bits: 4, exhaustive: true)"),
-        Some(token_stream) => {
-            let bit_count = usize::from_str(token_stream.to_string().as_str());
-            match bit_count {
-                Ok(b) if b < 8 => (b, quote! { u8 }, quote! { arbitrary_int::UInt::<u8, #b> }, quote! { arbitrary_int::UInt::<u8, #b>::new }, quote! { .value() } ),
-                Ok(b) if b == 8 => (b, quote! { u8 }, quote! { u8 }, quote! { }, quote! { } ),
-                Ok(b) if b < 16 => (b, quote! { u16 }, quote! { arbitrary_int::UInt::<u16, #b> }, quote! { arbitrary_int::UInt::<u16, #b>::new }, quote! { .value() } ),
-                Ok(b) if b == 16 => (b, quote! { u16 }, quote! { u16 }, quote! { }, quote! { } ),
-                Ok(b) if b < 32 => (b, quote! { u32 }, quote! { arbitrary_int::UInt::<u32, #b> }, quote! { arbitrary_int::UInt::<u32, #b>::new }, quote! { .value() } ),
-                Ok(b) if b == 32 => (b, quote! { u32 }, quote! { u32 }, quote! { }, quote! { } ),
-                Ok(b) if b < 64 => (b, quote! { u64 }, quote! { arbitrary_int::UInt::<u64, #b> }, quote! { arbitrary_int::UInt::<u64, #b>::new }, quote! { .value() } ),
-                Ok(b) if b == 64 => (b, quote! { u64 }, quote! { u64 }, quote! { }, quote! { } ),
-                Ok(_) => panic!("enum_raw_value!: Unhandled bits. Supported up to 127"),
-                Err(_) => panic!("enum_raw_value!: bits is not a number"),
+    let (bit_count, base_data_type, bounded_data_type, result_constructor, bounded_getter) =
+        match bits {
+            Some(bit_count) => {
+                match bit_count {
+                    b if b < 8 => (b, quote! { u8 }, quote! { arbitrary_int::UInt::<u8, #b> }, quote! { arbitrary_int::UInt::<u8, #b>::new }, quote! { .value() }),
+                    b if b == 8 => (b, quote! { u8 }, quote! { u8 }, quote! { }, quote! { }),
+                    b if b < 16 => (b, quote! { u16 }, quote! { arbitrary_int::UInt::<u16, #b> }, quote! { arbitrary_int::UInt::<u16, #b>::new }, quote! { .value() }),
+                    b if b == 16 => (b, quote! { u16 }, quote! { u16 }, quote! { }, quote! { }),
+                    b if b < 32 => (b, quote! { u32 }, quote! { arbitrary_int::UInt::<u32, #b> }, quote! { arbitrary_int::UInt::<u32, #b>::new }, quote! { .value() }),
+                    b if b == 32 => (b, quote! { u32 }, quote! { u32 }, quote! { }, quote! { }),
+                    b if b < 64 => (b, quote! { u64 }, quote! { arbitrary_int::UInt::<u64, #b> }, quote! { arbitrary_int::UInt::<u64, #b>::new }, quote! { .value() }),
+                    b if b == 64 => (b, quote! { u64 }, quote! { u64 }, quote! { }, quote! { }),
+                    _ => panic!("enum_raw_value!: Unhandled bits. Supported up to u64"),
+                }
             }
-        }
-    };
+            None => panic!("enum_raw_value!: datatype argument needed, for example #[enum_raw_value(u4, exhaustive: true)"),
+        };
+
 
 
     let is_exhaustive = exhaustive_value.map(|x| x.to_string() == "true").unwrap_or(false);
