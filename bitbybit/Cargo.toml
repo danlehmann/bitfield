@@ -8,7 +8,7 @@ license = "MIT"
 repository = "https://github.com/danlehmann/bitfield"
 readme = "README.md"
 keywords = ["integer", "unaligned", "misaligned"]
-categories = ["embedded", "no-std", "data-structures"]
+categories = ["bitfield", "embedded", "no-std", "data-structures"]
 
 [lib]
 proc-macro = true
