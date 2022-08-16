@@ -1,4 +1,4 @@
-# bit by bit: Bit fields and bit enums
+# bitbybit: Bit fields and bit enums
 This crate provides bit fields and enums that are backed by bits.
 
 ## Basic declaration
@@ -34,16 +34,14 @@ have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlyi
 Very often, fields aren't just numbers but really enums. This is supported by first defining a bitenum and then using that inside of a bitfield:
 
 ```
-#[bitenum(bits: 2, exhaustive: false)]
-#[derive(Eq, PartialEq, Debug)]
+#[bitenum(u2, exhaustive: false)]
 pub enum NonExhaustiveEnum {
     Zero = 0b00,
     One = 0b01,
     Two = 0b10,
 }
 
-#[bitenum(bits: 2, exhaustive: true)]
-#[derive(Eq, PartialEq, Debug)]
+#[bitenum(u2, exhaustive: true)]
 enum ExhaustiveEnum {
     Zero = 0b00,
     One = 0b01,
@@ -61,7 +59,8 @@ struct BitfieldWithEnum {
 }
 ```
 
-- The bitenum macro turns an enum into an enum that can be used within bitfields. The "bits" argument specifies, how many the enum needs. Any mismatch would cause a compiler error.
+- The bitenum macro turns an enum into an enum that can be used within bitfields. The first argument is the base data type, which specifies, how many bits the enum occupies. This can be any value from u1 up to u64
+- When an enum is used within a bitfield, the number of bits has to match - if it doesn't, there will be a compiler error
 - The exhaustive argument specifies whether every possible bit combination is contained within the enum. The example above has both an exhaustive and a non-exhaustive enum. Notice how the non-exhaustive enum has to be wrapped in an Option to account for the case of e2 not being one of the defined enum values.
 
 ## Arrays
