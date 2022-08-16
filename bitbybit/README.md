@@ -43,7 +43,7 @@ Very often, fields aren't just numbers but really enums. This is supported by fi
 
 ```
 #[bitenum(u2, exhaustive: false)]
-pub enum NonExhaustiveEnum {
+enum NonExhaustiveEnum {
     Zero = 0b00,
     One = 0b01,
     Two = 0b10,
