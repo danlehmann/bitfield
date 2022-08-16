@@ -102,7 +102,15 @@ struct NibbleBits64 {
 }
 ```
 
+## Dependencies
+Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
+
+```
+arbitrary-int = "1.1.0"
+```
+
 ## Usage
+
 Eventhough bitfields feel somewhat like structs, they are internally implemented as simple data types like u32. Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will return a new bitfield with that field modified.
 
 ```
