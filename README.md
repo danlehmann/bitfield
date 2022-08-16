@@ -1,4 +1,4 @@
-# bit-fields
+# bit by bit: Bit fields and bit enums
 This crate provides bit fields and enums that are backed by bits.
 
 ## Basic declaration
