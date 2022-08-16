@@ -3,9 +3,7 @@ This crate provides bit fields and enums that are backed by bits.
 
 ## Basic declaration
 
-A bit field is created similar to a regular Rust struct. Annotations define the layout of the structure. As an example, the following bitfield
-implements the [GICD_TYPER](https://developer.arm.com/documentation/ihi0048/b/Programmers--Model/Distributor-register-descriptions/Interrupt-Controller-Type-Register--GICD-TYPER) register
-that is used in the ARM interrupt controller:
+A bit field is created similar to a regular Rust struct. Annotations define the layout of the structure. As an example, consider the following definition, which specifies a bit field:
 
 ```
 #[bitfield(u32)]
