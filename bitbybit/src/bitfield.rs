@@ -404,12 +404,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
                 if indexed_count.is_some() {
                     quote! {
+                        #[inline]
                         pub const fn #field_name(&self, index: usize) -> #getter_type {
                             #converted
                         }
                     }
                 } else {
                     quote! {
+                        #[inline]
                         pub const fn #field_name(&self) -> #getter_type {
                             #converted
                         }
@@ -475,6 +477,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name.to_string()).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
             if let Some(_indexed_count) = indexed_count {
                 quote! {
+                    #[inline]
                     pub const fn #setter_name(&self, index: usize, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
@@ -483,6 +486,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             } else {
                 quote! {
+                    #[inline]
                     pub const fn #setter_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
@@ -503,6 +507,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let default_constructor =
         if let Some(default_value) = default_value {
             quote! {
+                #[inline]
                 pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
             }
         } else {
@@ -519,7 +524,9 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         impl #struct_name {
             #default_constructor
+            #[inline]
             pub const fn raw_value(&self) -> #base_data_type { self.raw_value }
+            #[inline]
             pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: value } }
             #( #accessors )*
         }

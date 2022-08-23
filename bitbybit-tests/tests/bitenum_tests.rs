@@ -1,5 +1,5 @@
 use bitbybit::bitenum;
-use arbitrary_int::{u2, u3, u63};
+use arbitrary_int::{u2, u63};
 
 #[test]
 fn bitrange_with_enum_type_exhaustive_2() {
