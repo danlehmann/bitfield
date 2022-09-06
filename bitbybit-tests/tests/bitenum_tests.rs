@@ -1,5 +1,5 @@
-use bitbybit::bitenum;
 use arbitrary_int::{u2, u63};
+use bitbybit::bitenum;
 
 #[test]
 fn bitrange_with_enum_type_exhaustive_2() {
@@ -137,7 +137,10 @@ fn enum_with_63bits() {
     }
 
     assert_eq!(Foo::new_with_raw_value(u63::new(0)).unwrap(), Foo::Zero);
-    assert_eq!(Foo::new_with_raw_value(u63::new(0x7FFFFFFF_FFFFFFFF)).unwrap(), Foo::One);
+    assert_eq!(
+        Foo::new_with_raw_value(u63::new(0x7FFFFFFF_FFFFFFFF)).unwrap(),
+        Foo::One
+    );
     assert_eq!(Foo::new_with_raw_value(u63::new(2)).unwrap(), Foo::Two);
     assert_eq!(Foo::new_with_raw_value(u63::new(3)).unwrap(), Foo::Three);
     assert_eq!(Foo::new_with_raw_value(u63::new(4)), Err(4));
@@ -160,7 +163,10 @@ fn enum_with_64bits() {
     }
 
     assert_eq!(Foo::new_with_raw_value(0).unwrap(), Foo::Zero);
-    assert_eq!(Foo::new_with_raw_value(0xFFFFFFFF_FFFFFFFF).unwrap(), Foo::One);
+    assert_eq!(
+        Foo::new_with_raw_value(0xFFFFFFFF_FFFFFFFF).unwrap(),
+        Foo::One
+    );
     assert_eq!(Foo::new_with_raw_value(2).unwrap(), Foo::Two);
     assert_eq!(Foo::new_with_raw_value(3).unwrap(), Foo::Three);
     assert_eq!(Foo::new_with_raw_value(4), Err(4));

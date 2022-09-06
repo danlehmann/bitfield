@@ -4,8 +4,8 @@ use std::str::FromStr;
 
 use proc_macro2::TokenTree;
 use quote::{quote, ToTokens};
-use syn::{Data, DeriveInput, Type, PathArguments, GenericArgument};
 use syn::__private::TokenStream2;
+use syn::{Data, DeriveInput, GenericArgument, PathArguments, Type};
 
 /// Returns true if the number can be expressed by a regular data type like u8 or u32.
 /// 1 is also true, as it can be expressed as a bool
@@ -35,7 +35,9 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
 
     if args.len() < 1 {
-        panic!("bitfield! No arguments given, but need at least base data type (e.g. 'bitfield(u32)')");
+        panic!(
+            "bitfield! No arguments given, but need at least base data type (e.g. 'bitfield(u32)')"
+        );
     }
 
     // Parse arguments: the first argument is required and has the base data type. Further arguments are
@@ -44,11 +46,15 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut default_value: Option<TokenStream2> = None;
 
     enum ArgumentType {
-        Default
+        Default,
     }
     let mut next_expected: Option<ArgumentType> = None;
 
-    fn handle_next_expected(next_expected: &Option<ArgumentType>, default_value: &mut Option<TokenStream2>, token_stream: TokenStream2) {
+    fn handle_next_expected(
+        next_expected: &Option<ArgumentType>,
+        default_value: &mut Option<TokenStream2>,
+        token_stream: TokenStream2,
+    ) {
         match next_expected {
             None => panic!("bitfield!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitfield(u32, default: 0)]", token_stream.to_string()),
             Some(ArgumentType::Default) => {
@@ -58,13 +64,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     for i in 1..args.len() {
         match &args[i] {
-            TokenTree::Punct(p) => {
-                match p.to_string().as_str() {
-                    "," => next_expected = None,
-                    ":" => {}
-                    _ => panic!("bitfield!: Expected ',' or ':' in argument list. Seen '{}'", p.to_string()),
-                }
-            }
+            TokenTree::Punct(p) => match p.to_string().as_str() {
+                "," => next_expected = None,
+                ":" => {}
+                _ => panic!(
+                    "bitfield!: Expected ',' or ':' in argument list. Seen '{}'",
+                    p.to_string()
+                ),
+            },
             TokenTree::Ident(sym) => {
                 if next_expected.is_some() {
                     // We might end up here if we refer to a constant, like 'default: SOME_CONSTANT'
@@ -77,13 +84,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                             }
                             next_expected = Some(ArgumentType::Default)
                         }
-                        _ => panic!("bitfield!: Unexpected argument {}. Supported: 'default'", sym.to_string()),
+                        _ => panic!(
+                            "bitfield!: Unexpected argument {}. Supported: 'default'",
+                            sym.to_string()
+                        ),
                     }
                 }
             }
             TokenTree::Literal(literal) => {
                 // We end up here if we see a literal, like 'default: 0x1234'
-                handle_next_expected(&next_expected, &mut default_value, literal.to_token_stream());
+                handle_next_expected(
+                    &next_expected,
+                    &mut default_value,
+                    literal.to_token_stream(),
+                );
             }
             _ => {
                 panic!("bitfield!: Unexpected token. Example of valid syntax: #[bitfield(u32, default: 0)]")
@@ -272,7 +286,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     panic!("bitfield!: number_of_bits is to large!")
                 }
             }),
-            Some(b) => (b, quote! { #ty } ),
+            Some(b) => (b, quote! { #ty }),
         };
 
         if number_of_bits != field_type_size {
@@ -326,7 +340,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                                     let result_type = syn::parse_str::<syn::Type>(&result_type_string).expect("bitfield!: Error creating type from Result<,>");
 
                                     (generic_type, result_type)
-                                },
+                                }
                                 _ => panic!("Invalid Option binding: Expected generic type")
                             }
                         }
@@ -504,15 +518,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }).collect();
 
-    let default_constructor =
-        if let Some(default_value) = default_value {
-            quote! {
-                #[inline]
-                pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
-            }
-        } else {
-            quote! { }
-        };
+    let default_constructor = if let Some(default_value) = default_value {
+        quote! {
+            #[inline]
+            pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
+        }
+    } else {
+        quote! {}
+    };
 
     let expanded = quote! {
         #[derive(Copy, Clone)]

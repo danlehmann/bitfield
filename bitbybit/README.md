@@ -1,17 +1,22 @@
 # bitbybit: Bit fields and bit enums
-This crate provides macros that create bit fields and bit enums, which are useful in bit packing code (e.g. in drivers or networking code).
+
+This crate provides macros that create bit fields and bit enums, which are useful in bit packing code (e.g. in drivers
+or networking code).
 
 Some highlights:
+
 - Highly efficient and 100% safe code that is just as good and hand-writen shifts and masks,
 - Full compatibility with const contexts,
 - Useable in no-std environments,
-- Strong compile time guarantees (for example, taking 5 bits out of a bitfield and putting them into another won't even need to compile a bounds check),
+- Strong compile time guarantees (for example, taking 5 bits out of a bitfield and putting them into another won't even
+  need to compile a bounds check),
 - Automatic creation of bitenums, which allow converting enums to/from numbers,
 - Array support within bitfields to represent repeating bit patterns.
 
 ## Basic declaration
 
-A bit field is created similar to a regular Rust struct. Annotations define the layout of the structure. As an example, consider the following definition, which specifies a bit field:
+A bit field is created similar to a regular Rust struct. Annotations define the layout of the structure. As an example,
+consider the following definition, which specifies a bit field:
 
 ```
 #[bitfield(u32)]
@@ -31,16 +36,25 @@ struct GICD_TYPER {
 ```
 
 How this works:
-- #[bitfield(u32)] specifies that this is a bitfield in which u32 is the underlying data type. This means that all the bits inside of the bitfield
-have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlying data types.
-- Each field is annotated with the range of bits that are used by the field. The data type must match the number of bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
+
+- #[bitfield(u32)] specifies that this is a bitfield in which u32 is the underlying data type. This means that all the
+  bits inside of the bitfield
+  have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlying data types.
+- Each field is annotated with the range of bits that are used by the field. The data type must match the number of
+  bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
 - bool fields are declared as "bit", all other fields as "bits"
-- Valid data types for fields are the basic types u8, u16, u32, u64, u128, bool as well as enums (see below) or types like u1, u2, u3 from [arbitrary-int](https://crates.io/crates/arbitrary-int)
-- Bit numbering is LSB0, which means that bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2, bit(2) is 0x4, bit(15) is 0x8000 and so on. An MSB0 mode (to match documentation of some big endian devices) can be added later, if there is demand.
-- Fields are declared as "r" for read-only, "w" for write-only or "rw" as read/write. In the example above, all fields are read-only as this specific register is only used to read values.
+- Valid data types for fields are the basic types u8, u16, u32, u64, u128, bool as well as enums (see below) or types
+  like u1, u2, u3 from [arbitrary-int](https://crates.io/crates/arbitrary-int)
+- Bit numbering is LSB0, which means that bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2,
+  bit(2) is 0x4, bit(15) is 0x8000 and so on. An MSB0 mode (to match documentation of some big endian devices) can be
+  added later, if there is demand.
+- Fields are declared as "r" for read-only, "w" for write-only or "rw" as read/write. In the example above, all fields
+  are read-only as this specific register is only used to read values.
 
 ## Enumerations
-Very often, fields aren't just numbers but really enums. This is supported by first defining a bitenum and then using that inside of a bitfield:
+
+Very often, fields aren't just numbers but really enums. This is supported by first defining a bitenum and then using
+that inside of a bitfield:
 
 ```
 #[bitenum(u2, exhaustive: false)]
@@ -68,13 +82,18 @@ struct BitfieldWithEnum {
 }
 ```
 
-- The bitenum macro turns an enum into an enum that can be used within bitfields. The first argument is the base data type, which specifies, how many bits the enum occupies. This can be any value from u1 up to u64
-- When an enum is used within a bitfield, the number of bits has to match - if it doesn't, there will be a compiler error
-- The exhaustive argument specifies whether every possible bit combination is contained within the enum. The example above has both an exhaustive and a non-exhaustive enum. Notice how the non-exhaustive enum has to be wrapped in an Option to account for the case of e2 not being one of the defined enum values.
+- The bitenum macro turns an enum into an enum that can be used within bitfields. The first argument is the base data
+  type, which specifies, how many bits the enum occupies. This can be any value from u1 up to u64
+- When an enum is used within a bitfield, the number of bits has to match - if it doesn't, there will be a compiler
+  error
+- The exhaustive argument specifies whether every possible bit combination is contained within the enum. The example
+  above has both an exhaustive and a non-exhaustive enum. Notice how the non-exhaustive enum has to be wrapped in an
+  Option to account for the case of e2 not being one of the defined enum values.
 
 ## Arrays
 
-Sometimes, bits inside of bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
+Sometimes, bits inside of bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For
+example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
 
 ```
 #[bitfield(u64, default: 0)]
@@ -84,7 +103,8 @@ struct Nibble64 {
 }
 ```
 
-Arrays can also have a stride. This is useful in the case of multiple smaller values repeating. For example, the following definition provides access to each bit of each nibble:
+Arrays can also have a stride. This is useful in the case of multiple smaller values repeating. For example, the
+following definition provides access to each bit of each nibble:
 
 ```
 #[bitfield(u64, default: 0)]
@@ -104,6 +124,7 @@ struct NibbleBits64 {
 ```
 
 ## Dependencies
+
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```
@@ -112,7 +133,9 @@ arbitrary-int = "1.1.0"
 
 ## Usage
 
-Eventhough bitfields feel somewhat like structs, they are internally implemented as simple data types like u32. Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will return a new bitfield with that field modified.
+Eventhough bitfields feel somewhat like structs, they are internally implemented as simple data types like u32.
+Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will
+return a new bitfield with that field modified.
 
 ```
 let a = NibbleBits64::new_with_raw_value(0x12345678_ABCDEFFF);

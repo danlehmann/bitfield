@@ -1,6 +1,6 @@
 use arbitrary_int::{u13, u2, u3, u30, u4, u57};
-use bitbybit::bitfield;
 use bitbybit::bitenum;
+use bitbybit::bitfield;
 
 #[test]
 fn test_construction() {
@@ -182,7 +182,6 @@ fn documentation() {
         /// This is documentation for a field
         #[bits(8..=15, rw)]
         field: u8,
-
         // A free standing comment
     }
 }
@@ -208,8 +207,7 @@ fn proper_unmasking() {
 
     assert_eq!(0b111111, s1.raw_value());
 
-    let s2 = s1
-        .with_b(u2::new(0b00));
+    let s2 = s1.with_b(u2::new(0b00));
     assert_eq!(0b110011, s2.raw_value());
 }
 
@@ -221,8 +219,7 @@ fn just_one_bitrange() {
         a: i16,
     }
 
-    let s1 = JustOneBitRange::new()
-        .with_a(0b0111001110001111);
+    let s1 = JustOneBitRange::new().with_a(0b0111001110001111);
 
     assert_eq!(0b0111001110001111, s1.raw_value());
     assert_eq!(0b0111001110001111, s1.a());
@@ -268,14 +265,38 @@ fn repeated_bitrange_single_bits_with_stride() {
     assert_eq!(false, nibble_bits.nibble_bit2(15));
     assert_eq!(false, nibble_bits.nibble_bit3(15));
 
-    assert_eq!(0x12345678_ABCDEFFE, nibble_bits.with_nibble_bit0(0, false).raw_value());
-    assert_eq!(0x12345678_ABCDEFEF, nibble_bits.with_nibble_bit0(1, false).raw_value());
-    assert_eq!(0x12345678_ABCDEEFF, nibble_bits.with_nibble_bit0(2, false).raw_value());
-    assert_eq!(0x12345678_ABCDFFFF, nibble_bits.with_nibble_bit0(3, true).raw_value());
-    assert_eq!(0x02345678_ABCDEFFF, nibble_bits.with_nibble_bit0(15, false).raw_value());
-    assert_eq!(0x32345678_ABCDEFFF, nibble_bits.with_nibble_bit1(15, true).raw_value());
-    assert_eq!(0x52345678_ABCDEFFF, nibble_bits.with_nibble_bit2(15, true).raw_value());
-    assert_eq!(0x92345678_ABCDEFFF, nibble_bits.with_nibble_bit3(15, true).raw_value());
+    assert_eq!(
+        0x12345678_ABCDEFFE,
+        nibble_bits.with_nibble_bit0(0, false).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEFEF,
+        nibble_bits.with_nibble_bit0(1, false).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEEFF,
+        nibble_bits.with_nibble_bit0(2, false).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDFFFF,
+        nibble_bits.with_nibble_bit0(3, true).raw_value()
+    );
+    assert_eq!(
+        0x02345678_ABCDEFFF,
+        nibble_bits.with_nibble_bit0(15, false).raw_value()
+    );
+    assert_eq!(
+        0x32345678_ABCDEFFF,
+        nibble_bits.with_nibble_bit1(15, true).raw_value()
+    );
+    assert_eq!(
+        0x52345678_ABCDEFFF,
+        nibble_bits.with_nibble_bit2(15, true).raw_value()
+    );
+    assert_eq!(
+        0x92345678_ABCDEFFF,
+        nibble_bits.with_nibble_bit3(15, true).raw_value()
+    );
 }
 
 #[test]
@@ -305,8 +326,8 @@ fn repeated_bitrange_single_bits_without_stride() {
 fn repeated_bitrange_without_stride() {
     #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
-         #[bits(0..=3, rw)]
-         nibble: [u4; 16],
+        #[bits(0..=3, rw)]
+        nibble: [u4; 16],
     }
 
     const VALUE: u64 = 0x12345678_ABCDEFFF;
@@ -319,18 +340,30 @@ fn repeated_bitrange_without_stride() {
     assert_eq!(u4::new(0xD), nibble.nibble(4));
     assert_eq!(u4::new(0xC), nibble.nibble(5));
 
-    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, u4::new(0x3)).raw_value());
-    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, u4::new(0x2)).raw_value());
-    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, u4::new(0xA)).raw_value());
-    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, u4::new(0xE)).raw_value());
+    assert_eq!(
+        0x12345678_ABCDEFF3,
+        nibble.with_nibble(0, u4::new(0x3)).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEF2F,
+        nibble.with_nibble(1, u4::new(0x2)).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEAFF,
+        nibble.with_nibble(2, u4::new(0xA)).raw_value()
+    );
+    assert_eq!(
+        0xE2345678_ABCDEFFF,
+        nibble.with_nibble(15, u4::new(0xE)).raw_value()
+    );
 }
 
 #[test]
 fn repeated_bitrange_with_stride_equals_width() {
     #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
-         #[bits(0..=3, rw, stride: 4)]
-         nibble: [u4; 16],
+        #[bits(0..=3, rw, stride: 4)]
+        nibble: [u4; 16],
     }
 
     const VALUE: u64 = 0x12345678_ABCDEFFF;
@@ -343,10 +376,22 @@ fn repeated_bitrange_with_stride_equals_width() {
     assert_eq!(u4::new(0xD), nibble.nibble(4));
     assert_eq!(u4::new(0xC), nibble.nibble(5));
 
-    assert_eq!(0x12345678_ABCDEFF3, nibble.with_nibble(0, u4::new(0x3)).raw_value());
-    assert_eq!(0x12345678_ABCDEF2F, nibble.with_nibble(1, u4::new(0x2)).raw_value());
-    assert_eq!(0x12345678_ABCDEAFF, nibble.with_nibble(2, u4::new(0xA)).raw_value());
-    assert_eq!(0xE2345678_ABCDEFFF, nibble.with_nibble(15, u4::new(0xE)).raw_value());
+    assert_eq!(
+        0x12345678_ABCDEFF3,
+        nibble.with_nibble(0, u4::new(0x3)).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEF2F,
+        nibble.with_nibble(1, u4::new(0x2)).raw_value()
+    );
+    assert_eq!(
+        0x12345678_ABCDEAFF,
+        nibble.with_nibble(2, u4::new(0xA)).raw_value()
+    );
+    assert_eq!(
+        0xE2345678_ABCDEFFF,
+        nibble.with_nibble(15, u4::new(0xE)).raw_value()
+    );
 }
 
 #[test]
@@ -402,13 +447,35 @@ fn bitfield_with_enum_exhaustive() {
         e1: ExhaustiveEnum,
     }
 
-    assert_eq!(ExhaustiveEnum::Zero, BitfieldWithEnum::new_with_raw_value(0b1100).e1());
-    assert_eq!(ExhaustiveEnum::One, BitfieldWithEnum::new_with_raw_value(0b1101).e1());
-    assert_eq!(ExhaustiveEnum::Two, BitfieldWithEnum::new_with_raw_value(0b1110).e1());
-    assert_eq!(ExhaustiveEnum::Three, BitfieldWithEnum::new_with_raw_value(0b1111).e1());
+    assert_eq!(
+        ExhaustiveEnum::Zero,
+        BitfieldWithEnum::new_with_raw_value(0b1100).e1()
+    );
+    assert_eq!(
+        ExhaustiveEnum::One,
+        BitfieldWithEnum::new_with_raw_value(0b1101).e1()
+    );
+    assert_eq!(
+        ExhaustiveEnum::Two,
+        BitfieldWithEnum::new_with_raw_value(0b1110).e1()
+    );
+    assert_eq!(
+        ExhaustiveEnum::Three,
+        BitfieldWithEnum::new_with_raw_value(0b1111).e1()
+    );
 
-    assert_eq!(0b10, BitfieldWithEnum::new().with_e1(ExhaustiveEnum::Two).raw_value());
-    assert_eq!(0b11, BitfieldWithEnum::new().with_e1(ExhaustiveEnum::Three).raw_value());
+    assert_eq!(
+        0b10,
+        BitfieldWithEnum::new()
+            .with_e1(ExhaustiveEnum::Two)
+            .raw_value()
+    );
+    assert_eq!(
+        0b11,
+        BitfieldWithEnum::new()
+            .with_e1(ExhaustiveEnum::Three)
+            .raw_value()
+    );
 }
 
 #[test]
@@ -427,14 +494,41 @@ fn bitfield_with_enum_nonexhaustive() {
         e2: Option<NonExhaustiveEnum>,
     }
 
-    assert_eq!(Ok(NonExhaustiveEnum::Zero), BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0010).e2());
-    assert_eq!(Ok(NonExhaustiveEnum::One), BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0110).e2());
-    assert_eq!(Ok(NonExhaustiveEnum::Two), BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1010).e2());
-    assert_eq!(Err(3), BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1110).e2());
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Zero),
+        BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0010).e2()
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::One),
+        BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0110).e2()
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Two),
+        BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1010).e2()
+    );
+    assert_eq!(
+        Err(3),
+        BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1110).e2()
+    );
 
-    assert_eq!(0b0000, BitfieldWithEnumNonExhaustive::new().with_e2(NonExhaustiveEnum::Zero).raw_value());
-    assert_eq!(0b0100, BitfieldWithEnumNonExhaustive::new().with_e2(NonExhaustiveEnum::One).raw_value());
-    assert_eq!(0b1000, BitfieldWithEnumNonExhaustive::new().with_e2(NonExhaustiveEnum::Two).raw_value());
+    assert_eq!(
+        0b0000,
+        BitfieldWithEnumNonExhaustive::new()
+            .with_e2(NonExhaustiveEnum::Zero)
+            .raw_value()
+    );
+    assert_eq!(
+        0b0100,
+        BitfieldWithEnumNonExhaustive::new()
+            .with_e2(NonExhaustiveEnum::One)
+            .raw_value()
+    );
+    assert_eq!(
+        0b1000,
+        BitfieldWithEnumNonExhaustive::new()
+            .with_e2(NonExhaustiveEnum::Two)
+            .raw_value()
+    );
     // No way to set to Three (by design): If an enum member doesn't exist, we shouldn't be
     // able to write it
 }
@@ -456,11 +550,25 @@ fn bitfield_with_indexed_exhaustive_enum() {
         exhaustive: [ExhaustiveEnum; 8],
     }
 
-    assert_eq!(ExhaustiveEnum::Two, BitfieldWithIndexedEnums::new_with_raw_value(0b0010).exhaustive(0));
-    assert_eq!(ExhaustiveEnum::One, BitfieldWithIndexedEnums::new_with_raw_value(0b0110).exhaustive(1));
-    assert_eq!(ExhaustiveEnum::Zero, BitfieldWithIndexedEnums::new_with_raw_value(0b0110).exhaustive(2));
+    assert_eq!(
+        ExhaustiveEnum::Two,
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0010).exhaustive(0)
+    );
+    assert_eq!(
+        ExhaustiveEnum::One,
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0110).exhaustive(1)
+    );
+    assert_eq!(
+        ExhaustiveEnum::Zero,
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0110).exhaustive(2)
+    );
 
-    assert_eq!(0b11_01_10, BitfieldWithIndexedEnums::new_with_raw_value(0b01_10).with_exhaustive(2, ExhaustiveEnum::Three).raw_value());
+    assert_eq!(
+        0b11_01_10,
+        BitfieldWithIndexedEnums::new_with_raw_value(0b01_10)
+            .with_exhaustive(2, ExhaustiveEnum::Three)
+            .raw_value()
+    );
 }
 
 #[test]
@@ -479,11 +587,25 @@ fn bitfield_with_indexed_nonexhaustive_enum() {
         nonexhaustive: [Option<NonExhaustiveEnum>; 8],
     }
 
-    assert_eq!(Ok(NonExhaustiveEnum::Two), BitfieldWithIndexedEnums::new_with_raw_value(0b0010).nonexhaustive(0));
-    assert_eq!(Ok(NonExhaustiveEnum::One), BitfieldWithIndexedEnums::new_with_raw_value(0b0110).nonexhaustive(1));
-    assert_eq!(Ok(NonExhaustiveEnum::Zero), BitfieldWithIndexedEnums::new_with_raw_value(0b0110).nonexhaustive(2));
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Two),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0010).nonexhaustive(0)
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::One),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0110).nonexhaustive(1)
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Zero),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0110).nonexhaustive(2)
+    );
 
-    assert_eq!(0b10_01_10, BitfieldWithIndexedEnums::new_with_raw_value(0b01_10).with_nonexhaustive(2, NonExhaustiveEnum::Two).raw_value());
+    assert_eq!(
+        0b10_01_10,
+        BitfieldWithIndexedEnums::new_with_raw_value(0b01_10)
+            .with_nonexhaustive(2, NonExhaustiveEnum::Two)
+            .raw_value()
+    );
 }
 
 #[test]
@@ -502,10 +624,21 @@ fn bitfield_with_u8_enum() {
         val8: Option<NonExhaustiveEnum>,
     }
 
-    assert_eq!(Ok(NonExhaustiveEnum::Zero), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000000_000000).val8());
-    assert_eq!(Ok(NonExhaustiveEnum::One), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000001_000000).val8());
-    assert_eq!(Ok(NonExhaustiveEnum::Two), BitfieldWithIndexedEnums::new_with_raw_value(0b00_10000010_000000).val8());
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Zero),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000000_000000).val8()
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::One),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000001_000000).val8()
+    );
+    assert_eq!(
+        Ok(NonExhaustiveEnum::Two),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b00_10000010_000000).val8()
+    );
 
-    assert_eq!(Err(0b00100000), BitfieldWithIndexedEnums::new_with_raw_value(0b00_00100000_000000).val8());
+    assert_eq!(
+        Err(0b00100000),
+        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00100000_000000).val8()
+    );
 }
-

@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use proc_macro2::TokenTree;
 use quote::{quote, ToTokens};
-use syn::{Data, DeriveInput, Expr, Ident};
 use syn::__private::TokenStream2;
+use syn::{Data, DeriveInput, Expr, Ident};
 
 pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
@@ -17,7 +17,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     let mut next_expected: Option<ArgumentType> = None;
 
-    fn handle_next_expected(next_expected: &Option<ArgumentType>, default_value: &mut Option<TokenStream2>, token_stream: TokenStream2) {
+    fn handle_next_expected(
+        next_expected: &Option<ArgumentType>,
+        default_value: &mut Option<TokenStream2>,
+        token_stream: TokenStream2,
+    ) {
         match next_expected {
             None => panic!("enum_raw_value!: Seen {}, but didn't expect anything. Example of valid syntax: #[enum_raw_value(u3, exhaustive: false)]", token_stream.to_string()),
             Some(ArgumentType::Exhaustive) => {
@@ -27,17 +31,22 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     for i in 0..args.len() {
         match &args[i] {
-            TokenTree::Punct(p) => {
-                match p.to_string().as_str() {
-                    "," => next_expected = None,
-                    ":" => {}
-                    _ => panic!("enum_raw_value!: Expected ',' or ':' in argument list. Seen '{}'", p.to_string()),
-                }
-            }
+            TokenTree::Punct(p) => match p.to_string().as_str() {
+                "," => next_expected = None,
+                ":" => {}
+                _ => panic!(
+                    "enum_raw_value!: Expected ',' or ':' in argument list. Seen '{}'",
+                    p.to_string()
+                ),
+            },
             TokenTree::Ident(sym) => {
                 if next_expected.is_some() {
                     // We might end up here if we refer to a constant, like 'exhaustive: SOME_CONSTANT'
-                    handle_next_expected(&next_expected, &mut exhaustive_value, sym.to_token_stream());
+                    handle_next_expected(
+                        &next_expected,
+                        &mut exhaustive_value,
+                        sym.to_token_stream(),
+                    );
                 } else {
                     match sym.to_string().as_str() {
                         "exhaustive" => {
@@ -51,7 +60,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                             let size = if s.starts_with("u") {
                                 let num = usize::from_str(s.split_at(1).1);
                                 if let Ok(num) = num {
-                                    if num <= 64 { Some(num) } else { None }
+                                    if num <= 64 {
+                                        Some(num)
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
@@ -63,17 +76,17 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                                 Some(size) => bits = Some(size),
                                 None => panic!("enum_raw_value!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym.to_string()),
                             }
-                        },
+                        }
                     }
                 }
             }
             TokenTree::Literal(literal) => {
                 // We end up here if we see a literal, like 'exhaustive: true'
                 let default_value = match next_expected {
-                    None => { panic!() }
-                    Some(ArgumentType::Exhaustive) => {
-                        &mut exhaustive_value
+                    None => {
+                        panic!()
                     }
+                    Some(ArgumentType::Exhaustive) => &mut exhaustive_value,
                 };
                 handle_next_expected(&next_expected, default_value, literal.to_token_stream());
             }
@@ -101,9 +114,9 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             None => panic!("enum_raw_value!: datatype argument needed, for example #[enum_raw_value(u4, exhaustive: true)"),
         };
 
-
-
-    let is_exhaustive = exhaustive_value.map(|x| x.to_string() == "true").unwrap_or(false);
+    let is_exhaustive = exhaustive_value
+        .map(|x| x.to_string() == "true")
+        .unwrap_or(false);
 
     let input = syn::parse_macro_input!(input as DeriveInput);
     let enum_name = input.ident;
@@ -163,17 +176,20 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     // we can switch to the second option (as we required all values to be literals, so we can
     // analyse used vs unused ranges)
 
-    let case_values: Vec<TokenStream2> = emitted_variants.iter().map(|(expression, _int_value, name)| {
-        if is_exhaustive {
-            quote! {
-                #expression => Self::#name,
+    let case_values: Vec<TokenStream2> = emitted_variants
+        .iter()
+        .map(|(expression, _int_value, name)| {
+            if is_exhaustive {
+                quote! {
+                    #expression => Self::#name,
+                }
+            } else {
+                quote! {
+                    #expression => Ok(Self::#name),
+                }
             }
-        } else {
-            quote! {
-                #expression => Ok(Self::#name),
-            }
-        }
-    }).collect();
+        })
+        .collect();
 
     let constructor_function = if is_exhaustive {
         let panic_string = format!("{}: Unhandled value", enum_name);
