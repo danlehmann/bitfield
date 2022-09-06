@@ -518,13 +518,22 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }).collect();
 
-    let default_constructor = if let Some(default_value) = default_value {
-        quote! {
-            #[inline]
-            pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
-        }
+    let (default_constructor, default_trait) = if let Some(default_value) = default_value {
+        (
+            quote! {
+                #[inline]
+                pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
+            },
+            quote! {
+                impl Default for #struct_name {
+                    fn default() -> Self {
+                        Self::new()
+                    }
+                }
+            },
+        )
     } else {
-        quote! {}
+        (quote! {}, quote! {})
     };
 
     let expanded = quote! {
@@ -543,6 +552,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: value } }
             #( #accessors )*
         }
+        #default_trait
     };
     // println!("Expanded: {}", expanded.to_string());
     TokenStream::from(expanded)

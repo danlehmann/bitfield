@@ -642,3 +642,28 @@ fn bitfield_with_u8_enum() {
         BitfieldWithIndexedEnums::new_with_raw_value(0b00_00100000_000000).val8()
     );
 }
+
+#[test]
+fn with_derive_default() {
+    // Test that derive(Default) can be specified
+    #[bitfield(u32)]
+    #[derive(Default)]
+    struct Test {}
+
+    // If this compiles then derive(Debug) worked
+    let _ = Test::default();
+}
+
+#[test]
+fn default_value_automatically_implements_default() {
+    // Early versions didn't automatically implement Default - ensure that this still compiles
+    // (though we emit a compiler warning)
+    #[bitfield(u32, default: 2)]
+    #[derive(Eq, PartialEq, Debug)]
+    struct Test {}
+
+    // If this compiles then derive(Debug) worked
+    let a = Test::default();
+    let b = Test::new();
+    assert_eq!(a, b);
+}
