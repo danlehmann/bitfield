@@ -175,3 +175,27 @@ fn enum_with_64bits() {
     assert_eq!(Foo::Zero.raw_value(), 0);
     assert_eq!(Foo::One.raw_value(), 0xFFFFFFFF_FFFFFFFF);
 }
+
+#[test]
+fn documentation() {
+    /// This is a comment for the whole enum
+    #[bitenum(u2, exhaustive: true)]
+    #[derive(Eq, PartialEq, Debug)]
+    enum Foo {
+        /// Zero is the absence of stuff
+        Zero = 0b00,
+
+        // Double-slash shouldn't result in a comment
+        One = 0b01,
+        Two = 0b10,
+        Three = 0b11,
+    }
+
+    assert_eq!(Foo::new_with_raw_value(u2::new(0)), Foo::Zero);
+    assert_eq!(Foo::new_with_raw_value(u2::new(1)), Foo::One);
+    assert_eq!(Foo::new_with_raw_value(u2::new(2)), Foo::Two);
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Foo::Three);
+
+    assert_eq!(Foo::Zero.raw_value(), u2::new(0));
+    assert_eq!(Foo::One.raw_value(), u2::new(1));
+}

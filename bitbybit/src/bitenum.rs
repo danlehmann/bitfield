@@ -194,6 +194,9 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let constructor_function = if is_exhaustive {
         let panic_string = format!("{}: Unhandled value", enum_name);
         quote!(
+            /// Creates a new instance of this bitfield with the given raw value.
+            ///
+            /// As the enum is exhaustive, this function will always return a valid result
             pub const fn new_with_raw_value(value: #bounded_data_type) -> Self {
                 match value #bounded_getter {
                     #( #case_values )*
@@ -203,6 +206,8 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         )
     } else {
         quote!(
+            /// Creates a new instance of this bitfield with the given raw value, or
+            /// Err(value) if the value does not exist in the enum.
             pub const fn new_with_raw_value(value: #bounded_data_type) -> Result<Self, #base_data_type> {
                 match value #bounded_getter {
                     #( #case_values )*
@@ -220,6 +225,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         impl #enum_name {
+            /// Returns the underlying raw value of this bitfield
             pub const fn raw_value(self) -> #bounded_data_type { #result_constructor(self as #base_data_type) }
 
             #constructor_function

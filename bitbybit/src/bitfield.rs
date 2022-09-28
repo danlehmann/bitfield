@@ -5,7 +5,7 @@ use std::str::FromStr;
 use proc_macro2::TokenTree;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Data, DeriveInput, GenericArgument, PathArguments, Type};
+use syn::{Attribute, Data, DeriveInput, GenericArgument, PathArguments, Type};
 
 /// Returns true if the number can be expressed by a regular data type like u8 or u32.
 /// 1 is also true, as it can be expressed as a bool
@@ -156,6 +156,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         let mut provide_setter = false;
         let mut indexed_stride: Option<usize> = None;
 
+        let mut doc_comment: Option<&Attribute> = None;
+
         for attr in &field.attrs {
             let attr_name = attr.path.segments.first().unwrap_or_else(|| panic!("bitfield!: Invalid path")).ident.to_string();
             match attr_name.as_str() {
@@ -257,8 +259,9 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 }
                 "doc" => {
-                    // inline documentation. can be skipped
-                    // TODO: Eventually, we'll want to include this in the final output to help with IDE support
+                    // inline documentation. pass through to both getter and setter
+                    println!("Found doc comment: {:?}", attr.to_token_stream().to_string());
+                    doc_comment = Some(attr);
                 }
                 _ => {
                     panic!("bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'", attr_name);
@@ -418,6 +421,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
                 if indexed_count.is_some() {
                     quote! {
+                        #doc_comment
                         #[inline]
                         pub const fn #field_name(&self, index: usize) -> #getter_type {
                             #converted
@@ -425,6 +429,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 } else {
                     quote! {
+                        #doc_comment
                         #[inline]
                         pub const fn #field_name(&self) -> #getter_type {
                             #converted
@@ -491,6 +496,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name.to_string()).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
             if let Some(_indexed_count) = indexed_count {
                 quote! {
+                    #doc_comment
                     #[inline]
                     pub const fn #setter_name(&self, index: usize, field_value: #setter_type) -> Self {
                         Self {
@@ -500,6 +506,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             } else {
                 quote! {
+                    #doc_comment
                     #[inline]
                     pub const fn #setter_name(&self, field_value: #setter_type) -> Self {
                         Self {
@@ -521,6 +528,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let (default_constructor, default_trait) = if let Some(default_value) = default_value {
         (
             quote! {
+                /// Creates a new instance with the default value.
+                ///
+                /// For example, the following definition would create an instance with a
+                /// raw_value of 0x123:
+                /// #[bitfield(u32, default: 0x123)]
                 #[inline]
                 pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
             },
@@ -546,8 +558,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         impl #struct_name {
             #default_constructor
+            /// Returns the underlying raw value of this bitfield
             #[inline]
             pub const fn raw_value(&self) -> #base_data_type { self.raw_value }
+
+            /// Creates a new instance of this bitfield with the given raw value.
+            ///
+            /// No checks are performed on the value, so it is possible to set bits that don't have any
+            /// accessors specified.
             #[inline]
             pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: value } }
             #( #accessors )*

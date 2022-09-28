@@ -175,14 +175,25 @@ fn more_struct_attributes() {
 
 #[test]
 fn documentation() {
-    // Test that documentation can appear within the struct and doesn't trip up the parser
-    #[bitfield(u32)]
+    /// Test that documentation is properly applied to the output
+    #[bitfield(u32, default: 0x123)]
     #[derive(Debug)]
     struct Test {
-        /// This is documentation for a field
+        /// This is a documented field
         #[bits(8..=15, rw)]
-        field: u8,
-        // A free standing comment
+        field_a: u8,
+
+        // A free standing comment - this should not become a doc comment
+        #[bits(8..=15, rw)]
+        undocumented: u8,
+
+        // Another free standing comment
+
+        /// This is the second documented field
+        #[bits(0..=7, rw)]
+        field_b: u8,
+
+        // Another free standing comment
     }
 }
 
