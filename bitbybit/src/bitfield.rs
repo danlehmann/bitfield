@@ -260,7 +260,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
                 "doc" => {
                     // inline documentation. pass through to both getter and setter
-                    println!("Found doc comment: {:?}", attr.to_token_stream().to_string());
                     doc_comment = Some(attr);
                 }
                 _ => {
