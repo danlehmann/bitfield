@@ -18,7 +18,7 @@ Some highlights:
 A bit field is created similar to a regular Rust struct. Annotations define the layout of the structure. As an example,
 consider the following definition, which specifies a bit field:
 
-```
+```rs
 #[bitfield(u32)]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
@@ -56,7 +56,7 @@ How this works:
 Very often, fields aren't just numbers but really enums. This is supported by first defining a bitenum and then using
 that inside of a bitfield:
 
-```
+```rs
 #[bitenum(u2, exhaustive: false)]
 enum NonExhaustiveEnum {
     Zero = 0b00,
@@ -95,7 +95,7 @@ struct BitfieldWithEnum {
 Sometimes, bits inside of bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For
 example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
 
-```
+```rs
 #[bitfield(u64, default: 0)]
 struct Nibble64 {
      #[bits(0..=3, rw)]
@@ -106,7 +106,7 @@ struct Nibble64 {
 Arrays can also have a stride. This is useful in the case of multiple smaller values repeating. For example, the
 following definition provides access to each bit of each nibble:
 
-```
+```rs
 #[bitfield(u64, default: 0)]
 struct NibbleBits64 {
     #[bit(0, rw, stride: 4)]
@@ -127,7 +127,7 @@ struct NibbleBits64 {
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
-```
+```toml
 arbitrary-int = "1.2.0"
 ```
 
@@ -137,7 +137,7 @@ Eventhough bitfields feel somewhat like structs, they are internally implemented
 Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will
 return a new bitfield with that field modified.
 
-```
+```rs
 let a = NibbleBits64::new_with_raw_value(0x12345678_ABCDEFFF);
 // Read a value
 assert_eq!(u4::new(0xE), a.nibble(3));
