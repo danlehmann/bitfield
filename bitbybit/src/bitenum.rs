@@ -23,7 +23,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         token_stream: TokenStream2,
     ) {
         match next_expected {
-            None => panic!("enum_raw_value!: Seen {}, but didn't expect anything. Example of valid syntax: #[enum_raw_value(u3, exhaustive: false)]", token_stream.to_string()),
+            None => panic!("bitenum!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitenum(u3, exhaustive: false)]", token_stream.to_string()),
             Some(ArgumentType::Exhaustive) => {
                 *default_value = Some(token_stream);
             }
@@ -35,7 +35,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 "," => next_expected = None,
                 ":" => {}
                 _ => panic!(
-                    "enum_raw_value!: Expected ',' or ':' in argument list. Seen '{}'",
+                    "bitenum!: Expected ',' or ':' in argument list. Seen '{}'",
                     p.to_string()
                 ),
             },
@@ -51,7 +51,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     match sym.to_string().as_str() {
                         "exhaustive" => {
                             if exhaustive_value.is_some() {
-                                panic!("enum_raw_value!: exhaustive must only be specified at most once");
+                                panic!("bitenum!: exhaustive must only be specified at most once");
                             }
                             next_expected = Some(ArgumentType::Exhaustive)
                         }
@@ -74,7 +74,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
                             match size {
                                 Some(size) => bits = Some(size),
-                                None => panic!("enum_raw_value!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym.to_string()),
+                                None => panic!("bitenum!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym.to_string()),
                             }
                         }
                     }
@@ -91,7 +91,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 handle_next_expected(&next_expected, default_value, literal.to_token_stream());
             }
             _ => {
-                panic!("enum_raw_value!: Unexpected token. Example of valid syntax: #[enum_raw_value(u32, exhaustive: true)]")
+                panic!("bitenum!: Unexpected token. Example of valid syntax: #[bitenum(u32, exhaustive: true)]")
             }
         }
     }
@@ -108,10 +108,10 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     b if b == 32 => (b, quote! { u32 }, quote! { u32 }, quote! { }, quote! { }),
                     b if b < 64 => (b, quote! { u64 }, quote! { arbitrary_int::UInt::<u64, #b> }, quote! { arbitrary_int::UInt::<u64, #b>::new }, quote! { .value() }),
                     b if b == 64 => (b, quote! { u64 }, quote! { u64 }, quote! { }, quote! { }),
-                    _ => panic!("enum_raw_value!: Unhandled bits. Supported up to u64"),
+                    _ => panic!("bitenum!: Unhandled bits. Supported up to u64"),
                 }
             }
-            None => panic!("enum_raw_value!: datatype argument needed, for example #[enum_raw_value(u4, exhaustive: true)"),
+            None => panic!("bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive: true)"),
         };
 
     let is_exhaustive = exhaustive_value
@@ -125,11 +125,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let variants = match input.data {
         Data::Enum(enum_data) => enum_data.variants,
-        _ => panic!("enum_raw_value!: Must be used on enum"),
+        _ => panic!("bitenum!: Must be used on enum"),
     };
     let emitted_variants: Vec<(&Expr, u128, &Ident)> = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
-        let discriminant = (&variant.discriminant).as_ref().expect(format!("enum_raw_value!: Variant '{}' needs to have a value", variant_name).as_str());
+        let discriminant = (&variant.discriminant).as_ref().expect(format!("bitenum!: Variant '{}' needs to have a value", variant_name).as_str());
         // Discriminant.0 is the equals sign. 1 is the value
         let value = &discriminant.1;
         let string_value = value.to_token_stream().to_string().replace("_", "");
@@ -146,10 +146,10 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             u128::from_str_radix(&string_value[2..], 8)
         } else {
             u128::from_str_radix(&string_value, 10)
-        }.expect(format!("enum_raw_value!: Error parsing '{}' as integer. Supported: hexadecimal, octal, binary and decimal unsigned integers, but not expressions", string_value).as_str());
+        }.expect(format!("bitenum!: Error parsing '{}' as integer. Supported: hexadecimal, octal, binary and decimal unsigned integers, but not expressions", string_value).as_str());
 
         if int_value >= (1u128 << bit_count) {
-            panic!("enum_raw_value!: Value {} exceeds the given number of bits", variant_name);
+            panic!("bitenum!: Value {} exceeds the given number of bits", variant_name);
         }
 
         (value, int_value, variant_name)
@@ -161,11 +161,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let possible_maximum_variants = 1u128 << bit_count;
     if is_exhaustive {
         if emitted_variants.len() != possible_maximum_variants as usize {
-            panic!("enum_raw_value!: Enum is marked as exhaustive, but it is missing variants")
+            panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
         }
     } else {
         if emitted_variants.len() == possible_maximum_variants as usize {
-            panic!("enum_raw_value!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
+            panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
         }
     }
 
