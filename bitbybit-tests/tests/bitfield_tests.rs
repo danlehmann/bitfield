@@ -655,6 +655,57 @@ fn bitfield_with_u8_enum() {
 }
 
 #[test]
+fn bitfield_with_singlebit_enum() {
+    #[bitenum(u1, exhaustive: true)]
+    #[derive(Eq, PartialEq, Debug)]
+    enum BitEnum {
+        Wrong = 0,
+        Correct = 1,
+    }
+
+    #[bitfield(u32, default: 0)]
+    struct BitfieldWithBitEnum {
+        #[bit(6, rw)]
+        bit: BitEnum,
+
+        #[bit(8, rw)]
+        indexed: [BitEnum; 6],
+    }
+
+    // Regular enum
+    assert_eq!(
+        BitEnum::Wrong,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_00000000_000000).bit()
+    );
+    assert_eq!(
+        BitEnum::Correct,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_00000001_000000).bit()
+    );
+
+    // Indexed
+    assert_eq!(
+        BitEnum::Correct,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(0)
+    );
+    assert_eq!(
+        BitEnum::Wrong,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(1)
+    );
+    assert_eq!(
+        BitEnum::Wrong,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(2)
+    );
+    assert_eq!(
+        BitEnum::Wrong,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(3)
+    );
+    assert_eq!(
+        BitEnum::Correct,
+        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(4)
+    );
+}
+
+#[test]
 fn with_derive_default() {
     // Test that derive(Default) can be specified
     #[bitfield(u32)]

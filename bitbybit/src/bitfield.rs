@@ -362,7 +362,10 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         let use_regular_int = match field_type_size_from_data_type {
             Some(i) => is_int_size_regular_type(i),
-            None => is_int_size_regular_type(number_of_bits),
+            None => {
+                // For CustomTypes (e.g. enums), prefer u1 over bool
+                number_of_bits != 1 && is_int_size_regular_type(number_of_bits)
+            },
         };
 
         let getter =
@@ -460,7 +463,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
             let new_raw_value = if let Some(_indexed_count) = indexed_count {
                 let indexed_stride = indexed_stride.unwrap();
-                if field_type_size == 1 {
+                if field_type_size_from_data_type == Some(1) {
                     quote! {
                         {
                             let effective_index = #lowest_bit + index * #indexed_stride;
@@ -476,7 +479,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 }
             } else {
-                if field_type_size == 1 {
+                if field_type_size_from_data_type == Some(1) {
                     quote! {
                         if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
                     }
