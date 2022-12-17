@@ -131,14 +131,14 @@ fn enum_with_63bits() {
     #[repr(u64)]
     enum Foo {
         Zero = 0,
-        One = 0x7FFFFFFF_FFFFFFFF,
+        One = 0x7FFF_FFFF_FFFF_FFFF,
         Two = 2,
         Three = 3,
     }
 
     assert_eq!(Foo::new_with_raw_value(u63::new(0)).unwrap(), Foo::Zero);
     assert_eq!(
-        Foo::new_with_raw_value(u63::new(0x7FFFFFFF_FFFFFFFF)).unwrap(),
+        Foo::new_with_raw_value(u63::new(0x7FFF_FFFF_FFFF_FFFF)).unwrap(),
         Foo::One
     );
     assert_eq!(Foo::new_with_raw_value(u63::new(2)).unwrap(), Foo::Two);
@@ -147,7 +147,7 @@ fn enum_with_63bits() {
     assert_eq!(Foo::new_with_raw_value(u63::new(255)), Err(255));
 
     assert_eq!(Foo::Zero.raw_value(), u63::new(0));
-    assert_eq!(Foo::One.raw_value(), u63::new(0x7FFFFFFF_FFFFFFFF));
+    assert_eq!(Foo::One.raw_value(), u63::new(0x7FFF_FFFF_FFFF_FFFF));
 }
 
 #[test]
@@ -157,14 +157,14 @@ fn enum_with_64bits() {
     #[repr(u64)]
     enum Foo {
         Zero = 0,
-        One = 0xFFFFFFFF_FFFFFFFF,
+        One = 0xFFFF_FFFF_FFFF_FFFF,
         Two = 2,
         Three = 3,
     }
 
     assert_eq!(Foo::new_with_raw_value(0).unwrap(), Foo::Zero);
     assert_eq!(
-        Foo::new_with_raw_value(0xFFFFFFFF_FFFFFFFF).unwrap(),
+        Foo::new_with_raw_value(0xFFFF_FFFF_FFFF_FFFF).unwrap(),
         Foo::One
     );
     assert_eq!(Foo::new_with_raw_value(2).unwrap(), Foo::Two);
@@ -173,7 +173,7 @@ fn enum_with_64bits() {
     assert_eq!(Foo::new_with_raw_value(255), Err(255));
 
     assert_eq!(Foo::Zero.raw_value(), 0);
-    assert_eq!(Foo::One.raw_value(), 0xFFFFFFFF_FFFFFFFF);
+    assert_eq!(Foo::One.raw_value(), 0xFFFF_FFFF_FFFF_FFFF);
 }
 
 #[test]
