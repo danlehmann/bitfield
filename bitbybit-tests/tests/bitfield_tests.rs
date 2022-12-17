@@ -37,9 +37,9 @@ fn test_getter_and_setter() {
         some_other_bits: u4,
     }
 
-    let t = Test2::new_with_raw_value(0xAE42315A_2134FE06_3412345A_2134FE06);
+    let t = Test2::new_with_raw_value(0xAE42_315A_2134_FE06_3412_345A_2134_FE06);
     assert_eq!(u30::new(0x2B908C56), t.val30());
-    assert_eq!(u57::new(0x1109A7F_031A091A), t.val57());
+    assert_eq!(u57::new(0x0110_9A7F_031A_091A), t.val57());
     assert_eq!(u13::new(0x5A2), t.val13());
     assert_eq!(0x134F, t.val16());
     assert_eq!(0xE0, t.baudrate());
@@ -253,7 +253,7 @@ fn repeated_bitrange_single_bits_with_stride() {
         nibble_bit3: [bool; 16],
     }
 
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let nibble_bits = NibbleBits64::new_with_raw_value(VALUE);
     assert_eq!(true, nibble_bits.nibble_bit0(0));
     assert_eq!(true, nibble_bits.nibble_bit0(1));
@@ -277,35 +277,35 @@ fn repeated_bitrange_single_bits_with_stride() {
     assert_eq!(false, nibble_bits.nibble_bit3(15));
 
     assert_eq!(
-        0x12345678_ABCDEFFE,
+        0x1234_5678_ABCD_EFFE,
         nibble_bits.with_nibble_bit0(0, false).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEFEF,
+        0x1234_5678_ABCD_EFEF,
         nibble_bits.with_nibble_bit0(1, false).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEEFF,
+        0x1234_5678_ABCD_EEFF,
         nibble_bits.with_nibble_bit0(2, false).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDFFFF,
+        0x1234_5678_ABCD_FFFF,
         nibble_bits.with_nibble_bit0(3, true).raw_value()
     );
     assert_eq!(
-        0x02345678_ABCDEFFF,
+        0x0234_5678_ABCD_EFFF,
         nibble_bits.with_nibble_bit0(15, false).raw_value()
     );
     assert_eq!(
-        0x32345678_ABCDEFFF,
+        0x3234_5678_ABCD_EFFF,
         nibble_bits.with_nibble_bit1(15, true).raw_value()
     );
     assert_eq!(
-        0x52345678_ABCDEFFF,
+        0x5234_5678_ABCD_EFFF,
         nibble_bits.with_nibble_bit2(15, true).raw_value()
     );
     assert_eq!(
-        0x92345678_ABCDEFFF,
+        0x9234_5678_ABCD_EFFF,
         nibble_bits.with_nibble_bit3(15, true).raw_value()
     );
 }
@@ -341,7 +341,7 @@ fn repeated_bitrange_without_stride() {
         nibble: [u4; 16],
     }
 
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let nibble = Nibble64::new_with_raw_value(VALUE);
 
     assert_eq!(u4::new(0xF), nibble.nibble(0));
@@ -352,19 +352,19 @@ fn repeated_bitrange_without_stride() {
     assert_eq!(u4::new(0xC), nibble.nibble(5));
 
     assert_eq!(
-        0x12345678_ABCDEFF3,
+        0x1234_5678_ABCD_EFF3,
         nibble.with_nibble(0, u4::new(0x3)).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEF2F,
+        0x1234_5678_ABCD_EF2F,
         nibble.with_nibble(1, u4::new(0x2)).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEAFF,
+        0x1234_5678_ABCD_EAFF,
         nibble.with_nibble(2, u4::new(0xA)).raw_value()
     );
     assert_eq!(
-        0xE2345678_ABCDEFFF,
+        0xE234_5678_ABCD_EFFF,
         nibble.with_nibble(15, u4::new(0xE)).raw_value()
     );
 }
@@ -377,7 +377,7 @@ fn repeated_bitrange_with_stride_equals_width() {
         nibble: [u4; 16],
     }
 
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let nibble = Nibble64::new_with_raw_value(VALUE);
 
     assert_eq!(u4::new(0xF), nibble.nibble(0));
@@ -388,19 +388,19 @@ fn repeated_bitrange_with_stride_equals_width() {
     assert_eq!(u4::new(0xC), nibble.nibble(5));
 
     assert_eq!(
-        0x12345678_ABCDEFF3,
+        0x1234_5678_ABCD_EFF3,
         nibble.with_nibble(0, u4::new(0x3)).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEF2F,
+        0x1234_5678_ABCD_EF2F,
         nibble.with_nibble(1, u4::new(0x2)).raw_value()
     );
     assert_eq!(
-        0x12345678_ABCDEAFF,
+        0x1234_5678_ABCD_EAFF,
         nibble.with_nibble(2, u4::new(0xA)).raw_value()
     );
     assert_eq!(
-        0xE2345678_ABCDEFFF,
+        0xE234_5678_ABCD_EFFF,
         nibble.with_nibble(15, u4::new(0xE)).raw_value()
     );
 }
@@ -413,7 +413,7 @@ fn repeated_bitrange_with_stride_greater_than_width() {
         even_nibble: [u4; 8],
     }
 
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let even_nibble = EvenNibble64::new_with_raw_value(VALUE);
 
     assert_eq!(u4::new(0xF), even_nibble.even_nibble(0));
@@ -432,7 +432,7 @@ fn repeated_bitrange_with_stride_greater_than_width_basic_type() {
         even_byte: [u8; 4],
     }
 
-    const VALUE: u64 = 0x12345678_ABCDEFFF;
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let even_byte = EvenByte64::new_with_raw_value(VALUE);
 
     assert_eq!(0xFF, even_byte.even_byte(0));
@@ -637,20 +637,20 @@ fn bitfield_with_u8_enum() {
 
     assert_eq!(
         Ok(NonExhaustiveEnum::Zero),
-        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000000_000000).val8()
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0000_0000_0000_0000).val8()
     );
     assert_eq!(
         Ok(NonExhaustiveEnum::One),
-        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00000001_000000).val8()
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0000_0000_0100_0000).val8()
     );
     assert_eq!(
         Ok(NonExhaustiveEnum::Two),
-        BitfieldWithIndexedEnums::new_with_raw_value(0b00_10000010_000000).val8()
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0010_0000_1000_0000).val8()
     );
 
     assert_eq!(
         Err(0b00100000),
-        BitfieldWithIndexedEnums::new_with_raw_value(0b00_00100000_000000).val8()
+        BitfieldWithIndexedEnums::new_with_raw_value(0b0000_1000_0000_0000).val8()
     );
 }
 
@@ -675,33 +675,33 @@ fn bitfield_with_singlebit_enum() {
     // Regular enum
     assert_eq!(
         BitEnum::Wrong,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_00000000_000000).bit()
+        BitfieldWithBitEnum::new_with_raw_value(0b0000_0000_0000_0000).bit()
     );
     assert_eq!(
         BitEnum::Correct,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_00000001_000000).bit()
+        BitfieldWithBitEnum::new_with_raw_value(0b0000_0000_0100_0000).bit()
     );
 
     // Indexed
     assert_eq!(
         BitEnum::Correct,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(0)
+        BitfieldWithBitEnum::new_with_raw_value(0b0001_0001_0000_0000).indexed(0)
     );
     assert_eq!(
         BitEnum::Wrong,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(1)
+        BitfieldWithBitEnum::new_with_raw_value(0b0001_0001_0000_0000).indexed(1)
     );
     assert_eq!(
         BitEnum::Wrong,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(2)
+        BitfieldWithBitEnum::new_with_raw_value(0b0001_0001_0000_0000).indexed(2)
     );
     assert_eq!(
         BitEnum::Wrong,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(3)
+        BitfieldWithBitEnum::new_with_raw_value(0b0001_0001_0000_0000).indexed(3)
     );
     assert_eq!(
         BitEnum::Correct,
-        BitfieldWithBitEnum::new_with_raw_value(0b00_01000100_000000).indexed(4)
+        BitfieldWithBitEnum::new_with_raw_value(0b0001_0001_0000_0000).indexed(4)
     );
 }
 
