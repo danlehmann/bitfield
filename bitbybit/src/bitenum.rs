@@ -23,20 +23,20 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         token_stream: TokenStream2,
     ) {
         match next_expected {
-            None => panic!("bitenum!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitenum(u3, exhaustive: false)]", token_stream.to_string()),
+            None => panic!("bitenum!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitenum(u3, exhaustive: false)]", token_stream),
             Some(ArgumentType::Exhaustive) => {
                 *default_value = Some(token_stream);
             }
         }
     }
-    for i in 0..args.len() {
-        match &args[i] {
-            TokenTree::Punct(p) => match p.to_string().as_str() {
-                "," => next_expected = None,
-                ":" => {}
+    for arg in args {
+        match arg {
+            TokenTree::Punct(p) => match p.as_char() {
+                ',' => next_expected = None,
+                ':' => {}
                 _ => panic!(
                     "bitenum!: Expected ',' or ':' in argument list. Seen '{}'",
-                    p.to_string()
+                    p
                 ),
             },
             TokenTree::Ident(sym) => {
@@ -57,7 +57,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                         }
                         s => {
                             // See if this is a base datatype like u3
-                            let size = if s.starts_with("u") {
+                            let size = if s.starts_with('u') {
                                 let num = usize::from_str(s.split_at(1).1);
                                 if let Ok(num) = num {
                                     if num <= 64 {
@@ -74,7 +74,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
                             match size {
                                 Some(size) => bits = Some(size),
-                                None => panic!("bitenum!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym.to_string()),
+                                None => panic!("bitenum!: Unexpected argument {}. Supported: u1, u2, u3, .., u64 and 'exhaustive'", sym),
                             }
                         }
                     }
@@ -129,24 +129,24 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let emitted_variants: Vec<(&Expr, u128, &Ident)> = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
-        let discriminant = (&variant.discriminant).as_ref().expect(format!("bitenum!: Variant '{}' needs to have a value", variant_name).as_str());
+        let discriminant = variant.discriminant.as_ref().unwrap_or_else(|| panic!("bitenum!: Variant '{}' needs to have a value", variant_name));
         // Discriminant.0 is the equals sign. 1 is the value
         let value = &discriminant.1;
-        let string_value = value.to_token_stream().to_string().replace("_", "");
+        let string_value = value.to_token_stream().to_string().replace('_', "");
 
         // Determine the integer value itself. While we don't need it further down (for now),
         // this ensures that only constants are being used; due to the way how new_with_raw_value()
         // is written, some expressions would cause compilation issues (e.g. those that refer to other
         // enum values).
-        let int_value = if string_value.starts_with("0x") {
-            u128::from_str_radix(&string_value[2..], 16)
-        } else if string_value.starts_with("0b") {
-            u128::from_str_radix(&string_value[2..], 2)
-        } else if string_value.starts_with("0o") {
-            u128::from_str_radix(&string_value[2..], 8)
+        let int_value = if let Some(stripped) = string_value.strip_prefix("0x") {
+            u128::from_str_radix(stripped, 16)
+        } else if let Some(stripped) = string_value.strip_prefix("0b") {
+            u128::from_str_radix(stripped, 2)
+        } else if let Some(stripped) = string_value.strip_prefix("0o") {
+            u128::from_str_radix(stripped, 8)
         } else {
-            u128::from_str_radix(&string_value, 10)
-        }.expect(format!("bitenum!: Error parsing '{}' as integer. Supported: hexadecimal, octal, binary and decimal unsigned integers, but not expressions", string_value).as_str());
+            string_value.parse::<u128>()
+        }.unwrap_or_else(|_| panic!("bitenum!: Error parsing '{}' as integer. Supported: hexadecimal, octal, binary and decimal unsigned integers, but not expressions", string_value));
 
         if int_value >= (1u128 << bit_count) {
             panic!("bitenum!: Value {} exceeds the given number of bits", variant_name);
@@ -163,10 +163,8 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         if emitted_variants.len() != possible_maximum_variants as usize {
             panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
         }
-    } else {
-        if emitted_variants.len() == possible_maximum_variants as usize {
-            panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
-        }
+    } else if emitted_variants.len() == possible_maximum_variants as usize {
+        panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
     }
 
     // There are two ways to turn an int into an enum values:
