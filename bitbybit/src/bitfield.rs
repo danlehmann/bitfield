@@ -10,11 +10,11 @@ use syn::{Attribute, Data, DeriveInput, GenericArgument, PathArguments, Type};
 /// Returns true if the number can be expressed by a regular data type like u8 or u32.
 /// 1 is also true, as it can be expressed as a bool
 fn is_int_size_regular_type(size: usize) -> bool {
-    return size == 1 || size == 8 || size == 16 || size == 32 || size == 64 || size == 128;
+    size == 1 || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
 }
 
 fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
-    if !s.starts_with("u") || s.len() < 2 {
+    if !s.starts_with('u') || s.len() < 2 {
         return Err(());
     }
 
@@ -27,14 +27,14 @@ fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
                 Err(())
             }
         }
-        Err(_) => return Err(()),
+        Err(_) => Err(()),
     }
 }
 
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
 
-    if args.len() < 1 {
+    if args.is_empty() {
         panic!(
             "bitfield! No arguments given, but need at least base data type (e.g. 'bitfield(u32)')"
         );
@@ -56,20 +56,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         token_stream: TokenStream2,
     ) {
         match next_expected {
-            None => panic!("bitfield!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitfield(u32, default: 0)]", token_stream.to_string()),
+            None => panic!("bitfield!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitfield(u32, default: 0)]", token_stream),
             Some(ArgumentType::Default) => {
                 *default_value = Some(token_stream);
             }
         }
     }
-    for i in 1..args.len() {
-        match &args[i] {
+    for arg in args.iter().skip(1) {
+        match arg {
             TokenTree::Punct(p) => match p.to_string().as_str() {
                 "," => next_expected = None,
                 ":" => {}
                 _ => panic!(
                     "bitfield!: Expected ',' or ':' in argument list. Seen '{}'",
-                    p.to_string()
+                    p
                 ),
             },
             TokenTree::Ident(sym) => {
@@ -86,7 +86,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         }
                         _ => panic!(
                             "bitfield!: Unexpected argument {}. Supported: 'default'",
-                            sym.to_string()
+                            sym
                         ),
                     }
                 }
@@ -99,9 +99,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     literal.to_token_stream(),
                 );
             }
-            _ => {
-                panic!("bitfield!: Unexpected token. Example of valid syntax: #[bitfield(u32, default: 0)]")
-            }
+            _ => panic!("bitfield!: Unexpected token. Example of valid syntax: #[bitfield(u32, default: 0)]"),
         }
     }
 
@@ -130,7 +128,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 Type::Array(ty) => {
                     let length = (&ty.len).into_token_stream().to_string();
 
-                    (ty.elem.deref(), Some(length.parse::<usize>().expect(format!("{} is not a valid number", length).as_str())))
+                    (ty.elem.deref(), Some(length.parse::<usize>().unwrap_or_else(|_| panic!("{} is not a valid number", length))))
                 }
                 _ => (&field.ty, None)
             }
@@ -175,7 +173,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         panic!("bitfield!: Expected ')' to close '{}'", attr_name.as_str());
                     }
                     let arguments_string = &attr_token_string[1..attr_token_string.len() - 1];
-                    let arguments: Vec<&str> = arguments_string.split(",").map(|s| s.trim()).collect();
+                    let arguments: Vec<&str> = arguments_string.split(',').map(|s| s.trim()).collect();
 
                     if arguments.len() < 2 {
                         if is_range {
@@ -241,9 +239,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
 
                     // *** Parse additional named arguments (at the moment just stride: X)
-                    for argument_index in 2..arguments.len() {
-                        let argument = &arguments[argument_index];
-                        let argument_elements: Vec<&str> = argument.split(":").map(|s| s.trim()).collect();
+                    for argument in arguments.iter().skip(2) {
+                        let argument_elements: Vec<&str> = argument.split(':').map(|s| s.trim()).collect();
                         if argument_elements.len() != 2 {
                             panic!("bitfield!: Named arguments have to be in the form of 'argument: value'. Seen: {:?}", argument_elements)
                         }
@@ -252,7 +249,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                                 if indexed_count.is_none() {
                                     panic!("bitfield!: stride is only supported for indexed properties. Use array type (e.g. [u8; 8]) to indicate");
                                 }
-                                indexed_stride = Some(argument_elements[1].parse().expect(format!("bitfield!: {} is not a number", argument_elements[1]).as_str()))
+                                indexed_stride = Some(argument_elements[1].parse().unwrap_or_else(|_| panic!("bitfield!: {} is not a number", argument_elements[1])))
                             }
                             _ => panic!("bitfield!: Unhandled named argument '{}'. Supported: 'stride'", argument_elements[0])
                         }
@@ -262,9 +259,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     // inline documentation. pass through to both getter and setter
                     doc_comment = Some(attr);
                 }
-                _ => {
-                    panic!("bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'", attr_name);
-                }
+                _ => panic!("bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'", attr_name),
             }
         };
 
@@ -292,11 +287,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         };
 
         if number_of_bits != field_type_size {
-            panic!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream().to_string(), number_of_bits);
+            panic!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits);
         }
 
         // Verify bounds for arrays
-        if indexed_count.is_some() {
+        if let Some(indexed_count) = indexed_count {
             // If stride wasn't given, use the field width
             if indexed_stride.is_none() {
                 indexed_stride = Some(number_of_bits)
@@ -306,12 +301,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 panic!("bitfield!: Field {} is declared as {} bits, which is larger than its stride {}", field_name, number_of_bits, indexed_stride.unwrap());
             }
 
-            let number_of_bits_indexed = indexed_count.unwrap() * indexed_stride.unwrap() + range.unwrap().start;
+            let number_of_bits_indexed = indexed_count * indexed_stride.unwrap() + range.unwrap().start;
             if base_data_size > base_data_size {
                 panic!("bitfield!: Field {} requires more bits via indexing ({}) than the bitfield has ({})", field_name, number_of_bits_indexed, base_data_size);
             }
 
-            if indexed_count.unwrap() < 2 {
+            if indexed_count < 2 {
                 panic!("bitfield!: Field {} is declared as indexing, but with fewer than 2 elements.", field_name);
             }
         }
@@ -329,7 +324,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     panic!("Invalid path segment. Expected Enumeration or Option<Enumeration>");
                 }
                 let option_segment = type_path.path.segments.first().unwrap();
-                if option_segment.ident.to_string() == "Option" {
+                if option_segment.ident == "Option" {
                     match &option_segment.arguments {
                         PathArguments::AngleBracketed(args) => {
                             if args.args.len() != 1 {
@@ -338,7 +333,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                             let option_generic_type = args.args.first().unwrap();
                             match option_generic_type {
                                 GenericArgument::Type(generic_type) => {
-                                    let result_type_string = format!("Result<{}, {}>", generic_type.to_token_stream().to_string(), primitive_type.to_token_stream().to_string());
+                                    let result_type_string = format!("Result<{}, {}>", generic_type.to_token_stream(), primitive_type.to_token_stream());
                                     let result_type = syn::parse_str::<syn::Type>(&result_type_string).expect("bitfield!: Error creating type from Result<,>");
 
                                     (generic_type, result_type)
@@ -379,20 +374,16 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         } else {
                             quote! { ((self.raw_value >> (#lowest_bit + index * #indexed_stride)) & ((#one << #number_of_bits) - #one)) as #primitive_type }
                         }
+                    } else if field_type_size == 1 {
+                        quote! { (self.raw_value & (#one << #lowest_bit)) != 0 }
+                    } else if number_of_bits == base_data_size {
+                        // If the field is the whole size of the bitfield, we can't apply a mask
+                        // as that would overflow. However, we don't need to
+                        assert_eq!(lowest_bit, 0);
+                        quote! { self.raw_value as #primitive_type }
                     } else {
-                        if field_type_size == 1 {
-                            quote! { (self.raw_value & (#one << #lowest_bit)) != 0 }
-                        } else {
-                            if number_of_bits == base_data_size {
-                                // If the field is the whole size of the bitfield, we can't apply a mask
-                                // as that would overflow. However, we don't need to
-                                assert_eq!(lowest_bit, 0);
-                                quote! { self.raw_value as #primitive_type }
-                            } else {
-                                quote! {
-                                    ((self.raw_value >> #lowest_bit) & ((#one << #number_of_bits) - #one)) as #primitive_type
-                                }
-                            }
+                        quote! {
+                            ((self.raw_value >> #lowest_bit) & ((#one << #number_of_bits) - #one)) as #primitive_type
                         }
                     }
                 } else {
@@ -478,24 +469,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         }
                     }
                 }
-            } else {
-                if field_type_size_from_data_type == Some(1) {
-                    quote! {
-                        if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
-                    }
-                } else {
-                    if number_of_bits == base_data_size {
-                        // If the field is the whole size of the bitfield, we can't apply a mask
-                        // as that would overflow. However, we don't need to
-                        assert_eq!(lowest_bit, 0);
-                        quote! { #argument_converted as #base_data_type }
-                    } else {
-                        quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #base_data_type) << #lowest_bit) }
-                    }
+            } else if field_type_size_from_data_type == Some(1) {
+                quote! {
+                    if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
                 }
+            } else if number_of_bits == base_data_size {
+                // If the field is the whole size of the bitfield, we can't apply a mask
+                // as that would overflow. However, we don't need to
+                assert_eq!(lowest_bit, 0);
+                quote! { #argument_converted as #base_data_type }
+            } else {
+                quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #base_data_type) << #lowest_bit) }
             };
 
-            let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name.to_string()).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
+            let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
             if let Some(_indexed_count) = indexed_count {
                 quote! {
                     #doc_comment
