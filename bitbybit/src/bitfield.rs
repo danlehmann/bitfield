@@ -301,12 +301,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 panic!("bitfield!: Field {} is declared as {} bits, which is larger than its stride {}", field_name, number_of_bits, indexed_stride.unwrap());
             }
 
-            let number_of_bits_indexed = indexed_count * indexed_stride.unwrap() + range.unwrap().start;
-            //FIXME:
-            //this breaks tests:
-            // if number_of_bits_indexed > base_data_size {
-            //but this is obviously a typo/wrong:
-            if base_data_size > base_data_size {
+            let number_of_bits_indexed = (indexed_count - 1) * indexed_stride.unwrap() + range.unwrap().start;
+            if number_of_bits_indexed >= base_data_size {
                 panic!("bitfield!: Field {} requires more bits via indexing ({}) than the bitfield has ({})", field_name, number_of_bits_indexed, base_data_size);
             }
 
