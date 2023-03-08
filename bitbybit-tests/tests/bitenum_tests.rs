@@ -199,3 +199,47 @@ fn documentation() {
     assert_eq!(Foo::Zero.raw_value(), u2::new(0));
     assert_eq!(Foo::One.raw_value(), u2::new(1));
 }
+
+/// Ensures that conditional statements in enum values are handled correctly
+/// (i.e. they don't result in a compile error). We need to specify the new
+/// mode exhaustive: conditional to ensure that the macro doesn't actually check
+/// and simply treats it like a non-exhaustive enum.
+#[test]
+fn cfg_in_enum_values() {
+    #[bitenum(u2, exhaustive: conditional)]
+    #[derive(Eq, PartialEq, Debug)]
+    enum Foo {
+        /// Zero is the absence of stuff
+        Zero = 0b00,
+
+        // Double-slash shouldn't result in a comment
+        #[cfg(test)]
+        OneTest = 0b01,
+
+        // Double-slash shouldn't result in a comment
+        #[cfg(not(test))]
+        OneNotTest = 0b01,
+
+        #[cfg(feature = "test123")]
+        Test123 = 0b10,
+
+        #[cfg(not(feature = "test123"))]
+        TestNot123 = 0b11,
+    }
+
+    assert_eq!(Foo::new_with_raw_value(u2::new(0)), Ok(Foo::Zero));
+    #[cfg(test)]
+    assert_eq!(Foo::new_with_raw_value(u2::new(1)), Ok(Foo::OneTest));
+    #[cfg(not(test))]
+    assert_eq!(Foo::new_with_raw_value(u2::new(1)), Ok(Foo::OneNotTest));
+
+    #[cfg(feature = "test123")]
+    assert_eq!(Foo::new_with_raw_value(u2::new(2)), Ok(Foo::Test123));
+    #[cfg(not(feature = "test123"))]
+    assert_eq!(Foo::new_with_raw_value(u2::new(2)), Err(2));
+
+    #[cfg(not(feature = "test123"))]
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Ok(Foo::TestNot123));
+    #[cfg(feature = "test123")]
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(3));
+}
