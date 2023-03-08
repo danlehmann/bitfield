@@ -4,7 +4,7 @@ use std::str::FromStr;
 use proc_macro2::TokenTree;
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Data, DeriveInput, Expr, Ident};
+use syn::{Attribute, Data, DeriveInput, Expr, Ident};
 
 pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
@@ -114,9 +114,21 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             None => panic!("bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive: true)"),
         };
 
-    let is_exhaustive = exhaustive_value
-        .map(|x| x.to_string() == "true")
-        .unwrap_or(false);
+    #[derive(PartialEq, Eq)]
+    enum Exhaustiveness {
+        True,
+        False,
+        Conditional,
+    }
+
+    let exhaustiveness = exhaustive_value
+        .map(|x| match x.to_string().as_str() {
+            "true" => Exhaustiveness::True,
+            "false" => Exhaustiveness::False,
+            "conditional" => Exhaustiveness::Conditional,
+            _ => panic!("bitenum!: \"exhaustive\" must be \"true\", \"false\" or \"conditional\""),
+        })
+        .unwrap_or(Exhaustiveness::False);
 
     let input = syn::parse_macro_input!(input as DeriveInput);
     let enum_name = input.ident;
@@ -127,7 +139,8 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         Data::Enum(enum_data) => enum_data.variants,
         _ => panic!("bitenum!: Must be used on enum"),
     };
-    let emitted_variants: Vec<(&Expr, u128, &Ident)> = variants.iter().map(|variant| {
+    let mut uses_conditional = false;
+    let emitted_variants: Vec<(&Expr, u128, &Ident, Vec<Attribute>)> = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         let discriminant = variant.discriminant.as_ref().unwrap_or_else(|| panic!("bitenum!: Variant '{}' needs to have a value", variant_name));
         // Discriminant.0 is the equals sign. 1 is the value
@@ -152,20 +165,50 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             panic!("bitenum!: Value {} exceeds the given number of bits", variant_name);
         }
 
-        (value, int_value, variant_name)
+        let mut cfg_attributes = Vec::new();
+
+        for attr in &variant.attrs {
+            if attr.path.to_token_stream().to_string() == "cfg" {
+                cfg_attributes.push(attr.clone());
+                uses_conditional = true;
+            }
+        }
+
+        (value, int_value, variant_name, cfg_attributes)
     }).collect();
+
+    if uses_conditional {
+        if exhaustiveness != Exhaustiveness::Conditional {
+            panic!("bitenum!: If any values are marked as conditional (using the cfg attribute), the enum must be marked as 'exhaustive: conditional'");
+        }
+    } else {
+        if exhaustiveness == Exhaustiveness::Conditional {
+            panic!("bitenum!: No values are conditionally compiled using cfg, so the enum must not be marked as conditional. Change to 'exhaustive: true' or 'exhaustive: false'");
+        }
+    }
 
     // We tested the numeric values for out-of-bounds above. As enum values are unique integers,
     // we can now reason about the number of variants: If variants == 2^bits then we have to be exhaustive
     // (and if not, we can't be).
     let possible_maximum_variants = 1u128 << bit_count;
-    if is_exhaustive {
-        if emitted_variants.len() != possible_maximum_variants as usize {
-            panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
+    let return_is_result = match exhaustiveness {
+        Exhaustiveness::True => {
+            if emitted_variants.len() != possible_maximum_variants as usize {
+                panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
+            }
+            false
         }
-    } else if emitted_variants.len() == possible_maximum_variants as usize {
-        panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
-    }
+        Exhaustiveness::False => {
+            if emitted_variants.len() == possible_maximum_variants as usize {
+                panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
+            }
+            true
+        }
+        Exhaustiveness::Conditional => {
+            // No check
+            true
+        }
+    };
 
     // There are two ways to turn an int into an enum values:
     // - match cases against every single integer
@@ -176,20 +219,33 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let case_values: Vec<TokenStream2> = emitted_variants
         .iter()
-        .map(|(expression, _int_value, name)| {
-            if is_exhaustive {
+        .map(|(expression, _int_value, name, cfg_attributes)| {
+            if return_is_result {
                 quote! {
-                    #expression => Self::#name,
+                    #( #cfg_attributes )*
+                    #expression => Ok(Self::#name),
                 }
             } else {
                 quote! {
-                    #expression => Ok(Self::#name),
+                    #( #cfg_attributes )*
+                    #expression => Self::#name,
                 }
             }
         })
         .collect();
 
-    let constructor_function = if is_exhaustive {
+    let constructor_function = if return_is_result {
+        quote!(
+            /// Creates a new instance of this bitfield with the given raw value, or
+            /// Err(value) if the value does not exist in the enum.
+            pub const fn new_with_raw_value(value: #bounded_data_type) -> Result<Self, #base_data_type> {
+                match value #bounded_getter {
+                    #( #case_values )*
+                    _ => Err(value #bounded_getter)
+                }
+            }
+        )
+    } else {
         let panic_string = format!("{}: Unhandled value", enum_name);
         quote!(
             /// Creates a new instance of this bitfield with the given raw value.
@@ -199,17 +255,6 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 match value #bounded_getter {
                     #( #case_values )*
                     _ => panic!(#panic_string)
-                }
-            }
-        )
-    } else {
-        quote!(
-            /// Creates a new instance of this bitfield with the given raw value, or
-            /// Err(value) if the value does not exist in the enum.
-            pub const fn new_with_raw_value(value: #bounded_data_type) -> Result<Self, #base_data_type> {
-                match value #bounded_getter {
-                    #( #case_values )*
-                    _ => Err(value #bounded_getter)
                 }
             }
         )
