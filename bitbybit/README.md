@@ -128,7 +128,7 @@ struct NibbleBits64 {
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```toml
-arbitrary-int = "1.2.0"
+arbitrary-int = "1.2.4"
 ```
 
 ## Usage
