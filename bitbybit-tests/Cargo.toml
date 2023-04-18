@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 bitbybit = { path = "../bitbybit" }
-arbitrary-int = "1.2.0"
+arbitrary-int = "1.2.4"
 
 [features]
 # This is to allow cfg for enum members
