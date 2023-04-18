@@ -1,4 +1,4 @@
-use arbitrary_int::{u13, u2, u3, u30, u4, u57};
+use arbitrary_int::{u1, u13, u2, u3, u30, u4, u57};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
 
@@ -109,6 +109,42 @@ fn test_bool() {
     let t3 = t.with_bit1(true);
     assert!(!t3.bit0());
     assert!(t3.bit1());
+    assert_eq!(t3.raw_value, 0b10);
+}
+
+#[test]
+fn test_u1() {
+    #[bitfield(u16, default: 0)]
+    struct Test {
+        #[bit(0, rw)]
+        bit0: u1,
+
+        #[bit(1, rw)]
+        bit1: u1,
+
+        #[bits(2..=9, r)]
+        n: u8,
+
+        #[bits(10..=12, w)]
+        m: u3,
+
+        #[bits(13..=15, r)]
+        o: u3,
+    }
+
+    let t = Test::new();
+    assert_eq!(t.bit0(), u1::new(0));
+    assert_eq!(t.bit1(), u1::new(0));
+    assert_eq!(t.raw_value, 0b00);
+
+    let t2 = t.with_bit0(u1::new(1));
+    assert_eq!(t2.bit0(), u1::new(1));
+    assert_eq!(t2.bit1(), u1::new(0));
+    assert_eq!(t2.raw_value, 0b01);
+
+    let t3 = t.with_bit1(u1::new(1));
+    assert_eq!(t3.bit0(), u1::new(0));
+    assert_eq!(t3.bit1(), u1::new(1));
     assert_eq!(t3.raw_value, 0b10);
 }
 
@@ -311,6 +347,80 @@ fn repeated_bitrange_single_bits_with_stride() {
 }
 
 #[test]
+fn repeated_bitrange_single_u1_bits_with_stride() {
+    #[bitfield(u64, default: 0)]
+    pub struct NibbleBits64 {
+        #[bit(0, rw, stride: 4)]
+        nibble_bit0: [u1; 16],
+
+        #[bit(1, rw, stride: 4)]
+        nibble_bit1: [u1; 16],
+
+        #[bit(2, rw, stride: 4)]
+        nibble_bit2: [u1; 16],
+
+        #[bit(3, rw, stride: 4)]
+        nibble_bit3: [u1; 16],
+    }
+
+    const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
+    let nibble_bits = NibbleBits64::new_with_raw_value(VALUE);
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(0));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(1));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(2));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(3));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(4));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(5));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(6));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(7));
+
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(8));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(9));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(10));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(11));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(12));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(13));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit0(14));
+    assert_eq!(u1::new(1), nibble_bits.nibble_bit0(15));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit1(15));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit2(15));
+    assert_eq!(u1::new(0), nibble_bits.nibble_bit3(15));
+
+    assert_eq!(
+        0x1234_5678_ABCD_EFFE,
+        nibble_bits.with_nibble_bit0(0, u1::new(0)).raw_value()
+    );
+    assert_eq!(
+        0x1234_5678_ABCD_EFEF,
+        nibble_bits.with_nibble_bit0(1, u1::new(0)).raw_value()
+    );
+    assert_eq!(
+        0x1234_5678_ABCD_EEFF,
+        nibble_bits.with_nibble_bit0(2, u1::new(0)).raw_value()
+    );
+    assert_eq!(
+        0x1234_5678_ABCD_FFFF,
+        nibble_bits.with_nibble_bit0(3, u1::new(1)).raw_value()
+    );
+    assert_eq!(
+        0x0234_5678_ABCD_EFFF,
+        nibble_bits.with_nibble_bit0(15, u1::new(0)).raw_value()
+    );
+    assert_eq!(
+        0x3234_5678_ABCD_EFFF,
+        nibble_bits.with_nibble_bit1(15, u1::new(1)).raw_value()
+    );
+    assert_eq!(
+        0x5234_5678_ABCD_EFFF,
+        nibble_bits.with_nibble_bit2(15, u1::new(1)).raw_value()
+    );
+    assert_eq!(
+        0x9234_5678_ABCD_EFFF,
+        nibble_bits.with_nibble_bit3(15, u1::new(1)).raw_value()
+    );
+}
+
+#[test]
 fn repeated_bitrange_single_bits_without_stride() {
     #[bitfield(u8, default: 0)]
     pub struct Bits8 {
@@ -331,6 +441,29 @@ fn repeated_bitrange_single_bits_without_stride() {
 
     assert_eq!(0b0110_0110, bits8.with_bit(3, false).raw_value());
     assert_eq!(0b1110_1110, bits8.with_bit(7, true).raw_value());
+}
+
+#[test]
+fn repeated_bitrange_single_u1_bits_without_stride() {
+    #[bitfield(u8, default: 0)]
+    pub struct Bits8 {
+        #[bit(0, rw)]
+        bit: [u1; 8],
+    }
+
+    let bits8 = Bits8::new_with_raw_value(0b0110_1110);
+    assert_eq!(u1::new(0), bits8.bit(0));
+    assert_eq!(u1::new(1), bits8.bit(1));
+    assert_eq!(u1::new(1), bits8.bit(2));
+    assert_eq!(u1::new(1), bits8.bit(3));
+
+    assert_eq!(u1::new(0), bits8.bit(4));
+    assert_eq!(u1::new(1), bits8.bit(5));
+    assert_eq!(u1::new(1), bits8.bit(6));
+    assert_eq!(u1::new(0), bits8.bit(7));
+
+    assert_eq!(0b0110_0110, bits8.with_bit(3, u1::new(0)).raw_value());
+    assert_eq!(0b1110_1110, bits8.with_bit(7, u1::new(1)).raw_value());
 }
 
 #[test]

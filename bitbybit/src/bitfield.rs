@@ -7,10 +7,14 @@ use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Data, DeriveInput, GenericArgument, PathArguments, Type};
 
+/// In the code below, bools are considered to have 0 bits. This lets us distinguish them
+/// from u1
+const BITCOUNT_BOOL: usize = 0;
+
 /// Returns true if the number can be expressed by a regular data type like u8 or u32.
-/// 1 is also true, as it can be expressed as a bool
+/// 0 is special as it means bool (technically should be 1, but we use that for u1)
 fn is_int_size_regular_type(size: usize) -> bool {
-    size == 1 || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
+    size == BITCOUNT_BOOL || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
 }
 
 fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
@@ -21,7 +25,7 @@ fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
     let size = usize::from_str(s.split_at(1).1);
     match size {
         Ok(size) => {
-            if size > 1 && size < 128 && !is_int_size_regular_type(size) {
+            if size >= 1 && size < 128 && !is_int_size_regular_type(size) {
                 Ok(size)
             } else {
                 Err(())
@@ -136,18 +140,17 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         let field_type_size_from_data_type = match ty {
             Type::Path(path) => {
                 match path.to_token_stream().to_string().as_str() {
-                    "bool" => Some(1),
+                    "bool" => Some(BITCOUNT_BOOL),
                     "u8" | "i8" => Some(8),
                     "u16" | "i16" => Some(16),
                     "u32" | "i32" => Some(32),
                     "u64" | "i64" => Some(64),
                     "u128" | "i128" => Some(128),
-                    "u1" => panic!("bitfield!: Field {} has datatype u1, which is not supported. Use bool instead", field_name),
                     s if parse_arbitrary_int_type(s).is_ok() => Some(parse_arbitrary_int_type(s).unwrap()),
                     _ => None, // Enum type - size is the the number of bits
                 }
             }
-            _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g. u3, u62). Their arrays are also supported", ty.into_token_stream()),
+            _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g. u1, u3, u62). Their arrays are also supported", ty.into_token_stream()),
         };
         let mut range: Option<Range<usize>> = None;
         let mut provide_getter = false;
@@ -286,8 +289,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             Some(b) => (b, quote! { #ty }),
         };
 
-        if number_of_bits != field_type_size {
-            panic!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits);
+        if field_type_size == BITCOUNT_BOOL {
+            if number_of_bits != 1 {
+                panic!("bitfield!: Field {} is a bool, so it should only use a single bit (use syntax 'bit({})' instead)", field_name, lowest_bit);
+            }
+        } else {
+            if number_of_bits != field_type_size {
+                panic!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits);
+            }
         }
 
         // Verify bounds for arrays
@@ -369,12 +378,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     // Extract standard type (u8, u16 etc)
                     if indexed_count.is_some() {
                         let indexed_stride = indexed_stride.unwrap();
-                        if field_type_size == 1 {
+                        if field_type_size == BITCOUNT_BOOL {
                             quote! { (self.raw_value & (#one << (#lowest_bit + index * #indexed_stride))) != 0 }
                         } else {
                             quote! { ((self.raw_value >> (#lowest_bit + index * #indexed_stride)) & ((#one << #number_of_bits) - #one)) as #primitive_type }
                         }
-                    } else if field_type_size == 1 {
+                    } else if field_type_size == BITCOUNT_BOOL {
                         quote! { (self.raw_value & (#one << #lowest_bit)) != 0 }
                     } else if number_of_bits == base_data_size {
                         // If the field is the whole size of the bitfield, we can't apply a mask
@@ -454,7 +463,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
             let new_raw_value = if let Some(_indexed_count) = indexed_count {
                 let indexed_stride = indexed_stride.unwrap();
-                if field_type_size_from_data_type == Some(1) {
+                // bool?
+                if field_type_size_from_data_type == Some(BITCOUNT_BOOL) {
                     quote! {
                         {
                             let effective_index = #lowest_bit + index * #indexed_stride;
@@ -469,7 +479,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         }
                     }
                 }
-            } else if field_type_size_from_data_type == Some(1) {
+            } else if field_type_size_from_data_type == Some(BITCOUNT_BOOL) {
                 quote! {
                     if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
                 }

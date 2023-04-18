@@ -42,7 +42,7 @@ How this works:
   have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlying data types.
 - Each field is annotated with the range of bits that are used by the field. The data type must match the number of
   bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
-- bool fields are declared as "bit", all other fields as "bits"
+- Single bit fields are declared as "bit", all other fields as "bits"
 - Valid data types for fields are the basic types u8, u16, u32, u64, u128, bool as well as enums (see below) or types
   like u1, u2, u3 from [arbitrary-int](https://crates.io/crates/arbitrary-int)
 - Bit numbering is LSB0, which means that bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2,
@@ -92,7 +92,7 @@ struct BitfieldWithEnum {
 
 ## Arrays
 
-Sometimes, bits inside of bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For
+Sometimes, bits inside bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For
 example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
 
 ```rs
@@ -133,7 +133,7 @@ arbitrary-int = "1.2.0"
 
 ## Usage
 
-Eventhough bitfields feel somewhat like structs, they are internally implemented as simple data types like u32.
+Even though bitfields feel somewhat like structs, they are internally implemented as simple data types like u32.
 Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will
 return a new bitfield with that field modified.
 
