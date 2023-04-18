@@ -168,7 +168,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         let mut cfg_attributes = Vec::new();
 
         for attr in &variant.attrs {
-            if attr.path.to_token_stream().to_string() == "cfg" {
+            if attr.path().to_token_stream().to_string() == "cfg" {
                 cfg_attributes.push(attr.clone());
                 uses_conditional = true;
             }

@@ -160,7 +160,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         let mut doc_comment: Option<&Attribute> = None;
 
         for attr in &field.attrs {
-            let attr_name = attr.path.segments.first().unwrap_or_else(|| panic!("bitfield!: Invalid path")).ident.to_string();
+            let attr_name = attr.path().segments.first().unwrap_or_else(|| panic!("bitfield!: Invalid path")).ident.to_string();
             match attr_name.as_str() {
                 "bits" | "bit" => {
                     let is_range = attr_name.as_str() == "bits";
@@ -168,7 +168,15 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     if range.is_some() {
                         panic!("bitfield!: Only one 'bit' or 'bits' is supported per field");
                     }
-                    let attr_token_string = attr.tokens.to_string().clone();
+                    // Get the token_string, which is "bit(...) or bits()". Then get the arguments inside the parentheses.
+                    let token_string = attr.meta.to_token_stream().to_string();
+                    assert!(token_string.starts_with("bit"));
+                    let attr_token_string = if token_string.starts_with("bits") {
+                        token_string.trim_start_matches("bits")
+                    } else {
+                        token_string.trim_start_matches("bit")
+                    };
+
                     if &attr_token_string[..1] != "(" {
                         panic!("bitfield!: Expected '(' after '{}'", attr_name.as_str());
                     }
