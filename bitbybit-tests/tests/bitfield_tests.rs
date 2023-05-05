@@ -7,7 +7,7 @@ fn test_construction() {
     #[bitfield(u32, default: 0)]
     struct Test2 {}
 
-    let t = Test2::new();
+    let t = Test2::DEFAULT;
     assert_eq!(0, t.raw_value);
 
     let t = Test2::new_with_raw_value(45);
@@ -45,7 +45,7 @@ fn test_getter_and_setter() {
     assert_eq!(0xE0, t.baudrate());
     assert_eq!(u4::new(0x6), t.some_other_bits());
 
-    let t = Test2::new()
+    let t = Test2::DEFAULT
         .with_baudrate(0x12)
         .with_some_other_bits(u4::new(0x2));
     assert_eq!(0x12, t.baudrate());
@@ -68,7 +68,7 @@ fn test_getter_and_setter_arbitrary_uint() {
     assert_eq!(0xE0, t.baudrate());
     assert_eq!(u4::new(0x6), t.some_other_bits());
 
-    let t = Test2::new()
+    let t = Test2::DEFAULT
         .with_baudrate(0x12)
         .with_some_other_bits(u4::new(0x2));
     assert_eq!(0x12, t.baudrate());
@@ -96,7 +96,7 @@ fn test_bool() {
         o: u3,
     }
 
-    let t = Test::new();
+    let t = Test::DEFAULT;
     assert!(!t.bit0());
     assert!(!t.bit1());
     assert_eq!(t.raw_value, 0b00);
@@ -132,7 +132,7 @@ fn test_u1() {
         o: u3,
     }
 
-    let t = Test::new();
+    let t = Test::DEFAULT;
     assert_eq!(t.bit0(), u1::new(0));
     assert_eq!(t.bit1(), u1::new(0));
     assert_eq!(t.raw_value, 0b00);
@@ -184,7 +184,7 @@ fn default_value() {
     #[bitfield(u32, default: 0xDEADBEEF)]
     struct Test {}
 
-    let t = Test::new();
+    let t = Test::DEFAULT;
     assert_eq!(t.raw_value, 0xDEADBEEF);
 }
 
@@ -194,7 +194,7 @@ fn default_value_const() {
     #[bitfield(u32, default: DEFAULT)]
     struct Test {}
 
-    let t = Test::new();
+    let t = Test::DEFAULT;
     assert_eq!(t.raw_value, 0xBADCAFE);
 }
 
@@ -247,7 +247,7 @@ fn proper_unmasking() {
         c: u2,
     }
 
-    let s1 = TestStruct::new()
+    let s1 = TestStruct::DEFAULT
         .with_a(u2::new(0b11))
         .with_b(u2::new(0b11))
         .with_c(u2::new(0b11));
@@ -266,7 +266,7 @@ fn just_one_bitrange() {
         a: i16,
     }
 
-    let s1 = JustOneBitRange::new().with_a(0b0111001110001111);
+    let s1 = JustOneBitRange::DEFAULT.with_a(0b0111001110001111);
 
     assert_eq!(0b0111001110001111, s1.raw_value());
     assert_eq!(0b0111001110001111, s1.a());
@@ -610,13 +610,13 @@ fn bitfield_with_enum_exhaustive() {
 
     assert_eq!(
         0b10,
-        BitfieldWithEnum::new()
+        BitfieldWithEnum::DEFAULT
             .with_e1(ExhaustiveEnum::Two)
             .raw_value()
     );
     assert_eq!(
         0b11,
-        BitfieldWithEnum::new()
+        BitfieldWithEnum::DEFAULT
             .with_e1(ExhaustiveEnum::Three)
             .raw_value()
     );
@@ -657,19 +657,19 @@ fn bitfield_with_enum_nonexhaustive() {
 
     assert_eq!(
         0b0000,
-        BitfieldWithEnumNonExhaustive::new()
+        BitfieldWithEnumNonExhaustive::DEFAULT
             .with_e2(NonExhaustiveEnum::Zero)
             .raw_value()
     );
     assert_eq!(
         0b0100,
-        BitfieldWithEnumNonExhaustive::new()
+        BitfieldWithEnumNonExhaustive::DEFAULT
             .with_e2(NonExhaustiveEnum::One)
             .raw_value()
     );
     assert_eq!(
         0b1000,
-        BitfieldWithEnumNonExhaustive::new()
+        BitfieldWithEnumNonExhaustive::DEFAULT
             .with_e2(NonExhaustiveEnum::Two)
             .raw_value()
     );
@@ -859,6 +859,17 @@ fn default_value_automatically_implements_default() {
 
     // If this compiles then derive(Debug) worked
     let a = Test::default();
-    let b = Test::new();
+    let b = Test::DEFAULT;
     assert_eq!(a, b);
+}
+
+#[test]
+fn new_can_still_be_called() {
+    #[bitfield(u32, default: 567)]
+    #[derive(Eq, PartialEq, Debug)]
+    struct Test {}
+
+    #[allow(deprecated)]
+    let old_new = Test::new();
+    assert_eq!(old_new.raw_value(), 567);
 }

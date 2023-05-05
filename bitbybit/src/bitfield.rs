@@ -535,18 +535,23 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let (default_constructor, default_trait) = if let Some(default_value) = default_value {
         (
             quote! {
-                /// Creates a new instance with the default value.
+                /// An instance that uses the default value.
                 ///
                 /// For example, the following definition would create an instance with a
                 /// raw_value of 0x123:
                 /// #[bitfield(u32, default: 0x123)]
                 #[inline]
-                pub const fn new() -> #struct_name { #struct_name { raw_value: #default_value } }
+                pub const DEFAULT: Self = Self { raw_value: #default_value };
+
+                #[deprecated(note = "Use DEFAULT instead of new()")]
+                pub const fn new() -> Self {
+                    Self::DEFAULT
+                }
             },
             quote! {
                 impl Default for #struct_name {
                     fn default() -> Self {
-                        Self::new()
+                        Self::DEFAULT
                     }
                 }
             },
