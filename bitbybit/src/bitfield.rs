@@ -172,9 +172,9 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     let token_string = attr.meta.to_token_stream().to_string();
                     assert!(token_string.starts_with("bit"));
                     let attr_token_string = if token_string.starts_with("bits") {
-                        token_string.trim_start_matches("bits")
+                        token_string.trim_start_matches("bits").trim()
                     } else {
-                        token_string.trim_start_matches("bit")
+                        token_string.trim_start_matches("bit").trim()
                     };
 
                     if &attr_token_string[..1] != "(" {
