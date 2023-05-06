@@ -1,6 +1,6 @@
 [package]
 name = "bitbybit"
-version = "1.1.4"
+version = "1.1.5"
 authors = ["Daniel Lehmann <danlehmannmuc@gmail.com>"]
 edition = "2021"
 description = "Efficient implementation of bit-fields where several numbers are packed within a larger number and bit-enums. Useful for drivers, so it works in no_std environments"
