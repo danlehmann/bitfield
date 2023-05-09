@@ -127,6 +127,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let accessors: Vec<TokenStream2> = fields.iter().map(|field| {
         let field_name = field.ident.as_ref().unwrap();
+
         let (ty, indexed_count) = {
             match &field.ty {
                 Type::Array(ty) => {
@@ -500,7 +501,17 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #base_data_type) << #lowest_bit) }
             };
 
-            let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
+            // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
+            let field_name_without_prefix = {
+                let s = field_name.to_string();
+                if s.starts_with("r#") {
+                    s[2..].to_string()
+                } else {
+                    s
+                }
+            };
+
+            let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name_without_prefix).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
             if let Some(_indexed_count) = indexed_count {
                 quote! {
                     #doc_comment
