@@ -123,6 +123,33 @@ struct NibbleBits64 {
 }
 ```
 
+## Default
+
+Bitfields can always be created through new_with_raw_value():
+
+```rs
+let a = NibbleBits64::new_with_raw_value(0x43218765);
+```
+
+However, pretty often a specific value can be considered the default (for example 0). This can be specified like this:
+
+```rs
+#[bitfield(u32, default: 0x1234)]
+struct Bitfield1 {
+  #[bits(0..=3, rw)]
+  nibble: [u4; 4],
+}
+```
+
+If a default value is specified, the bitfield can easily be created with this specific value:
+
+```rs
+let a = Bitfield1::Default;
+const A: Bitfield1 = Bitfield1::DEFAULT;
+```
+
+Default values are used as-is, even if they affect bits that aren't defined within the bitfield.
+
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
@@ -143,5 +170,5 @@ let a = NibbleBits64::new_with_raw_value(0x12345678_ABCDEFFF);
 assert_eq!(u4::new(0xE), a.nibble(3));
 // Change a value
 let b = a.with_nibble(0, u4::new(0x3))
-assert_eq!(0x12345678_ABCDEFF3, nibble.raw_value());
+assert_eq!(0x12345678_ABCDEFF3, b.raw_value());
 ```
