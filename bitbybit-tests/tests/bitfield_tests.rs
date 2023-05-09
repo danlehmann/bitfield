@@ -873,3 +873,31 @@ fn new_can_still_be_called() {
     let old_new = Test::new();
     assert_eq!(old_new.raw_value(), 567);
 }
+
+#[allow(non_camel_case_types)]
+#[test]
+fn reserved_identifiers() {
+    #[bitenum(u1, exhaustive: true)]
+    #[derive(PartialEq, Eq, Debug)]
+    enum BitEnum {
+        r#priv = 0,
+        r#enum = 1,
+    }
+
+    #[bitfield(u32, default: 0)]
+    #[derive(PartialEq, Eq, Debug)]
+    struct BitfieldWithBitEnum {
+        #[bit(6, rw)]
+        r#priv: bool,
+
+        #[bit(8, rw)]
+        r#enum: [BitEnum; 6],
+    }
+
+    let field = BitfieldWithBitEnum::DEFAULT;
+    assert_eq!(field.r#priv(), false);
+    assert_eq!(field.with_priv(true), BitfieldWithBitEnum::new_with_raw_value(64));
+
+    assert_eq!(field.r#enum(0), BitEnum::r#priv);
+    assert_eq!(field.with_enum(5, BitEnum::r#enum), BitfieldWithBitEnum::new_with_raw_value(8192));
+}
