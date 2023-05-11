@@ -14,7 +14,7 @@ categories = ["embedded", "no-std", "data-structures"]
 proc-macro = true
 
 [dependencies]
-syn = "2.0"
+syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
 arbitrary-int = "1.2.5"
