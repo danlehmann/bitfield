@@ -1,14 +1,13 @@
 use proc_macro::TokenStream;
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Or};
-use std::fmt::LowerHex;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 use proc_macro2::{TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
-use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, LitInt, Lit, RangeLimits};
+use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, Lit, RangeLimits};
 
 const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 2] = [
     "range",
