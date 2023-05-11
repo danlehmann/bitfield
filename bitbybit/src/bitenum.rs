@@ -263,10 +263,9 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 let value = &discriminant.1;
                 let string_value = value.to_token_stream().to_string().replace('_', "");
 
-                // Determine the integer value itself. While we don't need it further down (for now),
-                // this ensures that only constants are being used; due to the way how new_with_raw_value()
-                // is written, some expressions would cause compilation issues (e.g. those that refer to other
-                // enum values).
+                // Determine the integer value itself. This ensures that only constants are being
+                // used; due to the way how new_with_raw_value() is written, some expressions would
+                // cause compilation issues (e.g. those that refer to other enum values).
                 let int_value = if let Some(stripped) = string_value.strip_prefix("0x") {
                     u128::from_str_radix(stripped, 16)
                 } else if let Some(stripped) = string_value.strip_prefix("0b") {
