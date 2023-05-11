@@ -10,13 +10,14 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, LitInt, Lit, RangeLimits};
 
-struct BitenumVariant<'a> {
-    variant: &'a Variant,
-}
-
 const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 1] = [
     "range",
 ];
+
+struct BitenumVariant<'a> {
+    variant: &'a Variant,
+    emit_discriminant: bool,
+}
 
 impl ToTokens for BitenumVariant<'_> {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
@@ -31,9 +32,11 @@ impl ToTokens for BitenumVariant<'_> {
         tokens.append_all(non_elided_attrs);
         self.variant.ident.to_tokens(tokens);
         self.variant.fields.to_tokens(tokens);
-        if let Some((eq_token, disc)) = &self.variant.discriminant {
-            eq_token.to_tokens(tokens);
-            disc.to_tokens(tokens);
+        if self.emit_discriminant {
+            if let Some((eq_token, disc)) = &self.variant.discriminant {
+                eq_token.to_tokens(tokens);
+                disc.to_tokens(tokens);
+            }
         }
     }
 }
@@ -178,6 +181,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         Range(ExprRange, RangeInclusive<u128>),
     }
 
+    let mut has_ranges = false;
     let max_value = (1u128 << bit_count) - 1;
 
     let emitted_variants: Vec<(VariantValue, &Ident, Vec<Attribute>)> = variants.iter().map(|variant| {
@@ -228,6 +232,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     panic!("bitenum!: range end for {variant_name} exceeds the given number of bits")
                 }
 
+                has_ranges = true;
                 VariantValue::Range(expr_range.clone(), start..=end)
             } else {
                 let discriminant = variant.discriminant.as_ref().unwrap_or_else(|| panic!("bitenum!: Variant '{}' needs to have a value", variant_name));
@@ -389,7 +394,17 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let wrapped_variants = variants
         .iter()
-        .map(|variant| BitenumVariant{ variant })
+        .map(|variant| {
+            BitenumVariant {
+                variant,
+                // If enum has both variants with fields and ones with discriminants, `#[repr]`
+                // must be specified. We shouldn't emit that because user code may already specify
+                // it. Work around this for bitenums with ranges by not emitting the discrimants
+                // for the non-range variants. This shouldn't matter because "as" already won't work
+                // since the enum is not a primitive.
+                emit_discriminant: !has_ranges
+            }
+        })
         .collect::<Punctuated<BitenumVariant, Comma>>();
 
     let raw_value_function = {
@@ -418,7 +433,6 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     };
 
     let expanded = quote! {
-        #[repr(#base_data_type)]
         #[derive(Copy, Clone)]
         #( #enum_attrs )*
         #enum_vis enum #enum_name {
