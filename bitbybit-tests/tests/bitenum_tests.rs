@@ -243,3 +243,101 @@ fn cfg_in_enum_values() {
     #[cfg(feature = "test123")]
     assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(3));
 }
+
+#[test]
+fn enum_with_range_u8() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u8, exhaustive: false)]
+    enum Foo {
+        Variant1 = 0x05,
+
+        #[range(0x10..=0x3D)]
+        VariantRangeHex(u8),
+
+        Variant2 = 73,
+
+        #[range(100..=150)]
+        VariantRangeDec(u8),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(0x05), Ok(Foo::Variant1));
+    assert_eq!(Foo::new_with_raw_value(73), Ok(Foo::Variant2));
+    assert_eq!(Foo::new_with_raw_value(0x09), Err(0x09));
+    assert_eq!(Foo::new_with_raw_value(0x12), Ok(Foo::VariantRangeHex(0x12)));
+    assert_eq!(Foo::new_with_raw_value(90), Err(90));
+    assert_eq!(Foo::new_with_raw_value(113), Ok(Foo::VariantRangeDec(113)));
+}
+
+#[test]
+fn enum_with_range_u3() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u2, exhaustive: false)]
+    enum Foo {
+        Variant = 0x1,
+        #[range(0x2..=0x3)]
+        VariantRange(u2),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(u2::new(0x1)), Ok(Foo::Variant));
+    assert_eq!(Foo::new_with_raw_value(u2::new(0x0)), Err(0x0));
+    assert_eq!(Foo::new_with_raw_value(u2::new(0x2)), Ok(Foo::VariantRange(u2::new(0x2))));
+}
+
+#[test]
+fn enum_with_range_multiple() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u8, exhaustive: false)]
+    enum Foo {
+        Variant = 0x40,
+
+        #[range(0x20..=0x30)]
+        #[range(0x50..=0x60)]
+        VariantRange(u8),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(0x25), Ok(Foo::VariantRange(0x25)));
+    assert_eq!(Foo::new_with_raw_value(0x40), Ok(Foo::Variant));
+    assert_eq!(Foo::new_with_raw_value(0x55), Ok(Foo::VariantRange(0x55)));
+    assert_eq!(Foo::new_with_raw_value(0x65), Err(0x65));
+}
+
+#[test]
+fn enum_with_range_catchall() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u8, exhaustive: true)]
+    enum Foo {
+        Variant = 0x40,
+
+        #[catchall]
+        Catchall(u8),
+
+        #[range(0x20..=0x30)]
+        #[range(0x50..=0x60)]
+        VariantRange(u8),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(0x25), Foo::VariantRange(0x25));
+    assert_eq!(Foo::new_with_raw_value(0x40), Foo::Variant);
+    assert_eq!(Foo::new_with_raw_value(0x55), Foo::VariantRange(0x55));
+    assert_eq!(Foo::new_with_raw_value(0x65), Foo::Catchall(0x65));
+}
+
+#[test]
+fn enum_with_range_exhaustive_no_catchall() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u8, exhaustive: true)]
+    enum Foo {
+        #[range(0x00..=0x20)]
+        #[range(0x50..=0x60)]
+        VariantRanges1(u8),
+
+        #[range(0x21..=0x4F)]
+        #[range(0x61..=0xFF)]
+        VariantRanges2(u8),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(0x10), Foo::VariantRanges1(0x10));
+    assert_eq!(Foo::new_with_raw_value(0x30), Foo::VariantRanges2(0x30));
+    assert_eq!(Foo::new_with_raw_value(0x50), Foo::VariantRanges1(0x50));
+    assert_eq!(Foo::new_with_raw_value(0x70), Foo::VariantRanges2(0x70));
+}
