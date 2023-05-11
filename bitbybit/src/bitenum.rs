@@ -10,8 +10,9 @@ use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
 use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, LitInt, Lit, RangeLimits};
 
-const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 1] = [
+const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 2] = [
     "range",
+    "catchall",
 ];
 
 struct BitenumVariant<'a> {
@@ -179,18 +180,42 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     enum VariantValue<'a> {
         SingleValue(&'a Expr, u128),
         Ranges(Vec<(ExprRange, RangeInclusive<u128>)>),
+        CatchAll,
     }
 
+    let mut has_catchall = false;
     let mut has_ranges = false;
     let max_value = (1u128 << bit_count) - 1;
 
-    let emitted_variants: Vec<(VariantValue, &Ident, Vec<Attribute>)> = variants.iter().map(|variant| {
+    let mut emitted_variants: Vec<(VariantValue, &Ident, Vec<Attribute>)> = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         let value = {
             let range_attrs = variant.attrs
                 .iter()
                 .filter(|attr| { attr.path().is_ident("range") });
-            if range_attrs.clone().count() > 0 {
+            let range_attr_count = range_attrs.clone().count();
+
+            let catchall_attrs = variant.attrs
+                .iter()
+                .filter(|attr| { attr.path().is_ident("catchall") });
+            let catchall_attr_count = catchall_attrs.clone().count();
+
+            if range_attr_count > 0 && catchall_attr_count > 0 {
+                panic!("bitenum!: variant cannot have both range and catchall attributes");
+            }
+
+            if catchall_attr_count > 1 {
+                panic!("bitenum!: catchall attribute must only be specified once");
+            }
+
+            if catchall_attr_count > 0 {
+                if has_catchall {
+                    panic!("bitenum!: only one variant can be designated as the catchall");
+                }
+
+                has_catchall = true;
+                VariantValue::CatchAll
+            } else if range_attr_count > 0 {
                 has_ranges = true;
                 let range_info = range_attrs.clone().map(|range_attr| {
                     let attr_args: Expr = range_attr.parse_args().expect("bitenum: failed to parse range attribute");
@@ -273,6 +298,12 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         (value, variant_name, cfg_attributes)
     }).collect();
 
+    // Put the catchall last
+    emitted_variants.sort_by_key(|(value, _, _)| match value {
+        VariantValue::SingleValue(_, _) => 0,
+        VariantValue::Ranges(_) => 0,
+        VariantValue::CatchAll => 10,
+    });
 
     if uses_conditional {
         if exhaustiveness != Exhaustiveness::Conditional {
@@ -284,60 +315,68 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }
 
-    // We tested the numeric values for out-of-bounds above. As enum values are unique integers,
-    // we can now reason about the number of variants: If variants == 2^bits then we have to be exhaustive
-    // (and if not, we can't be).
-
-    let mut ranges: Vec<RangeInclusive<u128>> = Vec::new();
-    for (value, _, _) in &emitted_variants {
-        match value {
-            VariantValue::SingleValue(_, v) => ranges.push(*v..=*v),
-            VariantValue::Ranges(range_info) => {
-                for (_, range) in range_info {
-                    ranges.push(range.clone());
-                }
-            }
-        }
-    }
-    ranges.sort_by_key(|r| *r.start());
-
-    let mut has_holes = false;
-    let mut last_end: Option<u128> = None;
-    for range in ranges {
-        if let Some(last_end) = last_end {
-            if *range.start() != last_end + 1 {
-                has_holes = true;
-            }
-            if *range.start() <= last_end {
-                panic!("bitenum!: one or more value is covered by multiple variants ({:02x}-{:02x})", range.start(), last_end);
-            }
-        } else {
-            has_holes = *range.start() > 0;
-        }
-        last_end = Some(*range.end());
-    }
-
-    let covers_all_values = match last_end {
-        Some(last_end) => !has_holes && last_end == max_value,
-        None => false,
-    };
-
-    let return_is_result = match exhaustiveness {
-        Exhaustiveness::True => {
-            if !covers_all_values {
-                panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
+    let return_is_result = {
+        if has_catchall {
+            match exhaustiveness {
+                Exhaustiveness::False => panic!("bitenum!: if there's a catch-all variant, enum is necessarily exhaustive"),
+                _ => (),
             }
             false
-        }
-        Exhaustiveness::False => {
-            if covers_all_values {
-                panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
+        } else {
+            let mut ranges: Vec<RangeInclusive<u128>> = Vec::new();
+            for (value, _, _) in &emitted_variants {
+                match value {
+                    VariantValue::SingleValue(_, v) => ranges.push(*v..=*v),
+                    VariantValue::Ranges(range_info) => {
+                        for (_, range) in range_info {
+                            ranges.push(range.clone());
+                        }
+                    }
+                    // Shouldn't get here because range checking doesn't make sense if there's a catchall
+                    VariantValue::CatchAll => panic!("bitenum!: internal error"),
+                }
             }
-            true
-        }
-        Exhaustiveness::Conditional => {
-            // No check
-            true
+            ranges.sort_by_key(|r| *r.start());
+
+            let mut has_holes = false;
+            let mut last_end: Option<u128> = None;
+            for range in ranges {
+                if let Some(last_end) = last_end {
+                    if *range.start() != last_end + 1 {
+                        has_holes = true;
+                    }
+                    if *range.start() <= last_end {
+                        panic!("bitenum!: one or more value is covered by multiple variants ({:02x}-{:02x})", range.start(), last_end);
+                    }
+                } else {
+                    has_holes = *range.start() > 0;
+                }
+                last_end = Some(*range.end());
+            }
+
+            let covers_all_values = match last_end {
+                Some(last_end) => !has_holes && last_end == max_value,
+                None => false,
+            };
+
+            match exhaustiveness {
+                Exhaustiveness::True => {
+                    if !covers_all_values {
+                        panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
+                    }
+                    false
+                }
+                Exhaustiveness::False => {
+                    if covers_all_values {
+                        panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
+                    }
+                    true
+                }
+                Exhaustiveness::Conditional => {
+                    // No check
+                    true
+                }
+            }
         }
     };
 
@@ -357,6 +396,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     let case_expression = range_info.iter().map(|(expr_range, _)| expr_range).collect::<Punctuated<&ExprRange, Or>>();
                     (case_expression.to_token_stream(), quote! { Self::#name(value) })
                 },
+                VariantValue::CatchAll => (quote! { _ }, quote! { Self::#name(value) }),
             };
             if return_is_result {
                 quote! {
@@ -420,10 +460,10 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     #( #cfg_attributes )*
                     Self::#name => #result_constructor(#expression)
                 },
-                VariantValue::Ranges(_) => quote! {
+                VariantValue::Ranges(_) | VariantValue::CatchAll => quote! {
                     #( #cfg_attributes )*
                     Self::#name(v) => v
-                }
+                },
             }
         })
         .collect();
