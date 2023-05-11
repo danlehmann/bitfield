@@ -342,7 +342,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     has_holes = true;
                 }
                 if *range.start() <= last_end {
-                    panic!("bitenum!: one or more value is covered by multiple variants ({:02x}-{:02x})", range.start(), last_end);
+                    panic!("bitenum!: one or more value in range 0x{:02x}..=0x{:02x} is covered by multiple variants", range.start(), last_end);
                 }
             } else {
                 has_holes = *range.start() > 0;
