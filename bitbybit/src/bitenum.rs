@@ -314,67 +314,67 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }
 
-    let return_is_result = {
-        if has_catchall {
-            match exhaustiveness {
-                Exhaustiveness::False => panic!("bitenum!: if there's a catch-all variant, enum is necessarily exhaustive"),
-                _ => (),
-            }
-            false
-        } else {
-            let mut ranges: Vec<RangeInclusive<u128>> = Vec::new();
-            for (value, _, _) in &emitted_variants {
-                match value {
-                    VariantValue::SingleValue(_, v) => ranges.push(*v..=*v),
-                    VariantValue::Ranges(range_info) => {
-                        for (_, range) in range_info {
-                            ranges.push(range.clone());
-                        }
-                    }
-                    // Shouldn't get here because range checking doesn't make sense if there's a catchall
-                    VariantValue::CatchAll => panic!("bitenum!: internal error"),
-                }
-            }
-            ranges.sort_by_key(|r| *r.start());
+    if has_catchall && exhaustiveness == Exhaustiveness::False {
+        panic!("bitenum!: if there's a catch-all variant, enum is necessarily exhaustive");
+    }
 
-            let mut has_holes = false;
-            let mut last_end: Option<u128> = None;
-            for range in ranges {
-                if let Some(last_end) = last_end {
-                    if *range.start() != last_end + 1 {
-                        has_holes = true;
+    let return_is_result = if has_catchall {
+        false
+    } else if exhaustiveness == Exhaustiveness::Conditional {
+        true
+    } else {
+        let mut ranges: Vec<RangeInclusive<u128>> = Vec::new();
+        for (value, _, _) in &emitted_variants {
+            match value {
+                VariantValue::SingleValue(_, v) => ranges.push(*v..=*v),
+                VariantValue::Ranges(range_info) => {
+                    for (_, range) in range_info {
+                        ranges.push(range.clone());
                     }
-                    if *range.start() <= last_end {
-                        panic!("bitenum!: one or more value is covered by multiple variants ({:02x}-{:02x})", range.start(), last_end);
-                    }
-                } else {
-                    has_holes = *range.start() > 0;
                 }
-                last_end = Some(*range.end());
+                // Shouldn't get here because we shouldn't have done an exhaustiveness check
+                VariantValue::CatchAll => panic!("bitenum!: internal error"),
             }
+        }
+        ranges.sort_by_key(|r| *r.start());
 
-            let covers_all_values = match last_end {
-                Some(last_end) => !has_holes && last_end == max_value,
-                None => false,
-            };
+        let mut has_holes = false;
+        let mut last_end: Option<u128> = None;
+        for range in ranges {
+            if let Some(last_end) = last_end {
+                if *range.start() != last_end + 1 {
+                    has_holes = true;
+                }
+                if *range.start() <= last_end {
+                    panic!("bitenum!: one or more value is covered by multiple variants ({:02x}-{:02x})", range.start(), last_end);
+                }
+            } else {
+                has_holes = *range.start() > 0;
+            }
+            last_end = Some(*range.end());
+        }
 
-            match exhaustiveness {
-                Exhaustiveness::True => {
-                    if !covers_all_values {
-                        panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
-                    }
-                    false
+        let covers_all_values = match last_end {
+            Some(last_end) => !has_holes && last_end == max_value,
+            None => false,
+        };
+
+        match exhaustiveness {
+            Exhaustiveness::True => {
+                if !covers_all_values {
+                    panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
                 }
-                Exhaustiveness::False => {
-                    if covers_all_values {
-                        panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
-                    }
-                    true
+                false
+            }
+            Exhaustiveness::False => {
+                if covers_all_values {
+                    panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
                 }
-                Exhaustiveness::Conditional => {
-                    // No check
-                    true
-                }
+                true
+            }
+            Exhaustiveness::Conditional => {
+                // Shouldn't get here because we shouldn't have done an exhaustiveness check
+                panic!("bitenum!: internal error");
             }
         }
     };
