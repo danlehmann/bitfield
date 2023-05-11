@@ -317,9 +317,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         panic!("bitenum!: if there's a catch-all variant, enum is necessarily exhaustive");
     }
 
-    let return_is_result = if has_catchall {
-        false
-    } else if exhaustiveness == Exhaustiveness::Conditional {
+    let return_is_result = if exhaustiveness == Exhaustiveness::Conditional {
         true
     } else {
         let mut ranges: Vec<RangeInclusive<u128>> = Vec::new();
@@ -331,8 +329,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                         ranges.push(range.clone());
                     }
                 }
-                // Shouldn't get here because we shouldn't have done an exhaustiveness check
-                VariantValue::Catchall => panic!("bitenum!: internal error"),
+                VariantValue::Catchall => (),
             }
         }
         ranges.sort_by_key(|r| *r.start());
@@ -353,15 +350,15 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             last_end = Some(*range.end());
         }
 
-        let covers_all_values = match last_end {
-            Some(last_end) => !has_holes && last_end == max_value,
-            None => false,
-        };
+        let covers_all_values = !has_holes && last_end == Some(max_value);
 
         match exhaustiveness {
             Exhaustiveness::True => {
-                if !covers_all_values {
+                if !has_catchall && !covers_all_values {
                     panic!("bitenum!: Enum is marked as exhaustive, but it is missing variants")
+                }
+                if has_catchall && covers_all_values {
+                    panic!("bitenum!: Enum has a catchall variant, but all possible values are already covered")
                 }
                 false
             }
