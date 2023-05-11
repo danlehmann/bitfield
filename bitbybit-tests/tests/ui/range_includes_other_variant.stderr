@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> tests/ui/range_includes_other_variant.rs:3:1
+  |
+3 | #[bitenum(u8, exhaustive: true)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: bitenum!: one or more value in range 0x10..=0x20 is covered by multiple variants
