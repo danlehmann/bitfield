@@ -179,7 +179,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     enum VariantValue<'a> {
         SingleValue(&'a Expr, u128),
         Ranges(Vec<(ExprRange, RangeInclusive<u128>)>),
-        CatchAll,
+        Catchall,
     }
 
     let mut has_catchall = false;
@@ -213,7 +213,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
 
                 has_catchall = true;
-                VariantValue::CatchAll
+                VariantValue::Catchall
             } else if range_attr_count > 0 {
                 has_ranges = true;
                 let range_info = range_attrs.clone().map(|range_attr| {
@@ -301,7 +301,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     emitted_variants.sort_by_key(|(value, _, _)| match value {
         VariantValue::SingleValue(_, _) => 0,
         VariantValue::Ranges(_) => 0,
-        VariantValue::CatchAll => 10,
+        VariantValue::Catchall => 10,
     });
 
     if uses_conditional {
@@ -333,7 +333,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 }
                 // Shouldn't get here because we shouldn't have done an exhaustiveness check
-                VariantValue::CatchAll => panic!("bitenum!: internal error"),
+                VariantValue::Catchall => panic!("bitenum!: internal error"),
             }
         }
         ranges.sort_by_key(|r| *r.start());
@@ -395,7 +395,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     let case_expression = range_info.iter().map(|(expr_range, _)| expr_range).collect::<Punctuated<&ExprRange, Or>>();
                     (case_expression.to_token_stream(), quote! { Self::#name(value) })
                 },
-                VariantValue::CatchAll => (quote! { _ }, quote! { Self::#name(value) }),
+                VariantValue::Catchall => (quote! { _ }, quote! { Self::#name(value) }),
             };
             if return_is_result {
                 quote! {
@@ -458,7 +458,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     #( #cfg_attributes )*
                     Self::#name => #result_constructor(#expression)
                 },
-                VariantValue::Ranges(_) | VariantValue::CatchAll => quote! {
+                VariantValue::Ranges(_) | VariantValue::Catchall => quote! {
                     #( #cfg_attributes )*
                     Self::#name(v) => v
                 },
