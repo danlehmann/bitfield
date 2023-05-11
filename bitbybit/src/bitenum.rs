@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use syn::token::{Comma, Or};
 use std::fmt::LowerHex;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
@@ -178,7 +178,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     enum VariantValue<'a> {
         SingleValue(&'a Expr, u128),
-        Range(ExprRange, RangeInclusive<u128>),
+        Ranges(Vec<(ExprRange, RangeInclusive<u128>)>),
     }
 
     let mut has_ranges = false;
@@ -187,53 +187,52 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     let emitted_variants: Vec<(VariantValue, &Ident, Vec<Attribute>)> = variants.iter().map(|variant| {
         let variant_name = &variant.ident;
         let value = {
-            let range_attrs: Vec<&Attribute> = variant.attrs.iter().filter(|attr| {
-                attr.path().is_ident("range")
-            }).collect();
-            if range_attrs.len() > 1 {
-                panic!("bitenum!: multiple range attributes for {variant_name}");
-            }
-
-            if let Some(range_attr) = range_attrs.first() {
-                let attr_args: Expr = range_attr.parse_args().expect("bitenum: failed to parse range attribute");
-                let expr_range = match attr_args {
-                    Expr::Range(e) => e,
-                    _ => panic!("bitenum!: range attribute argument must be a range"),
-                };
-
-                let start = match expr_range.clone().start.expect("bitenum: range must have start and end bounds").as_ref() {
-                    Expr::Lit(expr_lit) => match &expr_lit.lit {
-                        Lit::Int(lit_int) => {
-                            lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range start")
-                        },
-                        _ => panic!("bitenum!: invalid range start"),
-                    },
-                    _ => panic!("bitenum!: invalid range start"),
-                };
-                let end = match expr_range.clone().end.expect("bitenum: range must have start and end bounds").as_ref() {
-                    Expr::Lit(expr_lit) => match &expr_lit.lit {
-                        Lit::Int(lit_int) => {
-                            lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range end")
-                        },
-                        _ => panic!("bitenum!: invalid range start"),
-                    },
-                    _ => panic!("bitenum!: invalid range end"),
-                };
-                match expr_range.clone().limits {
-                    RangeLimits::HalfOpen(_) => panic!("bitenum!: range must be closed"),
-                    _ => (),
-                };
-
-                if start > max_value {
-                    panic!("bitenum!: range start for {variant_name} exceeds the given number of bits")
-                }
-
-                if end > max_value {
-                    panic!("bitenum!: range end for {variant_name} exceeds the given number of bits")
-                }
-
+            let range_attrs = variant.attrs
+                .iter()
+                .filter(|attr| { attr.path().is_ident("range") });
+            if range_attrs.clone().count() > 0 {
                 has_ranges = true;
-                VariantValue::Range(expr_range.clone(), start..=end)
+                let range_info = range_attrs.clone().map(|range_attr| {
+                    let attr_args: Expr = range_attr.parse_args().expect("bitenum: failed to parse range attribute");
+                    let expr_range = match attr_args {
+                        Expr::Range(e) => e,
+                        _ => panic!("bitenum!: range attribute argument must be a range"),
+                    };
+
+                    let start = match expr_range.clone().start.expect("bitenum: range must have start and end bounds").as_ref() {
+                        Expr::Lit(expr_lit) => match &expr_lit.lit {
+                            Lit::Int(lit_int) => {
+                                lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range start")
+                            },
+                            _ => panic!("bitenum!: invalid range start"),
+                        },
+                        _ => panic!("bitenum!: invalid range start"),
+                    };
+                    let end = match expr_range.clone().end.expect("bitenum: range must have start and end bounds").as_ref() {
+                        Expr::Lit(expr_lit) => match &expr_lit.lit {
+                            Lit::Int(lit_int) => {
+                                lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range end")
+                            },
+                            _ => panic!("bitenum!: invalid range start"),
+                        },
+                        _ => panic!("bitenum!: invalid range end"),
+                    };
+                    match expr_range.clone().limits {
+                        RangeLimits::HalfOpen(_) => panic!("bitenum!: range must be closed"),
+                        _ => (),
+                    };
+
+                    if start > max_value {
+                        panic!("bitenum!: range start for {variant_name} exceeds the given number of bits")
+                    }
+
+                    if end > max_value {
+                        panic!("bitenum!: range end for {variant_name} exceeds the given number of bits")
+                    }
+
+                    (expr_range.clone(), start..=end)
+                }).collect();
+                VariantValue::Ranges(range_info)
             } else {
                 let discriminant = variant.discriminant.as_ref().unwrap_or_else(|| panic!("bitenum!: Variant '{}' needs to have a value", variant_name));
                 // Discriminant.0 is the equals sign. 1 is the value
@@ -293,7 +292,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     for (value, _, _) in &emitted_variants {
         match value {
             VariantValue::SingleValue(_, v) => ranges.push(*v..=*v),
-            VariantValue::Range(_, range) => ranges.push(range.clone()),
+            VariantValue::Ranges(range_info) => {
+                for (_, range) in range_info {
+                    ranges.push(range.clone());
+                }
+            }
         }
     }
     ranges.sort_by_key(|r| *r.start());
@@ -350,7 +353,10 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         .map(|(value, name, cfg_attributes)| {
             let (case_expression, case_value_expression) = match value {
                 VariantValue::SingleValue(expression, _) => (expression.to_token_stream(), quote! { Self::#name }),
-                VariantValue::Range(expression, _) => (expression.to_token_stream(), quote! { Self::#name(value) }),
+                VariantValue::Ranges(range_info) => {
+                    let case_expression = range_info.iter().map(|(expr_range, _)| expr_range).collect::<Punctuated<&ExprRange, Or>>();
+                    (case_expression.to_token_stream(), quote! { Self::#name(value) })
+                },
             };
             if return_is_result {
                 quote! {
@@ -414,7 +420,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                     #( #cfg_attributes )*
                     Self::#name => #result_constructor(#expression)
                 },
-                VariantValue::Range(_, _) => quote! {
+                VariantValue::Ranges(_) => quote! {
                     #( #cfg_attributes )*
                     Self::#name(v) => v
                 }
