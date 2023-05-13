@@ -223,7 +223,6 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 has_ranges = true;
                 let range_attr = range_attrs.clone().nth(0).unwrap();
                 let attr_args: Expr = range_attr.parse_args().expect("bitenum: failed to parse range attribute");
-                println!("{:?}", attr_args.to_token_stream());
 
                 let expr_ranges = if range_attr.path().is_ident("ranges") {
                     match attr_args {
