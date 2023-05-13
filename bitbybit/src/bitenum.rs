@@ -440,7 +440,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 variant,
                 // If enum has both variants with fields and ones with discriminants, `#[repr]`
                 // must be specified. We shouldn't emit that because user code may already specify
-                // it. Work around this for bitenums with fields by not emitting the discrimants.
+                // it. Work around this for bitenums with fields by not emitting the discriminants.
                 // This shouldn't matter because "as" already won't work for these non-primitive types.
                 emit_discriminant: !has_ranges && !has_catchall
             }
