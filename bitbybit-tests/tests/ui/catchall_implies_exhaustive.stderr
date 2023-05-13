@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> tests/ui/catchall_implies_exhaustive.rs:3:1
+  |
+3 | #[bitenum(u8, exhaustive: false)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: bitenum!: if there's a catch-all variant, enum is necessarily exhaustive
