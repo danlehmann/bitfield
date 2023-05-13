@@ -450,21 +450,31 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         )
     };
 
+    // A primitive enum just has variants that each have a single value. For this kind of
+    // enum, the `as` keyword can be used to cast an instance to an integer.
+    let is_primitive = !has_ranges && !has_catchall;
+
     let wrapped_variants = variants
         .iter()
         .map(|variant| {
             BitenumVariant {
                 variant,
-                // If enum has both variants with fields and ones with discriminants, `#[repr]`
-                // must be specified. We shouldn't emit that because user code may already specify
-                // it. Work around this for bitenums with fields by not emitting the discriminants.
-                // This shouldn't matter because "as" already won't work for these non-primitive types.
-                emit_discriminant: !has_ranges && !has_catchall
+                // If a non-primitive enum has any variants with discriminants, `#[repr]` must be
+                // specified. We shouldn't emit that because user code may already specify it. Work
+                // around this by not emitting the discriminants for non-primitive bitenums. This
+                // shouldn't make a practical because discriminants only affect casting using `as`,
+                // which already doesn't work for non-primitive enums.
+                emit_discriminant: is_primitive
             }
         })
         .collect::<Punctuated<BitenumVariant, Comma>>();
 
-    let raw_value_function = {
+    let raw_value_function = if is_primitive {
+        quote! {
+            /// Returns the underlying raw value of this bitfield
+            pub const fn raw_value(self) -> #bounded_data_type { #result_constructor(self as #base_data_type) }
+        }
+    } else {
         let raw_value_cases: Punctuated<TokenStream2, Comma> = emitted_variants.iter().map(|(value, name, cfg_attributes)| {
             match value {
                 VariantValue::SingleValue(expression, _) => quote! {
