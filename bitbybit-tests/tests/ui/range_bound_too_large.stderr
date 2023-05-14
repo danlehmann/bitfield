@@ -4,4 +4,4 @@ error: custom attribute panicked
 3 | #[bitenum(u8, exhaustive: false)]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: message: bitenum!: range end for VariantRange2 exceeds the given number of bits
+  = help: message: bitenum!: range end for RangeVariant2 exceeds the given number of bits
