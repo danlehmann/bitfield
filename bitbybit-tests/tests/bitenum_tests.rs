@@ -251,12 +251,12 @@ fn enum_with_range_u8() {
     enum Foo {
         Variant1 = 0x05,
 
-        #[range(0x10..=0x3D)]
+        #[ranges(0x10..=0x3D)]
         VariantRangeHex(u8),
 
         Variant2 = 73,
 
-        #[range(100..=150)]
+        #[ranges(100..=150)]
         VariantRangeDec(u8),
     }
 
@@ -274,7 +274,7 @@ fn enum_with_range_u3() {
     #[bitenum(u2, exhaustive: false)]
     enum Foo {
         Variant = 0x1,
-        #[range(0x2..=0x3)]
+        #[ranges(0x2..=0x3)]
         VariantRange(u2),
     }
 
@@ -290,7 +290,7 @@ fn enum_with_range_multiple() {
     enum Foo {
         Variant = 0x40,
 
-        #[ranges([0x50..=0x60, 0x20..=0x30])]
+        #[ranges(0x50..=0x60, 0x20..=0x30)]
         VariantRange(u8),
     }
 
@@ -310,7 +310,7 @@ fn enum_with_range_catchall() {
         #[catchall]
         Catchall(u8),
 
-        #[ranges([0x50..=0x60, 0x20..=0x30])]
+        #[ranges(0x50..=0x60, 0x20..=0x30)]
         VariantRange(u8),
     }
 
@@ -325,10 +325,10 @@ fn enum_with_range_exhaustive_no_catchall() {
     #[derive(Debug, PartialEq)]
     #[bitenum(u8, exhaustive: true)]
     enum Foo {
-        #[ranges([0x00..=0x20, 0x50..=0x60])]
+        #[ranges(0x00..=0x20, 0x50..=0x60)]
         VariantRanges1(u8),
 
-        #[ranges([0x21..=0x4F, 0x61..=0xFF])]
+        #[ranges(0x21..=0x4F, 0x61..=0xFF)]
         VariantRanges2(u8),
     }
 

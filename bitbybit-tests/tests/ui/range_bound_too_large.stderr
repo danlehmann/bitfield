@@ -1,7 +1,7 @@
 error: custom attribute panicked
  --> tests/ui/range_bound_too_large.rs:3:1
   |
-3 | #[bitenum(u8, exhaustive: true)]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+3 | #[bitenum(u8, exhaustive: false)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
   = help: message: bitenum!: range end for VariantRange2 exceeds the given number of bits

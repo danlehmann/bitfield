@@ -1,11 +1,11 @@
 use bitbybit::bitenum;
 
-#[bitenum(u8, exhaustive: true)]
+#[bitenum(u8, exhaustive: false)]
 enum Foo {
-    #[range(0x00..=0x20)]
+    #[ranges(0x00..=0x20)]
     VariantRange1(u8),
 
-    #[range(0x20..=0x30)]
+    #[ranges(0x20..=0x30)]
     VariantRange2(u8),
 }
 

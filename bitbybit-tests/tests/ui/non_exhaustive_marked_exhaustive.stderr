@@ -4,4 +4,4 @@ error: custom attribute panicked
 3 | #[bitenum(u8, exhaustive: true)]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: message: bitenum!: Enum is marked as exhaustive, but it is missing variants
+  = help: message: bitenum!: ranges arguments must all be ranges

@@ -1,16 +1,16 @@
 use proc_macro::TokenStream;
 use syn::punctuated::Punctuated;
 use syn::token::{Comma, Or};
+use core::panic;
 use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 use proc_macro2::{TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
-use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, Lit, RangeLimits};
+use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, Lit, RangeLimits, parse_quote, ExprCall};
 
-const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 3] = [
-    "range",
+const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 2] = [
     "ranges",
     "catchall",
 ];
@@ -192,7 +192,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         let value = {
             let range_attrs = variant.attrs
                 .iter()
-                .filter(|attr| { attr.path().is_ident("range") || attr.path().is_ident("ranges") });
+                .filter(|attr| { attr.path().is_ident("ranges") });
             let range_attr_count = range_attrs.clone().count();
 
             let catchall_attrs = variant.attrs
@@ -209,7 +209,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             }
 
             if range_attr_count > 1 {
-                panic!("bitenum!: range/ranges attribute must only be specified once");
+                panic!("bitenum!: ranges attribute must only be specified once");
             }
 
             if catchall_attr_count > 0 {
@@ -222,24 +222,19 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             } else if range_attr_count > 0 {
                 has_ranges = true;
                 let range_attr = range_attrs.clone().nth(0).unwrap();
-                let attr_args: Expr = range_attr.parse_args().expect("bitenum: failed to parse range attribute");
+                let meta = &range_attr.meta;
+                let call: ExprCall = parse_quote!(#meta);
+                let args = call.args;
 
-                let expr_ranges = if range_attr.path().is_ident("ranges") {
-                    match attr_args {
-                        Expr::Array(t) => t.elems.iter().map(|expr| match expr {
-                            Expr::Range(e) => e.clone(),
-                            _ => panic!("bitenum!: ranges elements are not all valid ranges"),
-                        }).collect::<Vec<ExprRange>>(),
-                        _ => panic!("bitenum!: ranges attribute argument must be an array of ranges"),
-                    }
-                } else {
-                    match attr_args {
-                        Expr::Range(e) => [e].to_vec(),
-                        _ => panic!("bitenum!: range attribute argument must be a range"),
-                    }
-                };
+                if args.len() == 0 {
+                    panic!("bitenum!: ranges attribute must have at least one range");
+                }
 
-                let range_info = expr_ranges.iter().map(|expr_range| {
+                let range_info = args.iter().map(|expr| {
+                    let expr_range = match expr {
+                        Expr::Range(er) => er,
+                        _ => panic!("bitenum!: ranges arguments must all be ranges"),
+                    };
                     let start = match expr_range.clone().start.expect("bitenum: range must have start and end bounds").as_ref() {
                         Expr::Lit(expr_lit) => match &expr_lit.lit {
                             Lit::Int(lit_int) => {
