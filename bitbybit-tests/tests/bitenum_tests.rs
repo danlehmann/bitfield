@@ -1,4 +1,4 @@
-use arbitrary_int::{u2, u63};
+use arbitrary_int::{u2, u63, u9};
 use bitbybit::bitenum;
 
 #[test]
@@ -336,4 +336,28 @@ fn enum_with_range_exhaustive_no_catchall() {
     assert_eq!(Foo::new_with_raw_value(0x30), Foo::RangeVariant2(0x30));
     assert_eq!(Foo::new_with_raw_value(0x50), Foo::RangeVariant1(0x50));
     assert_eq!(Foo::new_with_raw_value(0x70), Foo::RangeVariant2(0x70));
+}
+
+#[test]
+fn enum_with_ranges_arbitrary_int() {
+    #[derive(Debug, PartialEq)]
+    #[bitenum(u9, exhaustive: true)]
+    enum Foo {
+        Variant1 = 0x00,
+        Variant2 = 0x01,
+        Variant3 = 0x7E,
+
+        #[ranges(0x7F..=0x90)]
+        RangeVariant1(u9),
+
+        #[catchall]
+        Other(u9),
+
+        #[ranges(0x91..=0xF0, 0xF5..=0x1F0)]
+        RangeVariant2(u9),
+    }
+
+    assert_eq!(Foo::new_with_raw_value(u9::extract_u16(0x85, 0)), Foo::RangeVariant1(u9::extract_u16(0x85, 0)));
+    assert_eq!(Foo::new_with_raw_value(u9::extract_u16(0x1E7, 0)), Foo::RangeVariant2(u9::extract_u16(0x1E7, 0)));
+    assert_eq!(Foo::new_with_raw_value(u9::extract_u16(0x1F5, 0)), Foo::Other(u9::extract_u16(0x1F5, 0)));
 }
