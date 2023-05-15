@@ -90,6 +90,32 @@ struct BitfieldWithEnum {
   above has both an exhaustive and a non-exhaustive enum. Notice how the non-exhaustive enum has to be wrapped in an
   Option to account for the case of e2 not being one of the defined enum values.
 
+For some use cases, it's useful to have single enum variants cover ranges of values. The `range`, `ranges`, and
+`catchall` attributes can be used to achieve this:
+
+```rs
+#[bitenum(u8, exhaustive: true)]
+enum EnumWithRanges {
+    #[range(0x0..=0x20)]
+    Variant1(u8),
+
+    #[ranges(0x40..=0x50, 0x70..=0x90)]
+    Variant2(u8),
+
+    Variant3 = 0xFF,
+
+    #[catchall]
+    Other(u8)
+}
+```
+
+- In this example,
+  - EnumWithRanges::new_with_raw_value(0x10) == EnumWithRanges::Variant1(0x10)
+  - EnumWithRanges::new_with_raw_value(0xFF) == EnumWithRanges::Variant3
+  - EnumWithRanges::new_with_raw_value(0x80) == EnumWithRanges::Variant2(0x80)
+  - EnumWithRanges::new_with_raw_value(0x60) == EnumWithRanges::Other(0x60)
+- An enum can have at most one catchall variant. If there is one, the enum is necessarily exhaustive.
+
 ## Arrays
 
 Sometimes, bits inside bitfields are repeated. To support this, this crate allows specifying bitwise arrays. For
