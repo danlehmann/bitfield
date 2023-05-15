@@ -155,7 +155,7 @@ Default values are used as-is, even if they affect bits that aren't defined with
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```toml
-arbitrary-int = "1.2.4"
+arbitrary-int = "1.2.5"
 ```
 
 ## Usage
