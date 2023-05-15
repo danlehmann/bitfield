@@ -8,9 +8,10 @@ use std::str::FromStr;
 use proc_macro2::{TokenTree};
 use quote::{quote, ToTokens, TokenStreamExt};
 use syn::__private::TokenStream2;
-use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, Lit, RangeLimits, parse_quote, ExprCall};
+use syn::{Attribute, Data, DeriveInput, Expr, Ident, ExprRange, Variant, Lit, RangeLimits};
 
-const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 2] = [
+const CUSTOM_VARIANT_ATTRIBUTES: [&'static str; 3] = [
+    "range",
     "ranges",
     "catchall",
 ];
@@ -192,7 +193,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         let value = {
             let range_attrs = variant.attrs
                 .iter()
-                .filter(|attr| { attr.path().is_ident("ranges") });
+                .filter(|attr| { attr.path().is_ident("ranges") || attr.path().is_ident("range") });
             let range_attr_count = range_attrs.clone().count();
 
             let catchall_attrs = variant.attrs
@@ -209,7 +210,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             }
 
             if range_attr_count > 1 {
-                panic!("bitenum!: ranges attribute must only be specified once");
+                panic!("bitenum!: range/ranges attribute must only be specified once");
             }
 
             if catchall_attr_count > 0 {
@@ -222,40 +223,52 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             } else if range_attr_count > 0 {
                 has_ranges = true;
                 let range_attr = range_attrs.clone().nth(0).unwrap();
-                let meta = &range_attr.meta;
-                let call: ExprCall = parse_quote!(#meta);
-                let args = call.args;
+                let attr_ident = range_attr.path().get_ident().unwrap();
+                let args = match range_attr.parse_args_with(Punctuated::<ExprRange, Comma>::parse_terminated) {
+                    Ok(v) => v,
+                    _ => panic!("bitenum!: failed to parse `{attr_ident}` attribute arguments for {variant_name} as ranges"),
+                };
 
                 if args.len() == 0 {
-                    panic!("bitenum!: ranges attribute must have at least one range");
+                    panic!("bitenum!: `{attr_ident}` attribute for {variant_name} has no arguments");
+                } else if attr_ident == "ranges" && args.len() == 1 {
+                    panic!("bitenum!: `ranges` attribute for {variant_name} has only one range; use `range`");
+                } else if attr_ident == "range" && args.len() > 1 {
+                    panic!("bitenum!: `range` attribute for {variant_name} has more than one range; use `ranges`");
                 }
 
-                let range_info = args.iter().map(|expr| {
-                    let expr_range = match expr {
-                        Expr::Range(er) => er,
-                        _ => panic!("bitenum!: ranges arguments must all be ranges"),
-                    };
-                    let start = match expr_range.clone().start.expect("bitenum: range must have start and end bounds").as_ref() {
-                        Expr::Lit(expr_lit) => match &expr_lit.lit {
-                            Lit::Int(lit_int) => {
-                                lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range start")
+                let range_info = args.iter().map(|expr_range| {
+                    let start = match expr_range.clone().start {
+                        Some(boxed) => match *boxed {
+                            Expr::Lit(expr_lit) => match &expr_lit.lit {
+                                Lit::Int(lit_int) =>  match lit_int.base10_parse::<u128>() {
+                                    Ok(lit) => lit,
+                                    _ => panic!("bitenum!: range start could not be parsed ({variant_name})"),
+                                }
+                                _ => panic!("bitenum!: range start is not an integer literal ({variant_name})"),
                             },
-                            _ => panic!("bitenum!: invalid range start"),
+                            _ => panic!("bitenum!: range start is not a literal ({variant_name})"),
                         },
-                        _ => panic!("bitenum!: invalid range start"),
+                        None => panic!("bitenum!: range has no start ({variant_name})"),
                     };
-                    let end = match expr_range.clone().end.expect("bitenum: range must have start and end bounds").as_ref() {
-                        Expr::Lit(expr_lit) => match &expr_lit.lit {
-                            Lit::Int(lit_int) => {
-                                lit_int.base10_parse::<u128>().expect("bitenum: failed to parse range end")
+
+                    let end = match expr_range.clone().end {
+                        Some(boxed) => match *boxed {
+                            Expr::Lit(expr_lit) => match &expr_lit.lit {
+                                Lit::Int(lit_int) =>  match lit_int.base10_parse::<u128>() {
+                                    Ok(lit) => lit,
+                                    _ => panic!("bitenum!: range end could not be parsed ({variant_name})"),
+                                }
+                                _ => panic!("bitenum!: range end is not an integer literal ({variant_name})"),
                             },
-                            _ => panic!("bitenum!: invalid range start"),
+                            _ => panic!("bitenum!: range end is not a literal ({variant_name})"),
                         },
-                        _ => panic!("bitenum!: invalid range end"),
+                        None => panic!("bitenum!: range has no end ({variant_name})"),
                     };
+
                     match expr_range.clone().limits {
-                        RangeLimits::HalfOpen(_) => panic!("bitenum!: range must be inclusive"),
-                        _ => (),
+                        RangeLimits::Closed(_) => (),
+                        _ => panic!("bitenum!: ranges must be inclusive ({variant_name})"),
                     };
 
                     if start > max_value {

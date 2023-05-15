@@ -251,12 +251,12 @@ fn enum_with_range_u8() {
     enum Foo {
         Variant1 = 0x05,
 
-        #[ranges(0x10..=0x3D)]
+        #[range(0x10..=0x3D)]
         RangeVariantHex(u8),
 
         Variant2 = 73,
 
-        #[ranges(100..=150)]
+        #[range(100..=150)]
         RangeVariantDec(u8),
     }
 
@@ -274,7 +274,7 @@ fn enum_with_range_u3() {
     #[bitenum(u2, exhaustive: false)]
     enum Foo {
         Variant = 0x1,
-        #[ranges(0x2..=0x3)]
+        #[range(0x2..=0x3)]
         RangeVariant(u2),
     }
 
@@ -347,7 +347,7 @@ fn enum_with_ranges_arbitrary_int() {
         Variant2 = 0x01,
         Variant3 = 0x7E,
 
-        #[ranges(0x7F..=0x90)]
+        #[range(0x7F..=0x90)]
         RangeVariant1(u9),
 
         #[catchall]

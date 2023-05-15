@@ -4,4 +4,4 @@ error: custom attribute panicked
 3 | #[bitenum(u8, exhaustive: false)]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   |
-  = help: message: bitenum!: ranges attribute must have at least one range
+  = help: message: bitenum!: `ranges` attribute for RangeVariant1 has no arguments
