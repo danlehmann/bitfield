@@ -874,6 +874,32 @@ fn new_can_still_be_called() {
     assert_eq!(old_new.raw_value(), 567);
 }
 
+#[test]
+#[should_panic]
+fn array_out_of_bounds_read() {
+    #[bitfield(u64, default: 0)]
+    pub struct OutOfBoundsTests {
+        #[bit(0, rw, stride: 4)]
+        nibble_bit0: [u1; 15],
+    }
+
+    let a = OutOfBoundsTests::DEFAULT;
+    let _ = a.nibble_bit0(15);
+}
+
+#[test]
+#[should_panic]
+fn array_out_of_bounds_write() {
+    #[bitfield(u64, default: 0)]
+    pub struct OutOfBoundsTests {
+        #[bit(0, rw, stride: 4)]
+        nibble_bit0: [u1; 15],
+    }
+
+    let a = OutOfBoundsTests::DEFAULT;
+    let _ = a.with_nibble_bit0(15, u1::new(0));
+}
+
 #[allow(non_camel_case_types)]
 #[test]
 fn reserved_identifiers() {
