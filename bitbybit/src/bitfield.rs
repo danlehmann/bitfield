@@ -430,11 +430,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 };
 
-                if indexed_count.is_some() {
+                if let Some(indexed_count) = indexed_count {
                     quote! {
                         #doc_comment
                         #[inline]
                         pub const fn #field_name(&self, index: usize) -> #getter_type {
+                            assert!(index < #indexed_count);
                             #converted
                         }
                     }
@@ -512,11 +513,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             };
 
             let setter_name = syn::parse_str::<syn::Ident>(format!("with_{}", field_name_without_prefix).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
-            if let Some(_indexed_count) = indexed_count {
+            if let Some(indexed_count) = indexed_count {
                 quote! {
                     #doc_comment
                     #[inline]
                     pub const fn #setter_name(&self, index: usize, field_value: #setter_type) -> Self {
+                        assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
                         }

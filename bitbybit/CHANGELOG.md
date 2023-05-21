@@ -1,5 +1,16 @@
 # Changelog
 
+## bitbybit 1.2.1
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Accessors for array fields now assert that the index is within the size of the array.
+
+
 ## bitbybit 1.2.0
 
 ### Added
