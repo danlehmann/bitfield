@@ -142,8 +142,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         let doc_comment = field_definition.doc_comment;
         let number_of_bits = field_definition.number_of_bits;
         let getter =
-            if field_definition.provide_getter {
-                let getter_type = field_definition.getter_type;
+            if let Some(getter_type) = field_definition.getter_type {
                 let extracted_bits = if field_definition.use_regular_int {
                     // Extract standard type (u8, u16 etc)
                     if let Some(array) = field_definition.array {
@@ -214,8 +213,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 quote! {}
             };
 
-        let setter = if field_definition.provide_setter {
-            let setter_type = field_definition.setter_type;
+        let setter = if let Some(setter_type) = field_definition.setter_type {
             let argument_converted =
                 match field_definition.custom_type {
                     CustomType::No => {
@@ -371,10 +369,8 @@ struct FieldDefinition {
     number_of_bits: usize,
     array: Option<(usize, usize)>,
     field_type_size: usize,
-    provide_getter: bool,
-    getter_type: Type,
-    provide_setter: bool,
-    setter_type: Type,
+    getter_type: Option<Type>,
+    setter_type: Option<Type>,
     field_type_size_from_data_type: Option<usize>,
     /// If non-null: (count, stride)
     use_regular_int: bool,
@@ -638,10 +634,8 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
         lowest_bit,
         number_of_bits,
         field_type_size,
-        provide_getter,
-        getter_type,
-        provide_setter,
-        setter_type,
+        getter_type: if provide_getter { Some(getter_type) } else { None },
+        setter_type: if provide_setter { Some(setter_type) } else { None },
         use_regular_int,
         primitive_type,
         custom_type,
