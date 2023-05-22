@@ -4,6 +4,8 @@
 
 ### Added
 
+- Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk of forgetting any
+
 ### Changed
 
 ### Fixed

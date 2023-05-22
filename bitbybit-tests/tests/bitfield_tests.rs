@@ -927,3 +927,174 @@ fn reserved_identifiers() {
     assert_eq!(field.r#enum(0), BitEnum::r#priv);
     assert_eq!(field.with_enum(5, BitEnum::r#enum), BitfieldWithBitEnum::new_with_raw_value(8192));
 }
+
+#[test]
+fn new_with_construction1() {
+    #[bitfield(u128, default: 0)]
+    struct Test2 {
+        #[bits(98..=127, rw)]
+        val30: u30,
+
+        #[bits(41..=97, rw)]
+        val57: u57,
+
+        #[bits(28..=40, rw)]
+        val13: u13,
+
+        #[bits(12..=27, rw)]
+        val16: u16,
+
+        #[bits(4..=11, rw)]
+        baudrate: u8,
+
+        #[bits(0..=3, rw)]
+        some_other_bits: u4,
+    }
+
+    let t = Test2::builder()
+        .with_val30(u30::new(1234))
+        .with_val57(u57::new(876543))
+        .with_val13(u13::new(5324))
+        .with_val16(0x8FEF)
+        .with_baudrate(0x12)
+        .with_some_other_bits(u4::new(0x2))
+        .build();
+    assert_eq!(0x12, t.baudrate());
+    assert_eq!(u4::new(0x2), t.some_other_bits());
+    assert_eq!(u30::new(1234), t.val30());
+}
+
+#[test]
+fn new_with_construction2() {
+    #[bitfield(u128, default: 0)]
+    struct Test2 {
+        #[bits(0..=127, rw)]
+        val128: u128,
+    }
+
+    let t = Test2::builder()
+        .with_val128(0xFEDC_BA98_7654_3210_0123_4567_89AB_CDEF)
+        .build();
+    assert_eq!(0xFEDC_BA98_7654_3210_0123_4567_89AB_CDEF, t.val128());
+}
+
+#[test]
+fn new_with_construction3() {
+    #[bitfield(u64, default: 0)]
+    struct Test2 {
+        #[bits(0..=63, rw)]
+        val64: u64,
+    }
+
+    let t = Test2::builder()
+        .with_val64(0xFEDC_BA98_7654_3210)
+        .build();
+    assert_eq!(0xFEDC_BA98_7654_3210, t.val64());
+}
+
+#[test]
+fn new_with_construction4() {
+    #[bitfield(u32, default: 0x8000_0000)]
+    struct Test2 {
+        #[bits(12..=27, w)]
+        c: u16,
+
+        #[bits(8..=11, w)]
+        b: u4,
+
+        #[bits(0..=7, rw)]
+        a: u8,
+    }
+
+    let t = Test2::builder()
+        .with_c(0x8001)
+        .with_b(u4::new(0b1011))
+        .with_a(251)
+        .build();
+    assert_eq!(0x88001bfb, t.raw_value());
+}
+
+#[test]
+fn new_with_construction5() {
+    #[bitfield(u8, default: 0)]
+    struct Test2 {
+        #[bits(0..=7, rw)]
+        val8: u8,
+    }
+
+    let t = Test2::builder()
+        .with_val8(0x83)
+        .build();
+    assert_eq!(0x83, t.raw_value());
+}
+
+#[test]
+fn new_with_construction_array1() {
+    #[bitfield(u32, default: 0)]
+    struct BytesInU32 {
+        #[bits(0..=7, rw)]
+        bytes: [u8; 4],
+    }
+
+    let t = BytesInU32::builder()
+        .with_bytes([0x01, 0x23, 0x45, 0x67])
+        .build();
+    assert_eq!(0x67_45_23_01, t.raw_value());
+}
+
+#[test]
+fn new_with_construction_array2() {
+    #[bitfield(u128, default: 0)]
+    struct WordsInU128 {
+        #[bits(0..=15, w)]
+        words: [u16; 8],
+    }
+
+    let t = WordsInU128::builder()
+        .with_words([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEFFE])
+        .build();
+    assert_eq!(0xEFFE_00CD_00AB_0089_0067_0045_0023_0001, t.raw_value());
+}
+
+#[test]
+fn new_with_construction_array3() {
+    #[bitfield(u32, default: 0)]
+    struct Nibbles {
+        #[bits(0..=3, w, stride: 8)]
+        even_nibbles: [u4; 4],
+
+        #[bits(4..=7, w, stride: 8)]
+        odd_nibbles: [u4; 4],
+    }
+
+    let t = Nibbles::builder()
+        .with_even_nibbles([u4::new(0), u4::new(1), u4::new(2), u4::new(3)])
+        .with_odd_nibbles([u4::new(4), u4::new(5), u4::new(6), u4::new(7)])
+        .build();
+    assert_eq!(0x73625140, t.raw_value());
+}
+
+#[test]
+fn without_default_complete() {
+    // If no default value is specified, we can still do builder() syntax if the bitfield is complete.
+    // Try this using a mix of arrays and a simple value
+
+    #[bitfield(u32)]
+    struct Nibbles {
+        #[bits(0..=3, w, stride: 8)]
+        even_nibbles: [u4; 4],
+
+        #[bits(4..=7, w, stride: 8)]
+        odd_nibbles: [u4; 3],
+
+        #[bits(28..=31, rw)]
+        last_odd: u4,
+    }
+
+    let t = Nibbles::builder()
+        .with_even_nibbles([u4::new(0), u4::new(1), u4::new(2), u4::new(3)])
+        .with_odd_nibbles([u4::new(4), u4::new(5), u4::new(6)])
+        .with_last_odd(u4::new(7))
+        .build();
+    assert_eq!(0x73625140, t.raw_value());
+}

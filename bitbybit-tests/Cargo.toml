@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bitbybit = { path = "../bitbybit" }
+bitbybit = { path = "../bitbybit", features = ["experimental_builder_syntax"] }
 arbitrary-int = "1.2.5"
 
 [features]

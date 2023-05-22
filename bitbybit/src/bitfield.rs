@@ -5,7 +5,7 @@ use std::str::FromStr;
 use proc_macro2::{Ident, TokenTree};
 use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Attribute, Data, DeriveInput, Field, GenericArgument, PathArguments, Type};
+use syn::{Attribute, Data, DeriveInput, Field, GenericArgument, PathArguments, Type, Visibility};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
 /// from u1
@@ -133,16 +133,16 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         _ => panic!("bitfield!: Must be used on struct"),
     };
 
-    let field_definitions = fields.iter().map(|field| parse_field(base_data_size, &field));
+    let field_definitions: Vec<FieldDefinition> = fields.iter().map(|field| parse_field(base_data_size, &field)).collect();
 
-    let accessors: Vec<TokenStream2> = field_definitions.map(|field_definition| {
-        let field_name = field_definition.field_name;
+    let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
+        let field_name = &field_definition.field_name;
         let lowest_bit = field_definition.lowest_bit;
-        let primitive_type = field_definition.primitive_type;
-        let doc_comment = field_definition.doc_comment;
+        let primitive_type = &field_definition.primitive_type;
+        let doc_comment = &field_definition.doc_comment;
         let number_of_bits = field_definition.number_of_bits;
         let getter =
-            if let Some(getter_type) = field_definition.getter_type {
+            if let Some(getter_type) = field_definition.getter_type.as_ref() {
                 let extracted_bits = if field_definition.use_regular_int {
                     // Extract standard type (u8, u16 etc)
                     if let Some(array) = field_definition.array {
@@ -213,7 +213,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 quote! {}
             };
 
-        let setter = if let Some(setter_type) = field_definition.setter_type {
+        let setter = if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let argument_converted =
                 match field_definition.custom_type {
                     CustomType::No => {
@@ -263,17 +263,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #base_data_type) << #lowest_bit) }
             };
 
-            // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
-            let field_name_without_prefix = {
-                let s = field_name.to_string();
-                if s.starts_with("r#") {
-                    s[2..].to_string()
-                } else {
-                    s
-                }
-            };
+            let setter_name = setter_name(field_name);
 
-            let setter_name = syn::parse_str::<Ident>(format!("with_{}", field_name_without_prefix).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"));
             if let Some(array) = field_definition.array {
                 let indexed_count = array.0;
                 quote! {
@@ -307,7 +298,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }).collect();
 
-    let (default_constructor, default_trait) = if let Some(default_value) = default_value {
+    let (default_constructor, default_trait) = if let Some(default_value) = default_value.clone() {
         (
             {
                 let comment = format!("An instance that uses the default value {}", default_value);
@@ -335,6 +326,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
+    let (new_with_constructor, new_with_builder_chain) = make_new_with_constructor(&struct_name, default_value.is_some(), &struct_vis, &base_data_type, base_data_size, &field_definitions);
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -355,12 +348,121 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             /// accessors specified.
             #[inline]
             pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: value } }
+
+            #new_with_constructor
+
             #( #accessors )*
         }
         #default_trait
+        #( #new_with_builder_chain )*
     };
     // println!("Expanded: {}", expanded.to_string());
     TokenStream::from(expanded)
+}
+
+fn setter_name(field_name: &Ident) -> Ident {
+    // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
+    let field_name_without_prefix = {
+        let s = field_name.to_string();
+        if s.starts_with("r#") {
+            s[2..].to_string()
+        } else {
+            s
+        }
+    };
+
+    syn::parse_str::<Ident>(format!("with_{}", field_name_without_prefix).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+}
+
+fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis: &Visibility, base_data_type: &TokenTree, base_data_size: usize, field_definitions: &[FieldDefinition]) -> (TokenStream2, Vec<TokenStream2>) {
+    if !cfg!(feature = "experimental_builder_syntax") {
+        return (quote! {}, Vec::new());
+    }
+
+    let builder_struct_name = syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
+
+    let mut running_mask = 0u128;
+    let mut running_mask_token_tree = syn::parse_str::<TokenTree>("0x0").unwrap();
+    let mut new_with_builder_chain: Vec<TokenStream2> = Vec::with_capacity(field_definitions.len() + 2);
+
+    new_with_builder_chain.push(quote! {
+       #struct_vis struct #builder_struct_name<const MASK: #base_data_type>(#struct_name);
+    });
+
+    for field_definition in field_definitions {
+        if let Some(setter_type) = field_definition.setter_type.as_ref() {
+            let field_name = &field_definition.field_name;
+            let setter_name = setter_name(field_name);
+
+            let (field_mask, value_transform, argument_type) = if let Some(array) = field_definition.array {
+                // For arrays, we'll generate this code:
+                // self.0
+                //   .with_a(0, value[0])
+                //   .with_a(1, value[1])
+                //   .with_a(2, value[2])
+
+                let array_count = array.0;
+                let mut mask = 0;
+                let mut array_setters = Vec::with_capacity(array_count);
+                for i in 0..array_count {
+                    mask |= ((1u128 << field_definition.number_of_bits) - 1) << (field_definition.lowest_bit + i * array.1);
+
+                    array_setters.push(quote! { .#setter_name(#i, value[#i]) });
+                }
+                let value_transform = quote!(self.0 #( #array_setters )*);
+                let array_type = quote! { [#setter_type; #array_count] };
+
+                (mask, value_transform, array_type)
+            } else {
+                let mask = if field_definition.number_of_bits == 128 {
+                    u128::MAX
+                } else {
+                    ((1u128 << field_definition.number_of_bits) - 1) << field_definition.lowest_bit
+                };
+
+                (mask, quote! { self.0.#setter_name(value)}, quote! { #setter_type })
+            };
+            let previous_mask = running_mask;
+            let previous_mask_token_tree = running_mask_token_tree;
+
+            if (previous_mask & field_mask) != 0 {
+                // Some fields are writable through multiple fields. This is not supported, so don't provide the constructor
+                return (quote! {}, Vec::new());
+            }
+
+            running_mask = previous_mask | field_mask;
+            running_mask_token_tree = syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
+            new_with_builder_chain.push(quote! {
+                impl #builder_struct_name<#previous_mask_token_tree> {
+                    pub const fn #setter_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
+                        #builder_struct_name(#value_transform)
+                    }
+                }
+            });
+        }
+    }
+
+    // The type has to either be complete OR it has to have a default value. Otherwise we can't do constructor syntax
+    if (running_mask.count_ones() as usize != base_data_size) && !has_default  {
+        return (quote! {}, Vec::new());
+    }
+
+    new_with_builder_chain.push(quote! {
+        impl #builder_struct_name<#running_mask_token_tree> {
+            pub const fn build(&self) -> #struct_name {
+                self.0
+            }
+        }
+    });
+
+    let default = if has_default { quote!{ #struct_name::DEFAULT } } else { quote! { #struct_name::new_with_raw_value(0) } };
+    let result_new_with_constructor = quote! {
+        /// Creates a builder for this bitfield which ensures that all writable fields are initialized
+        pub const fn builder() -> #builder_struct_name<0> {
+            #builder_struct_name(#default)
+        }
+    };
+    (result_new_with_constructor, new_with_builder_chain)
 }
 
 struct FieldDefinition {

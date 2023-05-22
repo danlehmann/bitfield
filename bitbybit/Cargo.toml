@@ -1,6 +1,6 @@
 [package]
 name = "bitbybit"
-version = "1.2.0"
+version = "1.2.1"
 authors = ["Daniel Lehmann <danlehmannmuc@gmail.com>"]
 edition = "2021"
 description = "Efficient implementation of bit-fields where several numbers are packed within a larger number and bit-enums. Useful for drivers, so it works in no_std environments"
@@ -12,6 +12,10 @@ categories = ["embedded", "no-std", "data-structures"]
 
 [lib]
 proc-macro = true
+
+[features]
+# Opts-into the new `builder()`...`build()` syntax, which allows set all fields at once
+experimental_builder_syntax = []
 
 [dependencies]
 syn = "2.0"
