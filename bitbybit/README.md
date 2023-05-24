@@ -150,6 +150,27 @@ const A: Bitfield1 = Bitfield1::DEFAULT;
 
 Default values are used as-is, even if they affect bits that aren't defined within the bitfield.
 
+## Setting all fields at once using the builder syntax (experimental)
+
+It is possible to set all fields at once, like this:
+```rs
+const T: Test = Test::builder()
+    .with_baudrate(0x12)
+    .with_some_other_bits(u4::new(0x2))
+    .with_array([1, 2, 3, 4])
+    .build();
+```
+
+Using `builder()` it is impossible to forget setting any fields. This is checked at compile time: If any field is not set, `build()` can not be called.
+
+At the moment, it is required to set all fields in the same order as they are specified. As Rust's const generics become more powerful, this restriction might be lifted.
+
+For the `builder()` to be available, the following has to be true:
+- The bitfield has to be completely filled with writable fields (no gaps) OR there has to be a default value specified,
+- No writable fields overlap.
+
+This syntax is experimental. Use the `experimental_builder_syntax` feature to enable it and please provide feedback.
+
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
