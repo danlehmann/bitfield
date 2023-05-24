@@ -224,11 +224,9 @@ fn documentation() {
         undocumented: u8,
 
         // Another free standing comment
-
         /// This is the second documented field
         #[bits(0..=7, rw)]
         field_b: u8,
-
         // Another free standing comment
     }
 }
@@ -922,10 +920,16 @@ fn reserved_identifiers() {
 
     let field = BitfieldWithBitEnum::DEFAULT;
     assert_eq!(field.r#priv(), false);
-    assert_eq!(field.with_priv(true), BitfieldWithBitEnum::new_with_raw_value(64));
+    assert_eq!(
+        field.with_priv(true),
+        BitfieldWithBitEnum::new_with_raw_value(64)
+    );
 
     assert_eq!(field.r#enum(0), BitEnum::r#priv);
-    assert_eq!(field.with_enum(5, BitEnum::r#enum), BitfieldWithBitEnum::new_with_raw_value(8192));
+    assert_eq!(
+        field.with_enum(5, BitEnum::r#enum),
+        BitfieldWithBitEnum::new_with_raw_value(8192)
+    );
 }
 
 #[test]
@@ -986,9 +990,7 @@ fn new_with_construction3() {
         val64: u64,
     }
 
-    let t = Test2::builder()
-        .with_val64(0xFEDC_BA98_7654_3210)
-        .build();
+    let t = Test2::builder().with_val64(0xFEDC_BA98_7654_3210).build();
     assert_eq!(0xFEDC_BA98_7654_3210, t.val64());
 }
 
@@ -1022,9 +1024,7 @@ fn new_with_construction5() {
         val8: u8,
     }
 
-    let t = Test2::builder()
-        .with_val8(0x83)
-        .build();
+    let t = Test2::builder().with_val8(0x83).build();
     assert_eq!(0x83, t.raw_value());
 }
 

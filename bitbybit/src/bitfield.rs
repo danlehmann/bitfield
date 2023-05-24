@@ -121,7 +121,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         "u128" => 128,
         _ => panic!("bitfield!: Supported values for base data type are u8, u16, u32, u64, u128. {} is invalid", base_data_type.to_string().as_str())
     };
-    let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
+    let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size).as_str())
+        .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
 
     let input = syn::parse_macro_input!(input as DeriveInput);
     let struct_name = input.ident;
@@ -133,7 +134,10 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         _ => panic!("bitfield!: Must be used on struct"),
     };
 
-    let field_definitions: Vec<FieldDefinition> = fields.iter().map(|field| parse_field(base_data_size, &field)).collect();
+    let field_definitions: Vec<FieldDefinition> = fields
+        .iter()
+        .map(|field| parse_field(base_data_size, &field))
+        .collect();
 
     let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
         let field_name = &field_definition.field_name;
@@ -302,7 +306,10 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (
             {
                 let comment = format!("An instance that uses the default value {}", default_value);
-                let deprecated_warning = format!("Use {}::Default (or {}::DEFAULT in const context) instead", struct_name, struct_name);
+                let deprecated_warning = format!(
+                    "Use {}::Default (or {}::DEFAULT in const context) instead",
+                    struct_name, struct_name
+                );
                 quote! {
                     #[doc = #comment]
                     #[inline]
@@ -326,7 +333,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
-    let (new_with_constructor, new_with_builder_chain) = make_new_with_constructor(&struct_name, default_value.is_some(), &struct_vis, &base_data_type, base_data_size, &field_definitions);
+    let (new_with_constructor, new_with_builder_chain) = make_new_with_constructor(
+        &struct_name,
+        default_value.is_some(),
+        &struct_vis,
+        &base_data_type,
+        base_data_size,
+        &field_definitions,
+    );
 
     let expanded = quote! {
         #[derive(Copy, Clone)]
@@ -371,19 +385,29 @@ fn setter_name(field_name: &Ident) -> Ident {
         }
     };
 
-    syn::parse_str::<Ident>(format!("with_{}", field_name_without_prefix).as_str()).unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+    syn::parse_str::<Ident>(format!("with_{}", field_name_without_prefix).as_str())
+        .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
 }
 
-fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis: &Visibility, base_data_type: &TokenTree, base_data_size: usize, field_definitions: &[FieldDefinition]) -> (TokenStream2, Vec<TokenStream2>) {
+fn make_new_with_constructor(
+    struct_name: &Ident,
+    has_default: bool,
+    struct_vis: &Visibility,
+    base_data_type: &TokenTree,
+    base_data_size: usize,
+    field_definitions: &[FieldDefinition],
+) -> (TokenStream2, Vec<TokenStream2>) {
     if !cfg!(feature = "experimental_builder_syntax") {
         return (quote! {}, Vec::new());
     }
 
-    let builder_struct_name = syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
+    let builder_struct_name =
+        syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
 
     let mut running_mask = 0u128;
     let mut running_mask_token_tree = syn::parse_str::<TokenTree>("0x0").unwrap();
-    let mut new_with_builder_chain: Vec<TokenStream2> = Vec::with_capacity(field_definitions.len() + 2);
+    let mut new_with_builder_chain: Vec<TokenStream2> =
+        Vec::with_capacity(field_definitions.len() + 2);
 
     new_with_builder_chain.push(quote! {
        #struct_vis struct #builder_struct_name<const MASK: #base_data_type>(#struct_name);
@@ -394,7 +418,9 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
             let field_name = &field_definition.field_name;
             let setter_name = setter_name(field_name);
 
-            let (field_mask, value_transform, argument_type) = if let Some(array) = field_definition.array {
+            let (field_mask, value_transform, argument_type) = if let Some(array) =
+                field_definition.array
+            {
                 // For arrays, we'll generate this code:
                 // self.0
                 //   .with_a(0, value[0])
@@ -405,7 +431,8 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
                 let mut mask = 0;
                 let mut array_setters = Vec::with_capacity(array_count);
                 for i in 0..array_count {
-                    mask |= ((1u128 << field_definition.number_of_bits) - 1) << (field_definition.lowest_bit + i * array.1);
+                    mask |= ((1u128 << field_definition.number_of_bits) - 1)
+                        << (field_definition.lowest_bit + i * array.1);
 
                     array_setters.push(quote! { .#setter_name(#i, value[#i]) });
                 }
@@ -420,7 +447,11 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
                     ((1u128 << field_definition.number_of_bits) - 1) << field_definition.lowest_bit
                 };
 
-                (mask, quote! { self.0.#setter_name(value)}, quote! { #setter_type })
+                (
+                    mask,
+                    quote! { self.0.#setter_name(value)},
+                    quote! { #setter_type },
+                )
             };
             let previous_mask = running_mask;
             let previous_mask_token_tree = running_mask_token_tree;
@@ -431,7 +462,8 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
             }
 
             running_mask = previous_mask | field_mask;
-            running_mask_token_tree = syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
+            running_mask_token_tree =
+                syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
             new_with_builder_chain.push(quote! {
                 impl #builder_struct_name<#previous_mask_token_tree> {
                     pub const fn #setter_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
@@ -443,7 +475,7 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
     }
 
     // The type has to either be complete OR it has to have a default value. Otherwise we can't do constructor syntax
-    if (running_mask.count_ones() as usize != base_data_size) && !has_default  {
+    if (running_mask.count_ones() as usize != base_data_size) && !has_default {
         return (quote! {}, Vec::new());
     }
 
@@ -455,7 +487,11 @@ fn make_new_with_constructor(struct_name: &Ident, has_default: bool, struct_vis:
         }
     });
 
-    let default = if has_default { quote!{ #struct_name::DEFAULT } } else { quote! { #struct_name::new_with_raw_value(0) } };
+    let default = if has_default {
+        quote! { #struct_name::DEFAULT }
+    } else {
+        quote! { #struct_name::new_with_raw_value(0) }
+    };
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are initialized
         pub const fn builder() -> #builder_struct_name<0> {
@@ -489,9 +525,16 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
             Type::Array(ty) => {
                 let length = (&ty.len).into_token_stream().to_string();
 
-                (ty.elem.deref(), Some(length.parse::<usize>().unwrap_or_else(|_| panic!("{} is not a valid number", length))))
+                (
+                    ty.elem.deref(),
+                    Some(
+                        length
+                            .parse::<usize>()
+                            .unwrap_or_else(|_| panic!("{} is not a valid number", length)),
+                    ),
+                )
             }
-            _ => (&field.ty, None)
+            _ => (&field.ty, None),
         }
     };
     let field_type_size_from_data_type = match ty {
@@ -517,7 +560,13 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
     let mut doc_comment: Option<&Attribute> = None;
 
     for attr in &field.attrs {
-        let attr_name = attr.path().segments.first().unwrap_or_else(|| panic!("bitfield!: Invalid path")).ident.to_string();
+        let attr_name = attr
+            .path()
+            .segments
+            .first()
+            .unwrap_or_else(|| panic!("bitfield!: Invalid path"))
+            .ident
+            .to_string();
         match attr_name.as_str() {
             "bits" | "bit" => {
                 let is_range = attr_name.as_str() == "bits";
@@ -629,11 +678,11 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
             }
             _ => panic!("bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'", attr_name),
         }
-    };
+    }
 
     let (lowest_bit, number_of_bits) = match range {
         Some(ref range) => (range.start, range.end - range.start),
-        None => panic!("bitfield!: Expected valid range, e.g. bits(1..=8, rw) or bit(4, r)")
+        None => panic!("bitfield!: Expected valid range, e.g. bits(1..=8, rw) or bit(4, r)"),
     };
     let (field_type_size, primitive_type) = match field_type_size_from_data_type {
         None => (number_of_bits, {
@@ -672,16 +721,25 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
         }
 
         if number_of_bits > indexed_stride.unwrap() {
-            panic!("bitfield!: Field {} is declared as {} bits, which is larger than its stride {}", field_name, number_of_bits, indexed_stride.unwrap());
+            panic!(
+                "bitfield!: Field {} is declared as {} bits, which is larger than its stride {}",
+                field_name,
+                number_of_bits,
+                indexed_stride.unwrap()
+            );
         }
 
-        let number_of_bits_indexed = (indexed_count - 1) * indexed_stride.unwrap() + range.unwrap().start;
+        let number_of_bits_indexed =
+            (indexed_count - 1) * indexed_stride.unwrap() + range.unwrap().start;
         if number_of_bits_indexed >= base_data_size {
             panic!("bitfield!: Field {} requires more bits via indexing ({}) than the bitfield has ({})", field_name, number_of_bits_indexed, base_data_size);
         }
 
         if indexed_count < 2 {
-            panic!("bitfield!: Field {} is declared as indexing, but with fewer than 2 elements.", field_name);
+            panic!(
+                "bitfield!: Field {} is declared as indexing, but with fewer than 2 elements.",
+                field_name
+            );
         }
     }
 
@@ -701,15 +759,20 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
                         let option_generic_type = args.args.first().unwrap();
                         match option_generic_type {
                             GenericArgument::Type(generic_type) => {
-                                let result_type_string = format!("Result<{}, {}>", generic_type.to_token_stream(), primitive_type.to_token_stream());
-                                let result_type = syn::parse_str::<Type>(&result_type_string).expect("bitfield!: Error creating type from Result<,>");
+                                let result_type_string = format!(
+                                    "Result<{}, {}>",
+                                    generic_type.to_token_stream(),
+                                    primitive_type.to_token_stream()
+                                );
+                                let result_type = syn::parse_str::<Type>(&result_type_string)
+                                    .expect("bitfield!: Error creating type from Result<,>");
 
                                 (generic_type, result_type)
                             }
-                            _ => panic!("Invalid Option binding: Expected generic type")
+                            _ => panic!("Invalid Option binding: Expected generic type"),
                         }
                     }
-                    _ => panic!("Expected < after Option")
+                    _ => panic!("Expected < after Option"),
                 }
             } else {
                 (ty, ty.clone())
@@ -718,7 +781,11 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
             (ty, ty.clone())
         };
 
-        (CustomType::Yes(inner_type.clone()), result_type, inner_type.clone())
+        (
+            CustomType::Yes(inner_type.clone()),
+            result_type,
+            inner_type.clone(),
+        )
     } else {
         (CustomType::No, ty.clone(), ty.clone())
     };
@@ -728,7 +795,7 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
         None => {
             // For CustomTypes (e.g. enums), prefer u1 over bool
             number_of_bits != 1 && is_int_size_regular_type(number_of_bits)
-        },
+        }
     };
 
     FieldDefinition {
@@ -736,8 +803,16 @@ fn parse_field(base_data_size: usize, field: &&Field) -> FieldDefinition {
         lowest_bit,
         number_of_bits,
         field_type_size,
-        getter_type: if provide_getter { Some(getter_type) } else { None },
-        setter_type: if provide_setter { Some(setter_type) } else { None },
+        getter_type: if provide_getter {
+            Some(getter_type)
+        } else {
+            None
+        },
+        setter_type: if provide_setter {
+            Some(setter_type)
+        } else {
+            None
+        },
         use_regular_int,
         primitive_type,
         custom_type,

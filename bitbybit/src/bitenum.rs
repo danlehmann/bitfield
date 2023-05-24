@@ -98,20 +98,44 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let (bit_count, base_data_type, bounded_data_type, result_constructor, bounded_getter) =
         match bits {
-            Some(bit_count) => {
-                match bit_count {
-                    b if b < 8 => (b, quote! { u8 }, quote! { arbitrary_int::UInt::<u8, #b> }, quote! { arbitrary_int::UInt::<u8, #b>::new }, quote! { .value() }),
-                    b if b == 8 => (b, quote! { u8 }, quote! { u8 }, quote! { }, quote! { }),
-                    b if b < 16 => (b, quote! { u16 }, quote! { arbitrary_int::UInt::<u16, #b> }, quote! { arbitrary_int::UInt::<u16, #b>::new }, quote! { .value() }),
-                    b if b == 16 => (b, quote! { u16 }, quote! { u16 }, quote! { }, quote! { }),
-                    b if b < 32 => (b, quote! { u32 }, quote! { arbitrary_int::UInt::<u32, #b> }, quote! { arbitrary_int::UInt::<u32, #b>::new }, quote! { .value() }),
-                    b if b == 32 => (b, quote! { u32 }, quote! { u32 }, quote! { }, quote! { }),
-                    b if b < 64 => (b, quote! { u64 }, quote! { arbitrary_int::UInt::<u64, #b> }, quote! { arbitrary_int::UInt::<u64, #b>::new }, quote! { .value() }),
-                    b if b == 64 => (b, quote! { u64 }, quote! { u64 }, quote! { }, quote! { }),
-                    _ => panic!("bitenum!: Unhandled bits. Supported up to u64"),
-                }
-            }
-            None => panic!("bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive: true)"),
+            Some(bit_count) => match bit_count {
+                b if b < 8 => (
+                    b,
+                    quote! { u8 },
+                    quote! { arbitrary_int::UInt::<u8, #b> },
+                    quote! { arbitrary_int::UInt::<u8, #b>::new },
+                    quote! { .value() },
+                ),
+                b if b == 8 => (b, quote! { u8 }, quote! { u8 }, quote! {}, quote! {}),
+                b if b < 16 => (
+                    b,
+                    quote! { u16 },
+                    quote! { arbitrary_int::UInt::<u16, #b> },
+                    quote! { arbitrary_int::UInt::<u16, #b>::new },
+                    quote! { .value() },
+                ),
+                b if b == 16 => (b, quote! { u16 }, quote! { u16 }, quote! {}, quote! {}),
+                b if b < 32 => (
+                    b,
+                    quote! { u32 },
+                    quote! { arbitrary_int::UInt::<u32, #b> },
+                    quote! { arbitrary_int::UInt::<u32, #b>::new },
+                    quote! { .value() },
+                ),
+                b if b == 32 => (b, quote! { u32 }, quote! { u32 }, quote! {}, quote! {}),
+                b if b < 64 => (
+                    b,
+                    quote! { u64 },
+                    quote! { arbitrary_int::UInt::<u64, #b> },
+                    quote! { arbitrary_int::UInt::<u64, #b>::new },
+                    quote! { .value() },
+                ),
+                b if b == 64 => (b, quote! { u64 }, quote! { u64 }, quote! {}, quote! {}),
+                _ => panic!("bitenum!: Unhandled bits. Supported up to u64"),
+            },
+            None => panic!(
+                "bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive: true)"
+            ),
         };
 
     #[derive(PartialEq, Eq)]
