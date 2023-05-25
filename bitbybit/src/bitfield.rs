@@ -119,7 +119,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         "u32" => 32,
         "u64" => 64,
         "u128" => 128,
-        _ => panic!("bitfield!: Supported values for base data type are u8, u16, u32, u64, u128. {} is invalid", base_data_type.to_string().as_str())
+        _ => {
+            return syn::Error::new_spanned(
+                &base_data_type,
+                format!("bitfield!: Supported values for base data type are u8, u16, u32, u64, u128. {} is invalid", base_data_type.to_string().as_str()),
+            ).to_compile_error().into();
+        }
     };
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
@@ -784,10 +789,19 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                                         "bitfield!: stride is only supported for indexed properties. Use array type (e.g. [u8; 8]) to indicate"
                                     ).to_compile_error());
                             }
-                            indexed_stride =
-                                Some(argument_elements[1].parse().unwrap_or_else(|_| {
-                                    panic!("bitfield!: {} is not a number", argument_elements[1])
-                                }))
+                            indexed_stride = match argument_elements[1].parse() {
+                                Ok(x) => Some(x),
+                                Err(_) => {
+                                    return Err(syn::Error::new_spanned(
+                                        &attr.meta,
+                                        format!(
+                                            "bitfield!: Stride {} is not a number",
+                                            argument_elements[1]
+                                        ),
+                                    )
+                                    .to_compile_error());
+                                }
+                            }
                         }
                         _ => {
                             return Err(syn::Error::new_spanned(
@@ -862,25 +876,39 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
         }
 
         if number_of_bits > indexed_stride.unwrap() {
-            panic!(
-                "bitfield!: Field {} is declared as {} bits, which is larger than its stride {}",
-                field_name,
-                number_of_bits,
-                indexed_stride.unwrap()
-            );
+            return Err(syn::Error::new_spanned(
+                &field.attrs.first(),
+                format!(
+                    "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
+                    field_name,
+                    number_of_bits,
+                    indexed_stride.unwrap()
+                ),
+            )
+            .to_compile_error());
         }
 
-        let number_of_bits_indexed =
-            (indexed_count - 1) * indexed_stride.unwrap() + range.unwrap().start;
-        if number_of_bits_indexed >= base_data_size {
-            panic!("bitfield!: Field {} requires more bits via indexing ({}) than the bitfield has ({})", field_name, number_of_bits_indexed, base_data_size);
+        let number_of_bits_indexed = (indexed_count - 1) * indexed_stride.unwrap()
+            + number_of_bits
+            + range.clone().unwrap().start;
+        if number_of_bits_indexed > base_data_size {
+            return Err(syn::Error::new_spanned(
+                &field.attrs.first(),
+                format!(
+                    "bitfield!: Field {} requires more bits via indexing ({} + ({} - 1) * {} + {} = {}) than the bitfield has ({})", field_name, range.unwrap().start, indexed_count, indexed_stride.unwrap(), number_of_bits, number_of_bits_indexed, base_data_size
+                ),
+            ).to_compile_error());
         }
 
         if indexed_count < 2 {
-            panic!(
-                "bitfield!: Field {} is declared as indexing, but with fewer than 2 elements.",
-                field_name
-            );
+            return Err(syn::Error::new_spanned(
+                &field.ty,
+                format!(
+                    "bitfield!: Field {} is declared as array, but with fewer than 2 elements.",
+                    field_name
+                ),
+            )
+            .to_compile_error());
         }
     }
 
