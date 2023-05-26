@@ -4,13 +4,14 @@
 
 ### Added
 
-- Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk of forgetting any
+- Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk of forgetting any. Requires opt-in via new `experimental_builder_syntax` feature
 
 ### Changed
 
 ### Fixed
 
 - Accessors for array fields now assert that the index is within the size of the array.
+- Most usage errors are now associated correctly to the line where they happen, instead of at the top of the declaration.
 
 
 ## bitbybit 1.2.0
