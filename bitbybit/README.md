@@ -176,7 +176,7 @@ This syntax is experimental. Use the `experimental_builder_syntax` feature to en
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```toml
-arbitrary-int = "1.2.5"
+arbitrary-int = "1.2.6"
 ```
 
 ## Usage

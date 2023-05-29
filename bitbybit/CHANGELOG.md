@@ -5,6 +5,7 @@
 ### Added
 
 - Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk of forgetting any. Requires opt-in via new `experimental_builder_syntax` feature
+- Bump to [arbitrary-int](https://crates.io/crates/arbitrary-int) version 1.2.6
 
 ### Changed
 
