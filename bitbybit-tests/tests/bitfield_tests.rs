@@ -227,7 +227,12 @@ fn documentation() {
         /// This is the second documented field
         #[bits(0..=7, rw)]
         field_b: u8,
+
         // Another free standing comment
+        /// Let's try multiple lines
+        /// Second line
+        #[bits(0..=3, rw)]
+        field_c: u4,
     }
 }
 

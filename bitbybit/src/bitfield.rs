@@ -206,7 +206,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 if let Some(array) = field_definition.array {
                     let indexed_count = array.0;
                     quote! {
-                        #doc_comment
+                        #(#doc_comment)*
                         #[inline]
                         pub const fn #field_name(&self, index: usize) -> #getter_type {
                             assert!(index < #indexed_count);
@@ -215,7 +215,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     }
                 } else {
                     quote! {
-                        #doc_comment
+                        #(#doc_comment)*
                         #[inline]
                         pub const fn #field_name(&self) -> #getter_type {
                             #converted
@@ -281,7 +281,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             if let Some(array) = field_definition.array {
                 let indexed_count = array.0;
                 quote! {
-                    #doc_comment
+                    #(#doc_comment)*
                     #[inline]
                     pub const fn #setter_name(&self, index: usize, field_value: #setter_type) -> Self {
                         assert!(index < #indexed_count);
@@ -292,7 +292,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             } else {
                 quote! {
-                    #doc_comment
+                    #(#doc_comment)*
                     #[inline]
                     pub const fn #setter_name(&self, field_value: #setter_type) -> Self {
                         Self {
@@ -523,7 +523,7 @@ struct FieldDefinition {
     use_regular_int: bool,
     primitive_type: TokenStream2,
     custom_type: CustomType,
-    doc_comment: Option<Attribute>,
+    doc_comment: Vec<Attribute>,
 }
 
 fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, TokenStream2> {
@@ -566,7 +566,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
 
-    let mut doc_comment: Option<&Attribute> = None;
+    let mut doc_comment: Vec<Attribute> = Vec::new();
 
     for attr in &field.attrs {
         let attr_name = &attr
@@ -818,7 +818,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             }
             "doc" => {
                 // inline documentation. pass through to both getter and setter
-                doc_comment = Some(attr);
+                doc_comment.push(attr.clone());
             }
             _ => {
                 return Err(syn::Error::new_spanned(
@@ -985,7 +985,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
         use_regular_int,
         primitive_type,
         custom_type,
-        doc_comment: doc_comment.cloned(),
+        doc_comment,
         array: indexed_count.map(|count| (count, indexed_stride.unwrap())),
         field_type_size_from_data_type,
     })
