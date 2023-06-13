@@ -1,5 +1,16 @@
 # Changelog
 
+## bitbybit 1.2.2
+
+### Added
+
+### Changed
+
+### Fixed
+
+- Multi-line doc-comments on fields are now fully put into the resulting accessors (previously, just the last line was)
+
+
 ## bitbybit 1.2.1
 
 ### Added
