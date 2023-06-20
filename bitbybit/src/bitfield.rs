@@ -163,7 +163,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     };
     let internal_base_data_type =
-        syn::parse_str::<syn::Type>(format!("u{}", base_data_size.internal).as_str())
+        syn::parse_str::<Type>(format!("u{}", base_data_size.internal).as_str())
             .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
 
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
@@ -409,7 +409,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let raw_value_wrap = if base_data_size.exposed == base_data_size.internal {
         quote! { self.raw_value }
     } else {
-        quote! { #base_data_type::new(self.raw_value) }
+        // We use extract as that - unlike new() - never panics. This macro already guarantees that
+        // the upper bits can't be set.
+        let extract =
+            syn::parse_str::<Type>(format!("extract_u{}", base_data_size.internal).as_str())
+                .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
+        quote! { #base_data_type::#extract(self.raw_value, 0) }
     };
 
     let expanded = quote! {
