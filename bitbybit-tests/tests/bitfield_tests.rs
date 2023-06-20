@@ -1,4 +1,4 @@
-use arbitrary_int::{u1, u13, u2, u3, u30, u4, u57};
+use arbitrary_int::{u1, u13, u14, u2, u24, u3, u30, u4, u57};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
 
@@ -1102,4 +1102,62 @@ fn without_default_complete() {
         .with_last_odd(u4::new(7))
         .build();
     assert_eq!(0x73625140, t.raw_value());
+}
+
+#[test]
+fn underlying_type_is_arbitrary_array_complete() {
+    #[bitfield(u24)]
+    struct Nibbles {
+        #[bits(0..=7, rw)]
+        bytes: [u8; 3],
+    }
+
+    assert_eq!(
+        Nibbles::new_with_raw_value(u24::new(123)).raw_value(),
+        u24::new(123)
+    );
+    assert_eq!(
+        Nibbles::new_with_raw_value(u24::new(0xAABBCC)).bytes(0),
+        0xCC
+    );
+    assert_eq!(
+        Nibbles::new_with_raw_value(u24::new(0xAABBCC)).bytes(1),
+        0xBB
+    );
+    assert_eq!(
+        Nibbles::new_with_raw_value(u24::new(0xAABBCC)).bytes(2),
+        0xAA
+    );
+    assert_eq!(
+        Nibbles::new_with_raw_value(u24::new(0xAABBCC))
+            .with_bytes(0, 0xDD)
+            .raw_value(),
+        u24::new(0xAABBDD)
+    );
+}
+
+#[test]
+fn underlying_type_is_arbitrary_default() {
+    #[bitfield(u14, default: 0x567)]
+    struct Nibbles {
+        #[bits(0..=3, rw)]
+        first_nibble: u4,
+    }
+
+    assert_eq!(Nibbles::DEFAULT.raw_value(), u14::new(0x567));
+    assert_eq!(
+        Nibbles::new_with_raw_value(u14::new(123)).raw_value(),
+        u14::new(123)
+    );
+    assert_eq!(
+        Nibbles::new_with_raw_value(u14::new(0x127)).first_nibble(),
+        u4::new(0x7)
+    );
+    assert_eq!(
+        Nibbles::builder()
+            .with_first_nibble(u4::new(0x9))
+            .build()
+            .raw_value(),
+        u14::new(0x569)
+    );
 }
