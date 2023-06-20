@@ -39,7 +39,7 @@ How this works:
 
 - #[bitfield(u32)] specifies that this is a bitfield in which u32 is the underlying data type. This means that all the
   bits inside of the bitfield
-  have to fit within 32 bits. u8, u16, u32, u64 and u128 are supported as underlying data types.
+  have to fit within 32 bits. Built-in Rust types (u8, u16, u32, u64, u128) as well as arbitrary-ints (u17, u48 etc) are supported.
 - Each field is annotated with the range of bits that are used by the field. The data type must match the number of
   bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
 - Single bit fields are declared as "bit", all other fields as "bits"
