@@ -13,7 +13,7 @@ const BITCOUNT_BOOL: usize = 0;
 
 /// Returns true if the number can be expressed by a regular data type like u8 or u32.
 /// 0 is special as it means bool (technically should be 1, but we use that for u1)
-fn is_int_size_regular_type(size: usize) -> bool {
+const fn is_int_size_regular_type(size: usize) -> bool {
     size == BITCOUNT_BOOL || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
 }
 
@@ -39,6 +39,36 @@ fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
 enum CustomType {
     No,
     Yes(Type),
+}
+
+#[derive(Copy, Clone)]
+struct BaseDataSize {
+    /// The size of the raw_value field, e.g. u32
+    internal: usize,
+
+    /// The size exposed via raw_value() and new_with_raw_value(), e.g. u24
+    exposed: usize,
+}
+
+impl BaseDataSize {
+    const fn new(size: usize) -> Self {
+        let built_in_size = if size <= 8 {
+            8
+        } else if size <= 16 {
+            16
+        } else if size <= 32 {
+            32
+        } else if size <= 64 {
+            64
+        } else {
+            128
+        };
+        assert!(size <= built_in_size);
+        Self {
+            internal: built_in_size,
+            exposed: size,
+        }
+    }
 }
 
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -113,12 +143,18 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
     }
 
+    // If an arbitrary-int is specified as a base-type, we only use that when exposing it
+    // (e.g. through raw_value() and for bounds-checks). The actual raw_value field will be the next
+    // larger integer field
     let base_data_size = match base_data_type.to_string().as_str() {
-        "u8" => 8,
-        "u16" => 16,
-        "u32" => 32,
-        "u64" => 64,
-        "u128" => 128,
+        "u8" => BaseDataSize::new(8),
+        "u16" => BaseDataSize::new(16),
+        "u32" => BaseDataSize::new(32),
+        "u64" => BaseDataSize::new(64),
+        "u128" => BaseDataSize::new(128),
+        s if parse_arbitrary_int_type(s).is_ok() => {
+            BaseDataSize::new(parse_arbitrary_int_type(s).unwrap())
+        }
         _ => {
             return syn::Error::new_spanned(
                 &base_data_type,
@@ -126,7 +162,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             ).to_compile_error().into();
         }
     };
-    let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size).as_str())
+    let internal_base_data_type =
+        syn::parse_str::<Type>(format!("u{}", base_data_size.internal).as_str())
+            .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
+
+    let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
 
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -142,7 +182,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut field_definitions = Vec::with_capacity(fields.len());
 
     for field in fields {
-        match parse_field(base_data_size, &field) {
+        match parse_field(base_data_size.internal, &field) {
             Ok(def) => field_definitions.push(def),
             Err(ts) => return ts.into(),
         }
@@ -167,7 +207,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                         }
                     } else if field_definition.field_type_size == BITCOUNT_BOOL {
                         quote! { (self.raw_value & (#one << #lowest_bit)) != 0 }
-                    } else if field_definition.number_of_bits == base_data_size {
+                    } else if field_definition.number_of_bits == base_data_size.internal {
                         // If the field is the whole size of the bitfield, we can't apply a mask
                         // as that would overflow. However, we don't need to
                         assert_eq!(field_definition.lowest_bit, 0);
@@ -180,7 +220,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 } else {
                     // Extract arbitrary int (e.g. u7), using one of the extract methods
                     let custom_type = TokenStream2::from_str(format!("arbitrary_int::u{}", field_definition.number_of_bits).as_str()).unwrap();
-                    let extract = TokenStream2::from_str(format!("extract_u{}", base_data_size).as_str()).unwrap();
+                    let extract = TokenStream2::from_str(format!("extract_u{}", base_data_size.internal).as_str()).unwrap();
                     if let Some(array) = field_definition.array {
                         let indexed_stride = array.1;
                         quote! {
@@ -259,7 +299,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     quote! {
                         {
                             let effective_index = #lowest_bit + index * #indexed_stride;
-                            (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #base_data_type) << effective_index)
+                            (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #internal_base_data_type) << effective_index)
                         }
                     }
                 }
@@ -267,13 +307,13 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 quote! {
                     if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
                 }
-            } else if field_definition.number_of_bits == base_data_size {
+            } else if field_definition.number_of_bits == base_data_size.internal {
                 // If the field is the whole size of the bitfield, we can't apply a mask
                 // as that would overflow. However, we don't need to
                 assert_eq!(field_definition.lowest_bit, 0);
-                quote! { #argument_converted as #base_data_type }
+                quote! { #argument_converted as #internal_base_data_type }
             } else {
-                quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #base_data_type) << #lowest_bit) }
+                quote! { (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #internal_base_data_type) << #lowest_bit) }
             };
 
             let setter_name = setter_name(field_name);
@@ -319,10 +359,18 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                     "Use {}::Default (or {}::DEFAULT in const context) instead",
                     struct_name, struct_name
                 );
+
+                let default_raw_value = if base_data_size.exposed == base_data_size.internal {
+                    quote! { const DEFAULT_RAW_VALUE: #base_data_type = #default_value; }
+                } else {
+                    quote! { const DEFAULT_RAW_VALUE: #base_data_type = #base_data_type::new(#default_value); }
+                };
                 quote! {
+                    #default_raw_value
+
                     #[doc = #comment]
                     #[inline]
-                    pub const DEFAULT: Self = Self { raw_value: #default_value };
+                    pub const DEFAULT: Self = Self::new_with_raw_value(Self::DEFAULT_RAW_VALUE);
 
                     #[deprecated(note = #deprecated_warning)]
                     pub const fn new() -> Self {
@@ -346,31 +394,49 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         &struct_name,
         default_value.is_some(),
         &struct_vis,
-        &base_data_type,
+        &internal_base_data_type,
+        base_data_type,
         base_data_size,
         &field_definitions,
     );
+
+    let raw_value_unwrap = if base_data_size.exposed == base_data_size.internal {
+        quote! { value }
+    } else {
+        quote! { value.value() }
+    };
+
+    let raw_value_wrap = if base_data_size.exposed == base_data_size.internal {
+        quote! { self.raw_value }
+    } else {
+        // We use extract as that - unlike new() - never panics. This macro already guarantees that
+        // the upper bits can't be set.
+        let extract =
+            syn::parse_str::<Type>(format!("extract_u{}", base_data_size.internal).as_str())
+                .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
+        quote! { #base_data_type::#extract(self.raw_value, 0) }
+    };
 
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
         #( #struct_attrs )*
         #struct_vis struct #struct_name {
-            raw_value: #base_data_type,
+            raw_value: #internal_base_data_type,
         }
 
         impl #struct_name {
             #default_constructor
             /// Returns the underlying raw value of this bitfield
             #[inline]
-            pub const fn raw_value(&self) -> #base_data_type { self.raw_value }
+            pub const fn raw_value(&self) -> #base_data_type { #raw_value_wrap }
 
             /// Creates a new instance of this bitfield with the given raw value.
             ///
             /// No checks are performed on the value, so it is possible to set bits that don't have any
             /// accessors specified.
             #[inline]
-            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: value } }
+            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: #raw_value_unwrap } }
 
             #new_with_constructor
 
@@ -402,8 +468,9 @@ fn make_new_with_constructor(
     struct_name: &Ident,
     has_default: bool,
     struct_vis: &Visibility,
+    internal_base_data_type: &Type,
     base_data_type: &TokenTree,
-    base_data_size: usize,
+    base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
 ) -> (TokenStream2, Vec<TokenStream2>) {
     if !cfg!(feature = "experimental_builder_syntax") {
@@ -419,7 +486,7 @@ fn make_new_with_constructor(
         Vec::with_capacity(field_definitions.len() + 2);
 
     new_with_builder_chain.push(quote! {
-       #struct_vis struct #builder_struct_name<const MASK: #base_data_type>(#struct_name);
+       #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
     });
 
     for field_definition in field_definitions {
@@ -484,7 +551,7 @@ fn make_new_with_constructor(
     }
 
     // The type has to either be complete OR it has to have a default value. Otherwise we can't do constructor syntax
-    if (running_mask.count_ones() as usize != base_data_size) && !has_default {
+    if (running_mask.count_ones() as usize != base_data_size.exposed) && !has_default {
         return (quote! {}, Vec::new());
     }
 
@@ -497,14 +564,21 @@ fn make_new_with_constructor(
     });
 
     let default = if has_default {
-        quote! { #struct_name::DEFAULT }
+        quote! { #builder_struct_name(#struct_name::DEFAULT) }
     } else {
-        quote! { #struct_name::new_with_raw_value(0) }
+        if base_data_size.exposed == base_data_size.internal {
+            quote! { #builder_struct_name(#struct_name::new_with_raw_value(0)) }
+        } else {
+            quote! {
+                const ZERO: #base_data_type = #base_data_type::new(0);
+                #builder_struct_name(#struct_name::new_with_raw_value(ZERO))
+            }
+        }
     };
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are initialized
         pub const fn builder() -> #builder_struct_name<0> {
-            #builder_struct_name(#default)
+            #default
         }
     };
     (result_new_with_constructor, new_with_builder_chain)

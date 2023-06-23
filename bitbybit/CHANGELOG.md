@@ -4,6 +4,14 @@
 
 ### Added
 
+- Bitfields can support any arbitrary-int as a base-data-type, not just built-ins. For example, this is now supported:
+```rs
+#[bitfield(u12)]
+struct Bitfield {
+  // bits...
+}
+```
+
 ### Changed
 
 ### Fixed
