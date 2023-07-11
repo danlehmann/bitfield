@@ -164,7 +164,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let internal_base_data_type =
         syn::parse_str::<Type>(format!("u{}", base_data_size.internal).as_str())
-            .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
+            .unwrap_or_else(|_| panic!("bitfield!: Error parsing internal base data type"));
 
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
@@ -271,12 +271,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 match field_definition.custom_type {
                     CustomType::No => {
                         if field_definition.use_regular_int {
-                            quote! { field_value }
+                            // For signed types, we first have to convert to the unsigned type. Then up the base type
+                            // (e.g. i16 would go: field_value as u16 as u64)
+                            if let Some(unsigned_field_type) = &field_definition.unsigned_field_type {
+                                quote! { field_value as #unsigned_field_type }
+                            } else {
+                                quote! { field_value }
+                            }
                         } else {
+                            // Once signed arbitrary-ints (e.g. i7) are a thing, we'll need to pay special attention to sign extension here
                             quote! { field_value.value() }
                         }
                     }
                     CustomType::Yes(_) => {
+                        // Once signed bitenum or bitfield-base-data-types are a thing, we'll need to pay special attention to sign extension here
                         if field_definition.use_regular_int {
                             quote! { field_value.raw_value() }
                         } else {
@@ -588,6 +596,7 @@ struct FieldDefinition {
     field_name: Ident,
     lowest_bit: usize,
     number_of_bits: usize,
+    unsigned_field_type: Option<Type>,
     array: Option<(usize, usize)>,
     field_type_size: usize,
     getter_type: Option<Type>,
@@ -620,21 +629,38 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             _ => (&field.ty, None),
         }
     };
-    let field_type_size_from_data_type = match ty {
+    let (field_type_size_from_data_type, field_type_is_signed) = match ty {
         Type::Path(path) => {
             match path.to_token_stream().to_string().as_str() {
-                "bool" => Some(BITCOUNT_BOOL),
-                "u8" | "i8" => Some(8),
-                "u16" | "i16" => Some(16),
-                "u32" | "i32" => Some(32),
-                "u64" | "i64" => Some(64),
-                "u128" | "i128" => Some(128),
-                s if parse_arbitrary_int_type(s).is_ok() => Some(parse_arbitrary_int_type(s).unwrap()),
-                _ => None, // Enum type - size is the the number of bits
+                "bool" => (Some(BITCOUNT_BOOL), false),
+                "u8" => (Some(8), false),
+                "i8" => (Some(8), true),
+                "u16" => (Some(16), false),
+                "i16" => (Some(16), true),
+                "u32" => (Some(32), false),
+                "i32" => (Some(32), true),
+                "u64" => (Some(64), false),
+                "i64" => (Some(64), true),
+                "u128" => (Some(128), false),
+                "i128" => (Some(128), true),
+                s if parse_arbitrary_int_type(s).is_ok() => (Some(parse_arbitrary_int_type(s).unwrap()), false),
+                _ => (None, false), // Enum type - size is the the number of bits
             }
         }
         _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g. u1, u3, u62). Their arrays are also supported", ty.into_token_stream()),
     };
+
+    let unsigned_field_type = if field_type_is_signed {
+        Some(
+            syn::parse_str::<Type>(
+                format!("u{}", field_type_size_from_data_type.unwrap()).as_str(),
+            )
+            .unwrap_or_else(|_| panic!("bitfield!: Error parsing unsigned_field_type")),
+        )
+    } else {
+        None
+    };
+
     let mut range: Option<Range<usize>> = None;
     let mut provide_getter = false;
     let mut provide_setter = false;
@@ -1062,5 +1088,6 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
         doc_comment,
         array: indexed_count.map(|count| (count, indexed_stride.unwrap())),
         field_type_size_from_data_type,
+        unsigned_field_type,
     })
 }
