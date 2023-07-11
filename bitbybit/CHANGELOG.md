@@ -17,6 +17,7 @@ struct Bitfield {
 ### Fixed
 
 - Multi-line doc-comments on fields are now fully put into the resulting accessors (previously, just the last line was)
+- Masking of signed fields setters is now correct
 
 
 ## bitbybit 1.2.1

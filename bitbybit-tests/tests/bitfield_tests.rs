@@ -180,6 +180,92 @@ fn signed_vs_unsigned() {
 }
 
 #[test]
+fn signed_masking8and16() {
+    #[bitfield(u32)]
+    struct Test {
+        #[bits(24..=31, rw)]
+        signed2: i8,
+
+        #[bits(16..=23, rw)]
+        signed1: i8,
+
+        #[bits(0..=15, rw)]
+        signed0: i16,
+    }
+
+    let t = Test::builder()
+        .with_signed2(-5)
+        .with_signed1(-100)
+        .with_signed0(-32012)
+        .build();
+    assert_eq!(t.signed2(), -5);
+    assert_eq!(t.signed1(), -100);
+    assert_eq!(t.signed0(), -32012);
+}
+
+#[test]
+fn signed_masking32and64() {
+    #[bitfield(u128, default: 0)]
+    struct Test {
+        #[bits(32..=95, rw)]
+        signed1: i64,
+
+        #[bits(0..=31, rw)]
+        signed0: i32,
+    }
+
+    let t = Test::builder()
+        .with_signed1(-100000000)
+        .with_signed0(-3500012)
+        .build();
+    assert_eq!(t.signed1(), -100000000);
+    assert_eq!(t.signed0(), -3500012);
+}
+
+#[test]
+fn signed_masking128() {
+    #[bitfield(u128, default: 0)]
+    struct Test {
+        #[bits(0..=127, rw)]
+        signed0: i128,
+    }
+
+    let t = Test::builder().with_signed0(-3500012).build();
+    assert_eq!(t.signed0(), -3500012);
+}
+
+#[test]
+fn signed_masking_array() {
+    #[bitfield(u128, default: 0)]
+    struct Test {
+        #[bits(96..=127, rw)]
+        signed3: i32,
+
+        #[bits(0..=31, rw)]
+        signed: [i32; 3],
+    }
+
+    let t = Test::DEFAULT
+        .with_signed3(-13)
+        .with_signed(0, -10)
+        .with_signed(2, -12)
+        .with_signed(1, -11);
+    assert_eq!(t.signed(0), -10);
+    assert_eq!(t.signed(1), -11);
+    assert_eq!(t.signed(2), -12);
+    assert_eq!(t.signed3(), -13);
+
+    let t = Test::builder()
+        .with_signed3(-13)
+        .with_signed([-10, -11, -12])
+        .build();
+    assert_eq!(t.signed(0), -10);
+    assert_eq!(t.signed(1), -11);
+    assert_eq!(t.signed(2), -12);
+    assert_eq!(t.signed3(), -13);
+}
+
+#[test]
 fn default_value() {
     #[bitfield(u32, default: 0xDEADBEEF)]
     struct Test {}
