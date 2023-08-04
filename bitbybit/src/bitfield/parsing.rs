@@ -62,7 +62,7 @@ fn parse_scalar_field(ty: &Type) -> Result<Option<(usize, bool)>> {
     }
 }
 
-fn parse_enumeration(ty: &Type, primitive_type: &TokenStream2) -> Result<(CustomType, Type, Type)> {
+fn parse_enumeration(ty: &Type, number_of_bits: usize) -> Result<(CustomType, Type, Type)> {
     // Test for optional type. We have to dissect the Option<T> type to do that
     let (inner_type, result_type) = if let Type::Path(type_path) = ty {
         if let Some(last_segment) = type_path.path.segments.last() {
@@ -75,10 +75,21 @@ fn parse_enumeration(ty: &Type, primitive_type: &TokenStream2) -> Result<(Custom
                         let option_generic_type = args.args.last().unwrap();
                         match option_generic_type {
                             GenericArgument::Type(generic_type) => {
+                                let enum_fallback_value = {
+                                    let type_string = if is_int_size_regular_type(number_of_bits) {
+                                        format!("u{}", number_of_bits)
+                                    } else {
+                                        format!("arbitrary_int::u{}", number_of_bits)
+                                    };
+                                    syn::parse_str::<Type>(type_string.as_str()).unwrap_or_else(
+                                        |_| panic!("bitfield!: Error parsing unsigned_field_type"),
+                                    )
+                                };
+
                                 let result_type_string = format!(
                                     "Result<{}, {}>",
                                     generic_type.to_token_stream(),
-                                    primitive_type,
+                                    enum_fallback_value.to_token_stream(),
                                 );
                                 let result_type = syn::parse_str::<Type>(&result_type_string)
                                     .expect("bitfield!: Error creating type from Result<,>");
@@ -397,7 +408,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     }
 
     let (custom_type, getter_type, setter_type) = if field_type_size_from_data_type.is_none() {
-        parse_enumeration(ty, &primitive_type)?
+        parse_enumeration(ty, number_of_bits)?
     } else {
         (CustomType::No, ty.clone(), ty.clone())
     };
