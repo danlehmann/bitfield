@@ -1028,10 +1028,21 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                         let option_generic_type = args.args.first().unwrap();
                         match option_generic_type {
                             GenericArgument::Type(generic_type) => {
+                                let enum_fallback_value = {
+                                    let type_string = if is_int_size_regular_type(number_of_bits) {
+                                        format!("u{}", number_of_bits)
+                                    } else {
+                                        format!("arbitrary_int::u{}", number_of_bits)
+                                    };
+                                    syn::parse_str::<Type>(type_string.as_str()).unwrap_or_else(
+                                        |_| panic!("bitfield!: Error parsing unsigned_field_type"),
+                                    )
+                                };
+
                                 let result_type_string = format!(
                                     "Result<{}, {}>",
                                     generic_type.to_token_stream(),
-                                    primitive_type.to_token_stream(),
+                                    enum_fallback_value.to_token_stream(),
                                 );
                                 let result_type = syn::parse_str::<Type>(&result_type_string)
                                     .expect("bitfield!: Error creating type from Result<,>");
