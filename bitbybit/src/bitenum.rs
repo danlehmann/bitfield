@@ -282,11 +282,11 @@ pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<Toke
     let non_exhaustive = config.exhaustive.matches(false);
     let ok = non_exhaustive.then_some(quote!(Ok));
     let new_return_type = match non_exhaustive {
-        true => quote!(Result<Self, #base_type>),
+        true => quote!(Result<Self, #qualified_type>),
         false => quote!(Self),
     };
     let new_default_branch = match non_exhaustive {
-        true => quote!(value => Err(value)),
+        true => quote!(_ => Err(value)),
         false => quote!(_ => unreachable!()),
     };
     let new_match_branches = input.variants.iter().zip(values).map(|(variant, value)| {

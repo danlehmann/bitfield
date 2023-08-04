@@ -870,7 +870,7 @@ fn bitfield_with_enum_nonexhaustive() {
         BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1010).e2()
     );
     assert_eq!(
-        Err(3),
+        Err(u2::new(3)),
         BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1110).e2()
     );
 
@@ -1377,6 +1377,30 @@ fn underlying_type_is_arbitrary_default() {
             .raw_value(),
         u14::new(0x569)
     );
+}
+
+/// another module to avoid importing u41 the preamble
+#[allow(dead_code)]
+mod inner {
+    use bitbybit::{bitenum, bitfield};
+
+    #[test]
+    fn bitenum_without_import() {
+        // Pick an integer that is not currently used. This is to ensure that everything is fully qualified
+        #[bitenum(u41, exhaustive: false)]
+        #[derive(Eq, PartialEq, Debug)]
+        pub enum NonExhaustiveEnum {
+            Zero = 0b00,
+            One = 0b01,
+            Two = 0b10,
+        }
+
+        #[bitfield(u64, default: 0)]
+        pub struct BitfieldWithEnumNonExhaustive {
+            #[bits(0..=40, rw)]
+            e2: Option<NonExhaustiveEnum>,
+        }
+    }
 }
 
 #[test]

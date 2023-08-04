@@ -8,6 +8,20 @@ This version expects arbitrary-int 2.x.
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
 
+### Fixed
+
+- Breaking change: bitenum's new_with_raw_value, when used with an arbitrary-int type used to return the next larger
+  whole primitive
+  integer, which is unexpected. This is a breaking change.
+
+```rs
+// Old type
+let foo: Result<MyEnum, u8> = MyEnum::new_with_raw_value(u2::new(0b10));
+
+// New type (notice the u2 instead of u8)
+let foo: Result<MyEnum, u2> = MyEnum::new_with_raw_value(u2::new(0b10));
+```
+
 ## bitbybit 1.4.0
 
 This is the final version to support arbitrary-int 1.x. Future versions will require arbitrary-int 2.x.

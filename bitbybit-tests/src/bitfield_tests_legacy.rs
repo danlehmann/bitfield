@@ -740,7 +740,7 @@ fn bitfield_with_enum_nonexhaustive() {
         BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1010).e2()
     );
     assert_eq!(
-        Err(3),
+        Err(u2::new(3)),
         BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1110).e2()
     );
 
