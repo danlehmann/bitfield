@@ -262,10 +262,10 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         quote!(
             /// Creates a new instance of this bitfield with the given raw value, or
             /// Err(value) if the value does not exist in the enum.
-            pub const fn new_with_raw_value(value: #bounded_data_type) -> Result<Self, #base_data_type> {
+            pub const fn new_with_raw_value(value: #bounded_data_type) -> Result<Self, #bounded_data_type> {
                 match value #bounded_getter {
                     #( #case_values )*
-                    _ => Err(value #bounded_getter)
+                    _ => Err(value)
                 }
             }
         )
