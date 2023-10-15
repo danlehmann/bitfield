@@ -23,7 +23,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         token_stream: TokenStream2,
     ) {
         match next_expected {
-            None => panic!("bitenum!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitenum(u3, exhaustive: false)]", token_stream),
+            None => panic!("bitenum!: Seen {}, but didn't expect anything. Example of valid syntax: #[bitenum(u3, exhaustive = false)]", token_stream),
             Some(ArgumentType::Exhaustive) => {
                 *default_value = Some(token_stream);
             }
@@ -33,9 +33,9 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         match arg {
             TokenTree::Punct(p) => match p.as_char() {
                 ',' => next_expected = None,
-                ':' => {}
+                '=' | ':' => (),
                 _ => panic!(
-                    "bitenum!: Expected ',' or ':' in argument list. Seen '{}'",
+                    "bitenum!: Expected ',', '=' or ':' in argument list. Seen '{}'",
                     p
                 ),
             },
@@ -91,7 +91,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 handle_next_expected(&next_expected, default_value, literal.to_token_stream());
             }
             _ => {
-                panic!("bitenum!: Unexpected token. Example of valid syntax: #[bitenum(u32, exhaustive: true)]")
+                panic!("bitenum!: Unexpected token. Example of valid syntax: #[bitenum(u32, exhaustive = true)]")
             }
         }
     }
@@ -134,7 +134,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
                 _ => panic!("bitenum!: Unhandled bits. Supported up to u64"),
             },
             None => panic!(
-                "bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive: true)"
+                "bitenum!: datatype argument needed, for example #[bitenum(u4, exhaustive = true)"
             ),
         };
 
@@ -150,7 +150,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
             "true" => Exhaustiveness::True,
             "false" => Exhaustiveness::False,
             "conditional" => Exhaustiveness::Conditional,
-            _ => panic!("bitenum!: \"exhaustive\" must be \"true\", \"false\" or \"conditional\""),
+            _ => panic!(r#"bitenum!: "exhaustive" must be "true", "false" or "conditional""#),
         })
         .unwrap_or(Exhaustiveness::False);
 
@@ -203,11 +203,11 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
 
     if uses_conditional {
         if exhaustiveness != Exhaustiveness::Conditional {
-            panic!("bitenum!: If any values are marked as conditional (using the cfg attribute), the enum must be marked as 'exhaustive: conditional'");
+            panic!("bitenum!: If any values are marked as conditional (using the cfg attribute), the enum must be marked as 'exhaustive = conditional'");
         }
     } else {
         if exhaustiveness == Exhaustiveness::Conditional {
-            panic!("bitenum!: No values are conditionally compiled using cfg, so the enum must not be marked as conditional. Change to 'exhaustive: true' or 'exhaustive: false'");
+            panic!("bitenum!: No values are conditionally compiled using cfg, so the enum must not be marked as conditional. Change to 'exhaustive = true' or 'exhaustive = false'");
         }
     }
 
@@ -224,7 +224,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
         }
         Exhaustiveness::False => {
             if emitted_variants.len() == possible_maximum_variants as usize {
-                panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive: true'")
+                panic!("bitenum!: Enum is exhaustive, but not marked accordingly. Add 'exhaustive = true'")
             }
             true
         }
@@ -239,7 +239,7 @@ pub fn bitenum(args: TokenStream, input: TokenStream) -> TokenStream {
     // - exclude unhandled integers, followed by transmute (unsafe)
     // For now, we'll go with the first option. If we find that the compiler generates bad code,
     // we can switch to the second option (as we required all values to be literals, so we can
-    // analyse used vs unused ranges)
+    // analyze used vs unused ranges)
 
     let case_values: Vec<TokenStream2> = emitted_variants
         .iter()
