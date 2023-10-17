@@ -114,7 +114,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             },
             TokenTree::Ident(sym) => {
                 if next_expected.is_some() {
-                    // We might end up here if we refer to a constant, like 'default: SOME_CONSTANT'
+                    // We might end up here if we refer to a constant, like 'default = SOME_CONSTANT'
                     handle_next_expected(&next_expected, &mut default_value, sym.to_token_stream());
                 } else {
                     match sym.to_string().as_str() {
@@ -132,7 +132,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
             TokenTree::Literal(literal) => {
-                // We end up here if we see a literal, like 'default: 0x1234'
+                // We end up here if we see a literal, like 'default = 0x1234'
                 handle_next_expected(
                     &next_expected,
                     &mut default_value,

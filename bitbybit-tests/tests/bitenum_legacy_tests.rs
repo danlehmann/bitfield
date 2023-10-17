@@ -3,7 +3,7 @@ use bitbybit::bitenum;
 
 #[test]
 fn bitrange_with_enum_type_exhaustive_2() {
-    #[bitenum(u2, exhaustive = true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0b00,
@@ -23,7 +23,7 @@ fn bitrange_with_enum_type_exhaustive_2() {
 
 #[test]
 fn bitrange_with_enum_type_nonexhaustive_2() {
-    #[bitenum(u2, exhaustive = false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0b00,
@@ -43,7 +43,7 @@ fn bitrange_with_enum_type_nonexhaustive_2() {
 
 #[test]
 fn enum_without_other_derives() {
-    #[bitenum(u2, exhaustive = true)]
+    #[bitenum(u2, exhaustive: true)]
     enum Foo {
         Zero = 0,
         One = 1,
@@ -60,7 +60,7 @@ fn enum_without_other_derives() {
 
 #[test]
 fn enum_with_8bits() {
-    #[bitenum(u8, exhaustive = false)]
+    #[bitenum(u8, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -82,7 +82,7 @@ fn enum_with_8bits() {
 
 #[test]
 fn enum_with_16bits() {
-    #[bitenum(u16, exhaustive = false)]
+    #[bitenum(u16, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -104,7 +104,7 @@ fn enum_with_16bits() {
 
 #[test]
 fn enum_with_32bits() {
-    #[bitenum(u32, exhaustive = false)]
+    #[bitenum(u32, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         Zero = 0,
@@ -126,7 +126,7 @@ fn enum_with_32bits() {
 
 #[test]
 fn enum_with_63bits() {
-    #[bitenum(u63, exhaustive = false)]
+    #[bitenum(u63, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     #[repr(u64)]
     enum Foo {
@@ -152,7 +152,7 @@ fn enum_with_63bits() {
 
 #[test]
 fn enum_with_64bits() {
-    #[bitenum(u64, exhaustive = false)]
+    #[bitenum(u64, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     #[repr(u64)]
     enum Foo {
@@ -179,7 +179,7 @@ fn enum_with_64bits() {
 #[test]
 fn documentation() {
     /// This is a comment for the whole enum
-    #[bitenum(u2, exhaustive = true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         /// Zero is the absence of stuff
@@ -202,11 +202,11 @@ fn documentation() {
 
 /// Ensures that conditional statements in enum values are handled correctly
 /// (i.e. they don't result in a compile error). We need to specify the new
-/// mode exhaustive = conditional to ensure that the macro doesn't actually check
+/// mode exhaustive: conditional to ensure that the macro doesn't actually check
 /// and simply treats it like a non-exhaustive enum.
 #[test]
 fn cfg_in_enum_values() {
-    #[bitenum(u2, exhaustive = conditional)]
+    #[bitenum(u2, exhaustive: conditional)]
     #[derive(Eq, PartialEq, Debug)]
     enum Foo {
         /// Zero is the absence of stuff
