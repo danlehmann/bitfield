@@ -4,7 +4,7 @@ use bitbybit::bitfield;
 
 #[test]
 fn test_construction() {
-    #[bitfield(u32, default = 0)]
+    #[bitfield(u32, default: 0)]
     struct Test2 {}
 
     let t = Test2::DEFAULT;
@@ -16,7 +16,7 @@ fn test_construction() {
 
 #[test]
 fn test_getter_and_setter() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test2 {
         #[bits(98..=127, rw)]
         val30: u30,
@@ -55,7 +55,7 @@ fn test_getter_and_setter() {
 
 #[test]
 fn test_getter_and_setter_arbitrary_uint() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test2 {
         #[bits(4..=11, rw)]
         baudrate: u8,
@@ -78,7 +78,7 @@ fn test_getter_and_setter_arbitrary_uint() {
 
 #[test]
 fn test_bool() {
-    #[bitfield(u16, default = 0)]
+    #[bitfield(u16, default: 0)]
     struct Test {
         #[bit(0, rw)]
         bit0: bool,
@@ -114,7 +114,7 @@ fn test_bool() {
 
 #[test]
 fn test_u1() {
-    #[bitfield(u16, default = 0)]
+    #[bitfield(u16, default: 0)]
     struct Test {
         #[bit(0, rw)]
         bit0: u1,
@@ -205,7 +205,7 @@ fn signed_masking8and16() {
 
 #[test]
 fn signed_masking32and64() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test {
         #[bits(32..=95, rw)]
         signed1: i64,
@@ -224,7 +224,7 @@ fn signed_masking32and64() {
 
 #[test]
 fn signed_masking128() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test {
         #[bits(0..=127, rw)]
         signed0: i128,
@@ -236,7 +236,7 @@ fn signed_masking128() {
 
 #[test]
 fn signed_masking_array() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test {
         #[bits(96..=127, rw)]
         signed3: i32,
@@ -267,7 +267,7 @@ fn signed_masking_array() {
 
 #[test]
 fn default_value() {
-    #[bitfield(u32, default = 0xDEADBEEF)]
+    #[bitfield(u32, default: 0xDEADBEEF)]
     struct Test {}
 
     let t = Test::DEFAULT;
@@ -277,7 +277,7 @@ fn default_value() {
 #[test]
 fn default_value_const() {
     const DEFAULT: u32 = 0xBADCAFE;
-    #[bitfield(u32, default = DEFAULT)]
+    #[bitfield(u32, default: DEFAULT)]
     struct Test {}
 
     let t = Test::DEFAULT;
@@ -298,7 +298,7 @@ fn more_struct_attributes() {
 #[test]
 fn documentation() {
     /// Test that documentation is properly applied to the output
-    #[bitfield(u32, default = 0x123)]
+    #[bitfield(u32, default: 0x123)]
     #[derive(Debug)]
     struct Test {
         /// This is a documented field
@@ -324,7 +324,7 @@ fn documentation() {
 
 #[test]
 fn proper_unmasking() {
-    #[bitfield(u16, default = 0)]
+    #[bitfield(u16, default: 0)]
     pub struct TestStruct {
         #[bits(0..=1, rw)]
         a: u2,
@@ -349,7 +349,7 @@ fn proper_unmasking() {
 
 #[test]
 fn just_one_bitrange() {
-    #[bitfield(u16, default = 0)]
+    #[bitfield(u16, default: 0)]
     pub struct JustOneBitRange {
         #[bits(0..=15, rw)]
         a: i16,
@@ -363,18 +363,18 @@ fn just_one_bitrange() {
 
 #[test]
 fn repeated_bitrange_single_bits_with_stride() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct NibbleBits64 {
-        #[bit(0, rw, stride = 4)]
+        #[bit(0, rw, stride: 4)]
         nibble_bit0: [bool; 16],
 
-        #[bit(1, rw, stride = 4)]
+        #[bit(1, rw, stride: 4)]
         nibble_bit1: [bool; 16],
 
-        #[bit(2, rw, stride = 4)]
+        #[bit(2, rw, stride: 4)]
         nibble_bit2: [bool; 16],
 
-        #[bit(3, rw, stride = 4)]
+        #[bit(3, rw, stride: 4)]
         nibble_bit3: [bool; 16],
     }
 
@@ -437,18 +437,18 @@ fn repeated_bitrange_single_bits_with_stride() {
 
 #[test]
 fn repeated_bitrange_single_u1_bits_with_stride() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct NibbleBits64 {
-        #[bit(0, rw, stride = 4)]
+        #[bit(0, rw, stride: 4)]
         nibble_bit0: [u1; 16],
 
-        #[bit(1, rw, stride = 4)]
+        #[bit(1, rw, stride: 4)]
         nibble_bit1: [u1; 16],
 
-        #[bit(2, rw, stride = 4)]
+        #[bit(2, rw, stride: 4)]
         nibble_bit2: [u1; 16],
 
-        #[bit(3, rw, stride = 4)]
+        #[bit(3, rw, stride: 4)]
         nibble_bit3: [u1; 16],
     }
 
@@ -511,7 +511,7 @@ fn repeated_bitrange_single_u1_bits_with_stride() {
 
 #[test]
 fn repeated_bitrange_single_bits_without_stride() {
-    #[bitfield(u8, default = 0)]
+    #[bitfield(u8, default: 0)]
     pub struct Bits8 {
         #[bit(0, rw)]
         bit: [bool; 8],
@@ -534,7 +534,7 @@ fn repeated_bitrange_single_bits_without_stride() {
 
 #[test]
 fn repeated_bitrange_single_u1_bits_without_stride() {
-    #[bitfield(u8, default = 0)]
+    #[bitfield(u8, default: 0)]
     pub struct Bits8 {
         #[bit(0, rw)]
         bit: [u1; 8],
@@ -557,7 +557,7 @@ fn repeated_bitrange_single_u1_bits_without_stride() {
 
 #[test]
 fn repeated_bitrange_without_stride() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
         #[bits(0..=3, rw)]
         nibble: [u4; 16],
@@ -593,9 +593,9 @@ fn repeated_bitrange_without_stride() {
 
 #[test]
 fn repeated_bitrange_with_stride_equals_width() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct Nibble64 {
-        #[bits(0..=3, rw, stride = 4)]
+        #[bits(0..=3, rw, stride: 4)]
         nibble: [u4; 16],
     }
 
@@ -629,9 +629,9 @@ fn repeated_bitrange_with_stride_equals_width() {
 
 #[test]
 fn repeated_bitrange_with_stride_greater_than_width() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct EvenNibble64 {
-        #[bits(0..=3, rw, stride = 8)]
+        #[bits(0..=3, rw, stride: 8)]
         even_nibble: [u4; 8],
     }
 
@@ -648,9 +648,9 @@ fn repeated_bitrange_with_stride_greater_than_width() {
 
 #[test]
 fn repeated_bitrange_with_stride_greater_than_width_basic_type() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct EvenByte64 {
-        #[bits(0..=7, rw, stride = 16)]
+        #[bits(0..=7, rw, stride: 16)]
         even_byte: [u8; 4],
     }
 
@@ -665,7 +665,7 @@ fn repeated_bitrange_with_stride_greater_than_width_basic_type() {
 
 #[test]
 fn bitfield_with_enum_exhaustive() {
-    #[bitenum(u2, exhaustive = true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum ExhaustiveEnum {
         Zero = 0b00,
@@ -674,7 +674,7 @@ fn bitfield_with_enum_exhaustive() {
         Three = 0b11,
     }
 
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct BitfieldWithEnum {
         #[bits(0..=1, rw)]
         e1: ExhaustiveEnum,
@@ -713,7 +713,7 @@ fn bitfield_with_enum_exhaustive() {
 
 #[test]
 fn bitfield_with_enum_nonexhaustive() {
-    #[bitenum(u2, exhaustive = false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,
@@ -721,7 +721,7 @@ fn bitfield_with_enum_nonexhaustive() {
         Two = 0b10,
     }
 
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct BitfieldWithEnumNonExhaustive {
         #[bits(2..=3, rw)]
         e2: Option<NonExhaustiveEnum>,
@@ -768,7 +768,7 @@ fn bitfield_with_enum_nonexhaustive() {
 
 #[test]
 fn bitfield_with_indexed_exhaustive_enum() {
-    #[bitenum(u2, exhaustive = true)]
+    #[bitenum(u2, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum ExhaustiveEnum {
         Zero = 0b00,
@@ -777,7 +777,7 @@ fn bitfield_with_indexed_exhaustive_enum() {
         Three = 0b11,
     }
 
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct BitfieldWithIndexedEnums {
         #[bits(0..=1, rw)]
         exhaustive: [ExhaustiveEnum; 8],
@@ -806,7 +806,7 @@ fn bitfield_with_indexed_exhaustive_enum() {
 
 #[test]
 fn bitfield_with_indexed_nonexhaustive_enum() {
-    #[bitenum(u2, exhaustive = false)]
+    #[bitenum(u2, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,
@@ -814,7 +814,7 @@ fn bitfield_with_indexed_nonexhaustive_enum() {
         Two = 0b10,
     }
 
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct BitfieldWithIndexedEnums {
         #[bits(0..=1, rw)]
         nonexhaustive: [Option<NonExhaustiveEnum>; 8],
@@ -843,7 +843,7 @@ fn bitfield_with_indexed_nonexhaustive_enum() {
 
 #[test]
 fn bitfield_with_u8_enum() {
-    #[bitenum(u8, exhaustive = false)]
+    #[bitenum(u8, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
     pub enum NonExhaustiveEnum {
         Zero = 0b00,
@@ -851,7 +851,7 @@ fn bitfield_with_u8_enum() {
         Two = 0b10000010,
     }
 
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct BitfieldWithIndexedEnums {
         #[bits(6..=13, rw)]
         val8: Option<NonExhaustiveEnum>,
@@ -878,14 +878,14 @@ fn bitfield_with_u8_enum() {
 
 #[test]
 fn bitfield_with_singlebit_enum() {
-    #[bitenum(u1, exhaustive = true)]
+    #[bitenum(u1, exhaustive: true)]
     #[derive(Eq, PartialEq, Debug)]
     enum BitEnum {
         Wrong = 0,
         Correct = 1,
     }
 
-    #[bitfield(u32, default = 0)]
+    #[bitfield(u32, default: 0)]
     struct BitfieldWithBitEnum {
         #[bit(6, rw)]
         bit: BitEnum,
@@ -942,7 +942,7 @@ fn with_derive_default() {
 fn default_value_automatically_implements_default() {
     // Early versions didn't automatically implement Default - ensure that this still compiles
     // (though we emit a compiler warning)
-    #[bitfield(u32, default = 2)]
+    #[bitfield(u32, default: 2)]
     #[derive(Eq, PartialEq, Debug)]
     struct Test {}
 
@@ -954,7 +954,7 @@ fn default_value_automatically_implements_default() {
 
 #[test]
 fn new_can_still_be_called() {
-    #[bitfield(u32, default = 567)]
+    #[bitfield(u32, default: 567)]
     #[derive(Eq, PartialEq, Debug)]
     struct Test {}
 
@@ -966,9 +966,9 @@ fn new_can_still_be_called() {
 #[test]
 #[should_panic]
 fn array_out_of_bounds_read() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct OutOfBoundsTests {
-        #[bit(0, rw, stride = 4)]
+        #[bit(0, rw, stride: 4)]
         nibble_bit0: [u1; 15],
     }
 
@@ -979,9 +979,9 @@ fn array_out_of_bounds_read() {
 #[test]
 #[should_panic]
 fn array_out_of_bounds_write() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     pub struct OutOfBoundsTests {
-        #[bit(0, rw, stride = 4)]
+        #[bit(0, rw, stride: 4)]
         nibble_bit0: [u1; 15],
     }
 
@@ -992,14 +992,14 @@ fn array_out_of_bounds_write() {
 #[allow(non_camel_case_types)]
 #[test]
 fn reserved_identifiers() {
-    #[bitenum(u1, exhaustive = true)]
+    #[bitenum(u1, exhaustive: true)]
     #[derive(PartialEq, Eq, Debug)]
     enum BitEnum {
         r#priv = 0,
         r#enum = 1,
     }
 
-    #[bitfield(u32, default = 0)]
+    #[bitfield(u32, default: 0)]
     #[derive(PartialEq, Eq, Debug)]
     struct BitfieldWithBitEnum {
         #[bit(6, rw)]
@@ -1025,7 +1025,7 @@ fn reserved_identifiers() {
 
 #[test]
 fn new_with_construction1() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test2 {
         #[bits(98..=127, rw)]
         val30: u30,
@@ -1061,7 +1061,7 @@ fn new_with_construction1() {
 
 #[test]
 fn new_with_construction2() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct Test2 {
         #[bits(0..=127, rw)]
         val128: u128,
@@ -1075,7 +1075,7 @@ fn new_with_construction2() {
 
 #[test]
 fn new_with_construction3() {
-    #[bitfield(u64, default = 0)]
+    #[bitfield(u64, default: 0)]
     struct Test2 {
         #[bits(0..=63, rw)]
         val64: u64,
@@ -1087,7 +1087,7 @@ fn new_with_construction3() {
 
 #[test]
 fn new_with_construction4() {
-    #[bitfield(u32, default = 0x8000_0000)]
+    #[bitfield(u32, default: 0x8000_0000)]
     struct Test2 {
         #[bits(12..=27, w)]
         c: u16,
@@ -1109,7 +1109,7 @@ fn new_with_construction4() {
 
 #[test]
 fn new_with_construction5() {
-    #[bitfield(u8, default = 0)]
+    #[bitfield(u8, default: 0)]
     struct Test2 {
         #[bits(0..=7, rw)]
         val8: u8,
@@ -1121,7 +1121,7 @@ fn new_with_construction5() {
 
 #[test]
 fn new_with_construction_array1() {
-    #[bitfield(u32, default = 0)]
+    #[bitfield(u32, default: 0)]
     struct BytesInU32 {
         #[bits(0..=7, rw)]
         bytes: [u8; 4],
@@ -1135,7 +1135,7 @@ fn new_with_construction_array1() {
 
 #[test]
 fn new_with_construction_array2() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128, default: 0)]
     struct WordsInU128 {
         #[bits(0..=15, w)]
         words: [u16; 8],
@@ -1149,12 +1149,12 @@ fn new_with_construction_array2() {
 
 #[test]
 fn new_with_construction_array3() {
-    #[bitfield(u32, default = 0)]
+    #[bitfield(u32, default: 0)]
     struct Nibbles {
-        #[bits(0..=3, w, stride = 8)]
+        #[bits(0..=3, w, stride: 8)]
         even_nibbles: [u4; 4],
 
-        #[bits(4..=7, w, stride = 8)]
+        #[bits(4..=7, w, stride: 8)]
         odd_nibbles: [u4; 4],
     }
 
@@ -1172,10 +1172,10 @@ fn without_default_complete() {
 
     #[bitfield(u32)]
     struct Nibbles {
-        #[bits(0..=3, w, stride = 8)]
+        #[bits(0..=3, w, stride: 8)]
         even_nibbles: [u4; 4],
 
-        #[bits(4..=7, w, stride = 8)]
+        #[bits(4..=7, w, stride: 8)]
         odd_nibbles: [u4; 3],
 
         #[bits(28..=31, rw)]
@@ -1224,7 +1224,7 @@ fn underlying_type_is_arbitrary_array_complete() {
 
 #[test]
 fn underlying_type_is_arbitrary_default() {
-    #[bitfield(u14, default = 0x567)]
+    #[bitfield(u14, default: 0x567)]
     struct Nibbles {
         #[bits(0..=3, rw)]
         first_nibble: u4,

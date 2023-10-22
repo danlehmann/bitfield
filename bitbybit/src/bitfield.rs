@@ -96,7 +96,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         token_stream: TokenStream2,
     ) {
         match next_expected {
-            None => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default: 0)]", token_stream),
+            None => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default = 0)]", token_stream),
             Some(ArgumentType::Default) => {
                 *default_value = Some(token_stream);
             }
@@ -104,17 +104,17 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     }
     for arg in args.iter().skip(1) {
         match arg {
-            TokenTree::Punct(p) => match p.to_string().as_str() {
-                "," => next_expected = None,
-                ":" => {}
+            TokenTree::Punct(p) => match p.as_char() {
+                ',' => next_expected = None,
+                '=' | ':' => (),
                 _ => panic!(
-                    "bitfield!: Expected ',' or ':' in argument list. Saw '{}'",
+                    "bitfield!: Expected ',', '=' or ':' in argument list. Saw '{}'",
                     p
                 ),
             },
             TokenTree::Ident(sym) => {
                 if next_expected.is_some() {
-                    // We might end up here if we refer to a constant, like 'default: SOME_CONSTANT'
+                    // We might end up here if we refer to a constant, like 'default = SOME_CONSTANT'
                     handle_next_expected(&next_expected, &mut default_value, sym.to_token_stream());
                 } else {
                     match sym.to_string().as_str() {
@@ -132,14 +132,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 }
             }
             TokenTree::Literal(literal) => {
-                // We end up here if we see a literal, like 'default: 0x1234'
+                // We end up here if we see a literal, like 'default = 0x1234'
                 handle_next_expected(
                     &next_expected,
                     &mut default_value,
                     literal.to_token_stream(),
                 );
             }
-            t => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default: 0)]", t),
+            t => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default = 0)]", t),
         }
     }
 
@@ -873,12 +873,14 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
 
                 // *** Parse additional named arguments (at the moment just stride: X)
                 for argument in arguments.iter().skip(2) {
-                    let argument_elements: Vec<&str> =
-                        argument.split(':').map(|s| s.trim()).collect();
+                    let argument_elements: Vec<&str> = argument
+                        .split(|c| c == '=' || c == ':')
+                        .map(|s| s.trim())
+                        .collect();
                     if argument_elements.len() != 2 {
                         return Err(syn::Error::new_spanned(
                                 &attr.meta,
-                                format!("bitfield!: Named arguments have to be in the form of 'argument: value'. Seen: {:?}", argument_elements)
+                                format!("bitfield!: Named arguments have to be in the form of 'argument = value'. Seen: {:?}", argument_elements)
                             ).to_compile_error());
                     }
                     match argument_elements[0] {
@@ -1013,7 +1015,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
     }
 
     let (custom_type, getter_type, setter_type) = if field_type_size_from_data_type.is_none() {
-        // Test for optional type. We have to disect the Option<T> type to do that
+        // Test for optional type. We have to dissect the Option<T> type to do that
         let (inner_type, result_type) = if let Type::Path(type_path) = ty {
             if type_path.path.segments.len() != 1 {
                 panic!("Invalid path segment. Expected Enumeration or Option<Enumeration>");

@@ -1,5 +1,29 @@
 # Changelog
 
+## bitbybit 1.3.0
+
+### Changed
+
+- Switched default attribute argument syntax from field type to assignment type (colon field style is still allowed, but might be deprecated in the future):
+```rs
+#[bitenum(u2, exhaustive = true)]
+enum ExhaustiveEnum {
+    Zero = 0b00,
+    One = 0b01,
+    Two = 0b10,
+    Three = 0b11,
+}
+
+#[bitfield(u64, default = 0)]
+struct BitfieldWithEnum {
+    #[bits(2..=3, rw)]
+    e2: Option<NonExhaustiveEnum>,
+
+    #[bits(0..=1, rw)]
+    e1: ExhaustiveEnum,
+}
+```
+
 ## bitbybit 1.2.2
 
 ### Added

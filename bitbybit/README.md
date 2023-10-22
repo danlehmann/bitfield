@@ -5,7 +5,7 @@ or networking code).
 
 Some highlights:
 
-- Highly efficient and 100% safe code that is just as good and hand-writen shifts and masks,
+- Highly efficient and 100% safe code that is just as good and hand-written shifts and masks,
 - Full compatibility with const contexts,
 - Useable in no-std environments,
 - Strong compile time guarantees (for example, taking 5 bits out of a bitfield and putting them into another won't even
@@ -57,14 +57,14 @@ Very often, fields aren't just numbers but really enums. This is supported by fi
 that inside of a bitfield:
 
 ```rs
-#[bitenum(u2, exhaustive: false)]
+#[bitenum(u2, exhaustive = false)]
 enum NonExhaustiveEnum {
     Zero = 0b00,
     One = 0b01,
     Two = 0b10,
 }
 
-#[bitenum(u2, exhaustive: true)]
+#[bitenum(u2, exhaustive = true)]
 enum ExhaustiveEnum {
     Zero = 0b00,
     One = 0b01,
@@ -72,7 +72,7 @@ enum ExhaustiveEnum {
     Three = 0b11,
 }
 
-#[bitfield(u64, default: 0)]
+#[bitfield(u64, default = 0)]
 struct BitfieldWithEnum {
     #[bits(2..=3, rw)]
     e2: Option<NonExhaustiveEnum>,
@@ -96,7 +96,7 @@ Sometimes, bits inside bitfields are repeated. To support this, this crate allow
 example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
 
 ```rs
-#[bitfield(u64, default: 0)]
+#[bitfield(u64, default = 0)]
 struct Nibble64 {
      #[bits(0..=3, rw)]
      nibble: [u4; 16],
@@ -107,18 +107,18 @@ Arrays can also have a stride. This is useful in the case of multiple smaller va
 following definition provides access to each bit of each nibble:
 
 ```rs
-#[bitfield(u64, default: 0)]
+#[bitfield(u64, default = 0)]
 struct NibbleBits64 {
-    #[bit(0, rw, stride: 4)]
+    #[bit(0, rw, stride = 4)]
     nibble_bit0: [bool; 16],
 
-    #[bit(1, rw, stride: 4)]
+    #[bit(1, rw, stride = 4)]
     nibble_bit1: [bool; 16],
 
-    #[bit(2, rw, stride: 4)]
+    #[bit(2, rw, stride = 4)]
     nibble_bit2: [bool; 16],
 
-    #[bit(3, rw, stride: 4)]
+    #[bit(3, rw, stride = 4)]
     nibble_bit3: [bool; 16],
 }
 ```
@@ -134,7 +134,7 @@ let a = NibbleBits64::new_with_raw_value(0x43218765);
 However, pretty often a specific value can be considered the default (for example 0). This can be specified like this:
 
 ```rs
-#[bitfield(u32, default: 0x1234)]
+#[bitfield(u32, default = 0x1234)]
 struct Bitfield1 {
   #[bits(0..=3, rw)]
   nibble: [u4; 4],
