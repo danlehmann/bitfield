@@ -263,7 +263,7 @@ pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<Toke
     let non_exhaustive = config.exhaustive.matches(false);
     let ok = non_exhaustive.then_some(quote!(Ok));
     let new_return_type = match non_exhaustive {
-        true => quote!(std::result::Result<Self, #base_type>),
+        true => quote!(Result<Self, #base_type>),
         false => quote!(Self),
     };
     let new_default_branch = match non_exhaustive {
