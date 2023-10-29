@@ -238,7 +238,7 @@ pub(crate) fn bitenum(config: Config, input: syn::ItemEnum) -> syn::Result<Token
 
     let bits = config.bits;
     let (base_type, qualified_type) = (bits.base_type()?, bits.qualified_path()?);
-    let (constructor, reader) = (bits.constructor()?, bits.reader());
+    let (raw_value_constructor, reader) = (bits.constructor()?, bits.reader());
 
     let non_exhaustive = config.exhaustive.matches(false);
     let ok = non_exhaustive.then_some(quote!(Ok));
@@ -267,7 +267,7 @@ pub(crate) fn bitenum(config: Config, input: syn::ItemEnum) -> syn::Result<Token
         impl #name {
             /// Returns the underlying raw value of this bitfield.
             pub const fn raw_value(self) -> #qualified_type {
-                #constructor(self as #base_type)
+                #raw_value_constructor(self as #base_type)
             }
 
             /// Creates a new instance of this bitfield with the given raw value.
