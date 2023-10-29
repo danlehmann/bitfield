@@ -1,4 +1,5 @@
 use proc_macro::TokenStream as TokenStream1;
+use quote::quote;
 use syn::parse_macro_input;
 
 mod bit_size;
@@ -28,8 +29,12 @@ pub fn bitenum(args: TokenStream1, input: TokenStream1) -> TokenStream1 {
     parse_macro_input!(args with config_parser);
 
     let input = parse_macro_input!(input as syn::ItemEnum);
-    match bitenum::bitenum(config, input) {
+    match bitenum::bitenum(config, &input) {
         Ok(stream) => stream.into(),
-        Err(err) => err.into_compile_error().into(),
+        Err(err) => {
+            let error = err.into_compile_error();
+            let input = bitenum::fallback_impl(&input);
+            quote!(#input #error).into()
+        }
     }
 }
