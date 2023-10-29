@@ -22,7 +22,7 @@ impl Bits {
         };
         Ok(syn::Ident::new(ident_str, span))
     }
-    fn is_legacy(&self) -> bool {
+    fn is_arbitrary_int(&self) -> bool {
         let is_ident = self.path.get_ident().is_some();
         let is_native_int = [8, 16, 32, 64].contains(&self.size);
         !is_native_int && is_ident
@@ -30,7 +30,7 @@ impl Bits {
     pub(crate) fn qualified_path(&self) -> syn::Result<TokenStream> {
         let (path, base, size) = (&self.path, self.base_type()?, self.size);
 
-        if self.is_legacy() {
+        if self.is_arbitrary_int() {
             Ok(quote!(arbitrary_int::UInt::<#base, #size>))
         } else {
             Ok(quote!(#path))
@@ -39,9 +39,9 @@ impl Bits {
     pub(crate) fn constructor(&self) -> syn::Result<Option<TokenStream>> {
         let (base, size) = (self.base_type()?, self.size);
         let some = || quote!(arbitrary_int::UInt::<#base, #size>::new);
-        Ok(self.is_legacy().then(some))
+        Ok(self.is_arbitrary_int().then(some))
     }
     pub(crate) fn reader(&self) -> Option<TokenStream> {
-        self.is_legacy().then_some(quote!(.value()))
+        self.is_arbitrary_int().then_some(quote!(.value()))
     }
 }

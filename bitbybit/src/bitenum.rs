@@ -1,26 +1,70 @@
+use std::fmt;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, spanned::Spanned, ToTokens};
 use syn::{meta::ParseNestedMeta, Token};
 
 use crate::bit_size::Bits;
 
-const BAD_EXHAUSTIVE: &'static str = "The specified exhaustiveness is invalid, supported values are 'true' 'false' and 'conditional'";
-const WRONG_EXHAUSTIVE: &'static str = "The specified 'exhaustive' is invalid";
-const MISSING_EXHAUSTIVE: &'static str = "Missing the 'exhaustive = …' argument to bitenum";
-const MISSING_SIZE: &'static str = "Missing the 'u[0-9]' argument to bitenum";
-const MISSING_DISCR: &'static str =
-    "ALL variants of a #[bitenum] MUST have an explicit literal discriminant eg: 'Variant = 1'.";
-const UNEXPECTED_ATTRIBUTE_META: &'static str = "Invalid bitenum attribute, expected either `uN` where N in range 1..=64, or `exhaustive = (true|false|conditional)`";
-const CFG_NON_CONDITIONAL: &'static str =
-    "The specified exhaustiveness is invalid, the enum contains at least one \
-    conditional variant, therefore, exhaustiveness should be specified as 'conditional'";
-const NONLIT_DISCR: &'static str =
-    "Discriminants must be literals integers, either binary, hexadecimal, octal or decimal";
-const TOO_MANY_VARIANTS: &'static str =
-    "The enum has more variants than can be stored within the provided storage type, consider \
-    using a larger storage type or reducing the number of variants.";
-const DISCR_TOO_LARGE: &'static str =
-    "The largest discriminant value is larger than can be stored in the provided storage type.";
+enum Error<'a> {
+    MissingSize,
+    InvalidExhaustive,
+    InvalidAttribute,
+    InvalidExhaustiveNextToken,
+    NotConditional,
+    NotExhaustive {
+        count: u32,
+        size: usize,
+    },
+    Exhaustive {
+        count: u32,
+        max_count: u128,
+    },
+    TooManyVariants {
+        count: u32,
+        max_count: u128,
+    },
+    MissingDiscriminant {
+        variant: &'a syn::Ident,
+        suggest: u128,
+    },
+    NonLitDiscriminant {
+        variant: &'a syn::Ident,
+        suggest: u128,
+    },
+    TooLargeDiscriminant {
+        max_value: u128,
+    },
+}
+
+impl fmt::Display for Error<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingSize =>
+                write!(f, "Missing the storage type. It must be explicitly declared with #[bitenum(uN)], where N in range 1..=64"),
+            Self::InvalidAttribute =>
+                write!(f, "Invalid attribute. Expected either 'uN' where N in range 1..=64, or 'exhaustive = …'"),
+            Self::InvalidExhaustiveNextToken =>
+                write!(f, "'expected' should be followed by '='"),
+            Self::InvalidExhaustive =>
+                write!(f, "The specified 'exhaustive' is invalid. Possible values are: true, false, conditional"),
+            Self::NotConditional =>
+                write!(f, "The enum contains at least one variant with a '#[cfg(…)]' attribute. It should be specified as 'exhaustive = conditional'."),
+            Self::NotExhaustive { count, size } =>
+                write!(f, "The enum has {count} variants, it is exhaustive for {size} bits. Either remove variants, use a larger storage type, or mark this enum as 'exhaustive = true'."),
+            Self::Exhaustive { count, max_count } =>
+                write!(f, "The enum has {count} variants, it would need {max_count} variants to be exhaustive. Either add variants, use a smaller storage type, or mark this enum as 'exhaustive = false'."),
+            Self::TooManyVariants { count, max_count } =>
+                write!(f, "The enum has more variants than can be stored in the provided storage type. Either use a larger storage type or reduce the number of variants. Up to {max_count} variants possible, got {count}."),
+            Self::MissingDiscriminant { variant, suggest } =>
+                write!(f, "All variants of a #[bitenum] must have an explicit literal discriminant. Eg: '{variant} = {suggest}'."),
+            Self::NonLitDiscriminant { variant, suggest } =>
+                write!(f, "Discriminants must be literal integers. Eg: '{variant} = {suggest}' '{suggest:#x}' '{suggest:#b}' '{suggest:#o}'."),
+            Self::TooLargeDiscriminant { max_value } =>
+                write!(f, "The largest discriminant value is larger than can be stored in the provided storage type. Max discriminant value is {max_value}."),
+        }
+    }
+}
 
 #[derive(Clone, Copy)]
 enum Exhaustiveness {
@@ -38,8 +82,10 @@ impl Exhaustive {
         matches!(self.kind, Exhaustiveness::Conditional)
     }
     fn matches(&self, expected: bool) -> bool {
-        use Exhaustiveness::{False, True};
-        !matches!((self.kind, expected), (True, false) | (False, true))
+        !matches!(
+            (self.kind, expected),
+            (Exhaustiveness::True, false) | (Exhaustiveness::False, true)
+        )
     }
 }
 impl syn::parse::Parse for Exhaustive {
@@ -49,7 +95,7 @@ impl syn::parse::Parse for Exhaustive {
             (Ok(bool), _) if bool.value => Exhaustiveness::True,
             (Ok(_), _) => Exhaustiveness::False,
             (_, Ok(ident)) if ident == "conditional" => Exhaustiveness::Conditional,
-            _ => return Err(syn::Error::new(span, BAD_EXHAUSTIVE)),
+            _ => return Err(syn::Error::new(span, Error::InvalidExhaustive)),
         };
         Ok(Exhaustive { span, kind })
     }
@@ -64,32 +110,27 @@ struct FullConfig {
     bits: Bits,
     exhaustive: Exhaustive,
 }
+
 impl Config {
     pub(crate) fn parse(&mut self, meta: ParseNestedMeta) -> syn::Result<()> {
-        let unexpected_attr = || Err(meta.error(UNEXPECTED_ATTRIBUTE_META));
-        match () {
-            () if meta.path.is_ident("exhaustive") => {
-                let result1 = meta.input.parse::<Token![:]>();
-                let result2 = meta.input.parse::<Token![=]>();
-                if result1.is_err() && result2.is_err() {
-                    return Err(meta.error("Expected either ':' or '=' following 'expected'"));
-                }
-                self.explicit_exhaustive = Some(meta.input.parse()?);
+        if meta.path.is_ident("exhaustive") {
+            let result1 = meta.input.parse::<Token![:]>();
+            let result2 = meta.input.parse::<Token![=]>();
+            if result1.is_err() && result2.is_err() {
+                return Err(meta.error(Error::InvalidExhaustiveNextToken));
             }
-            () => {
-                let Some(last_segment) = meta.path.segments.last() else {
-                    return unexpected_attr();
-                };
-                let value = last_segment.ident.to_string();
-                let ("u", size) = value.split_at(1) else {
-                    return unexpected_attr();
-                };
-                let Ok(size) = size.parse() else {
-                    return unexpected_attr();
-                };
-                let path = meta.path.clone();
-                self.explicit_bits = Some(Bits { path, size });
-            }
+            self.explicit_exhaustive = Some(meta.input.parse()?);
+        } else {
+            let err = || meta.error(Error::InvalidAttribute);
+            let last_segment = meta.path.segments.last().ok_or_else(err)?;
+            let value = last_segment.ident.to_string();
+            let ("u", size) = value.split_at(1) else {
+                return Err(err());
+            };
+            self.explicit_bits = Some(Bits {
+                path: meta.path.clone(),
+                size: size.parse().map_err(|_| err())?,
+            });
         }
         Ok(())
     }
@@ -97,11 +138,12 @@ impl Config {
     fn explicit(self) -> syn::Result<FullConfig> {
         let span = Span::call_site();
         let Some(bits) = self.explicit_bits else {
-            return Err(syn::Error::new(span, MISSING_SIZE));
+            return Err(syn::Error::new(span, Error::MissingSize));
         };
-        let Some(exhaustive) = self.explicit_exhaustive else {
-            return Err(syn::Error::new(span, MISSING_EXHAUSTIVE));
-        };
+        let exhaustive = self.explicit_exhaustive.unwrap_or(Exhaustive {
+            span,
+            kind: Exhaustiveness::False,
+        });
         Ok(FullConfig { bits, exhaustive })
     }
 }
@@ -114,15 +156,18 @@ fn check_explicit_conditional(config: &FullConfig, input: &syn::ItemEnum) -> syn
     let is_conditional = input.variants.iter().any(conditional_variant);
 
     if is_conditional && !config.exhaustive.is_conditional() {
-        Err(syn::Error::new(config.exhaustive.span, CFG_NON_CONDITIONAL))
+        let span = config.exhaustive.span;
+        Err(syn::Error::new(span, Error::NotConditional))
     } else {
         Ok(())
     }
 }
-// Determine the integer value itself. While we don't need it further down (for now),
-// this ensures that only constants are being used; due to the way how new_with_raw_value()
-// is written, some expressions would cause compilation issues (e.g. those that refer to other
-// enum values).
+/// Determine the integer value itself.
+///
+/// While we don't need it further down (for now), this ensures that only
+/// constants are being used; due to the way how new_with_raw_value() is
+/// written, some expressions would cause compilation issues (e.g. those that
+/// refer to other enum values).
 fn parse_expr(expr: &syn::Expr) -> Option<u128> {
     let string_value = expr.to_token_stream().to_string().replace('_', "");
 
@@ -143,23 +188,35 @@ fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn:
     let actually_exhaustive = match count.cmp(&max_count) {
         std::cmp::Ordering::Equal => true,
         std::cmp::Ordering::Greater if !config.exhaustive.is_conditional() => {
-            let msg = format!("{TOO_MANY_VARIANTS}, has up to {max_count} variants, got {count}");
-            return Err(syn::Error::new_spanned(&config.bits.path, msg));
+            let count = count as u32;
+            let err = Error::TooManyVariants { max_count, count };
+            return Err(syn::Error::new_spanned(&config.bits.path, err));
         }
         _ => false,
     };
     if !config.exhaustive.matches(actually_exhaustive) {
-        let span = config.exhaustive.span;
-        let msg = format!("{WRONG_EXHAUSTIVE}, expected {actually_exhaustive} got the reverse.");
-        return Err(syn::Error::new(span, msg));
+        let size = config.bits.size;
+        let count = count as u32;
+        let err = if actually_exhaustive {
+            Error::NotExhaustive { count, size }
+        } else {
+            Error::Exhaustive { count, max_count }
+        };
+        return Err(syn::Error::new(config.exhaustive.span, err));
     }
     let (mut max_discr, mut max_discr_span) = (0, Span::call_site());
     for variant in &input.variants {
         let Some((_, discriminant)) = variant.discriminant.as_ref() else {
-            return Err(syn::Error::new_spanned(&variant.ident, MISSING_DISCR));
+            let variant = &variant.ident;
+            let suggest = max_discr + 1;
+            let err = Error::MissingDiscriminant { variant, suggest };
+            return Err(syn::Error::new_spanned(variant, err));
         };
         let Some(value) = parse_expr(discriminant) else {
-            return Err(syn::Error::new_spanned(discriminant, NONLIT_DISCR));
+            let variant = &variant.ident;
+            let suggest = max_discr + 1;
+            let err = Error::NonLitDiscriminant { variant, suggest };
+            return Err(syn::Error::new_spanned(discriminant, err));
         };
         if value > max_discr {
             max_discr = value;
@@ -168,8 +225,8 @@ fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn:
     }
     if max_discr >= max_count {
         let max_value = max_count - 1;
-        let msg = format!("{DISCR_TOO_LARGE}, max value is {max_value}");
-        return Err(syn::Error::new(max_discr_span, msg));
+        let err = Error::TooLargeDiscriminant { max_value };
+        return Err(syn::Error::new(max_discr_span, err));
     }
     Ok(())
 }
