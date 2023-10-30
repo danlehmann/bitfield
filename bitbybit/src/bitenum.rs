@@ -1,7 +1,7 @@
 use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, spanned::Spanned, ToTokens};
+use quote::{quote, spanned::Spanned};
 use syn::{meta::ParseNestedMeta, Token};
 
 use crate::bit_size::Bits;
@@ -169,18 +169,13 @@ fn check_explicit_conditional(config: &FullConfig, input: &syn::ItemEnum) -> syn
 /// written, some expressions would cause compilation issues (e.g. those that
 /// refer to other enum values).
 fn parse_expr(expr: &syn::Expr) -> Option<u128> {
-    let string_value = expr.to_token_stream().to_string().replace('_', "");
-
-    let int_value = if let Some(stripped) = string_value.strip_prefix("0x") {
-        u128::from_str_radix(stripped, 16)
-    } else if let Some(stripped) = string_value.strip_prefix("0b") {
-        u128::from_str_radix(stripped, 2)
-    } else if let Some(stripped) = string_value.strip_prefix("0o") {
-        u128::from_str_radix(stripped, 8)
-    } else {
-        string_value.parse::<u128>()
+    let syn::Expr::Lit(lit) = expr else {
+        return None;
     };
-    int_value.ok()
+    let syn::Lit::Int(lit_int) = &lit.lit else {
+        return None;
+    };
+    lit_int.base10_parse().ok()
 }
 fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn::Result<()> {
     let max_count = 1_u128 << config.bits.size;
