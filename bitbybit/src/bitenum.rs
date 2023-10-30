@@ -43,11 +43,11 @@ impl fmt::Display for Error<'_> {
             Self::MissingSize =>
                 write!(f, "Missing the storage type. It must be explicitly declared with #[bitenum(uN)], where N in range 1..=64"),
             Self::InvalidAttribute =>
-                write!(f, "Invalid attribute. Expected either 'uN' where N in range 1..=64, or 'exhaustive = …'"),
+                write!(f, "Invalid attribute. Expected either 'uN' where N in range 1..=64, or 'exhaustive = …'."),
             Self::InvalidExhaustiveNextToken =>
-                write!(f, "'expected' should be followed by '='"),
+                write!(f, "'exhaustive' should be specified as 'exhaustive = …'. Possible values are: true, false, conditional."),
             Self::InvalidExhaustive =>
-                write!(f, "The specified 'exhaustive' is invalid. Possible values are: true, false, conditional"),
+                write!(f, "The specified 'exhaustive' is invalid. Possible values are: true, false, conditional."),
             Self::NotConditional =>
                 write!(f, "The enum contains at least one variant with a '#[cfg(…)]' attribute. It should be specified as 'exhaustive = conditional'."),
             Self::NotExhaustive { count, size } =>
