@@ -22,6 +22,19 @@ fn bitrange_with_enum_type_exhaustive_2() {
 }
 
 #[test]
+fn implicit_false_exhaustive() {
+    #[bitenum(u2)]
+    #[derive(Eq, PartialEq, Debug)]
+    enum Foo {
+        Zero = 0b00,
+        One = 0b01,
+        Three = 0b11,
+    }
+
+    assert_eq!(Foo::new_with_raw_value(u2::new(0)), Ok(Foo::Zero));
+}
+
+#[test]
 fn bitrange_with_enum_type_nonexhaustive_2() {
     #[bitenum(u2, exhaustive = false)]
     #[derive(Eq, PartialEq, Debug)]
