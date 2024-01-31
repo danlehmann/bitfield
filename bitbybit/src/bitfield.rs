@@ -1,11 +1,13 @@
 use proc_macro::TokenStream;
+use proc_macro2::{Ident, Literal, Punct, TokenTree};
+use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use std::str::FromStr;
-
-use proc_macro2::{Ident, TokenTree};
-use quote::{quote, ToTokens};
 use syn::__private::TokenStream2;
-use syn::{Attribute, Data, DeriveInput, Field, GenericArgument, PathArguments, Type, Visibility};
+use syn::{
+    parse2, Attribute, Data, DeriveInput, Error, Field, GenericArgument, MetaList, PathArguments,
+    Type, Visibility,
+};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
 /// from u1
@@ -472,6 +474,93 @@ fn setter_name(field_name: &Ident) -> Ident {
         .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
 }
 
+/// Parses the arguments of a field. At the beginning and after each comma, Reset is used. After
+/// that, the various take_xxx functions are used to switch states.
+#[derive(PartialEq, Eq)]
+enum ArgumentParser {
+    Reset,
+
+    // Ranges
+    RangeGotLowerLimit(usize),
+    RangeGotFirstPeriod(usize),
+    RangeGotSecondPeriod(usize),
+    RangeGotEquals(usize),
+    RangeGotBothLimits(usize, usize),
+
+    // Stride
+    StrideStarted,
+    HasStrideEquals,
+    StrideComplete(usize),
+
+    // Read/Write
+    Read,
+    Write,
+    ReadWrite,
+}
+
+impl ArgumentParser {
+    fn parse_literal_number(number: Literal) -> Result<usize, Error> {
+        number
+            .to_string()
+            .parse()
+            .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid number in bitrange."))
+    }
+
+    pub fn take_literal(&self, lit: Literal) -> Result<ArgumentParser, Error> {
+        match self {
+            ArgumentParser::Reset => Ok(ArgumentParser::RangeGotLowerLimit(
+                Self::parse_literal_number(lit)?,
+            )),
+            ArgumentParser::RangeGotEquals(lower) => Ok(ArgumentParser::RangeGotBothLimits(
+                *lower,
+                Self::parse_literal_number(lit)?,
+            )),
+            ArgumentParser::HasStrideEquals => Ok(ArgumentParser::StrideComplete(
+                Self::parse_literal_number(lit)?,
+            )),
+            _ => Err(Error::new_spanned(
+                &lit,
+                "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
+            )),
+        }
+    }
+
+    fn take_punct(&self, punct: Punct) -> Result<ArgumentParser, Error> {
+        match self {
+            ArgumentParser::RangeGotLowerLimit(lower) if punct.as_char() == '.' => {
+                Ok(ArgumentParser::RangeGotFirstPeriod(*lower))
+            }
+            ArgumentParser::RangeGotFirstPeriod(lower) if punct.as_char() == '.' => {
+                Ok(ArgumentParser::RangeGotSecondPeriod(*lower))
+            }
+            ArgumentParser::RangeGotSecondPeriod(lower) if punct.as_char() == '=' => {
+                Ok(ArgumentParser::RangeGotEquals(*lower))
+            }
+            ArgumentParser::StrideStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
+                Ok(ArgumentParser::HasStrideEquals)
+            }
+            _ => Err(Error::new_spanned(
+                &punct,
+                "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
+            )),
+        }
+    }
+
+    fn take_ident(&self, id: Ident) -> Result<ArgumentParser, Error> {
+        let s = id.span().source_text().unwrap_or("".to_string());
+        match self {
+            ArgumentParser::Reset if s == "rw" => Ok(ArgumentParser::ReadWrite),
+            ArgumentParser::Reset if s == "r" => Ok(ArgumentParser::Read),
+            ArgumentParser::Reset if s == "w" => Ok(ArgumentParser::Write),
+            ArgumentParser::Reset if s == "stride" => Ok(ArgumentParser::StrideStarted),
+            _ => Err(Error::new_spanned(
+                &id,
+                "bitfield!: Invalid ident. Expected r, rw, w or stride",
+            )),
+        }
+    }
+}
+
 fn make_new_with_constructor(
     struct_name: &Ident,
     has_default: bool,
@@ -688,14 +777,106 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                     .take_while(|t| &t.to_string() != ",")
                     .collect::<proc_macro2::TokenStream>();
 
-                if range.is_some() {
-                    return Err(syn::Error::new_spanned(
-                        &attr,
-                        "bitfield!: Only one 'bit' or 'bits' is supported per field",
-                    )
-                    .to_compile_error());
-                }
+                let mut finished_argument = |range_parser: ArgumentParser| -> Result<(), Error> {
+                    match range_parser {
+                        ArgumentParser::RangeGotBothLimits(lower, upper) => {
+                            if range.is_some() {
+                                return Err(Error::new_spanned(
+                                    &range_span,
+                                    "bitfield!: Seen multiple bit-ranges, but only one is allowed",
+                                ));
+                            }
+                            if !is_range {
+                                return Err(Error::new_spanned(
+                                    &range_span,
+                                    "bitfield!: bits requires an inclusive range, for examples bits(10..=19). bit(10) allows specifying a single bit",
+                                ));
+                            }
+                            range = Some(Range {
+                                start: lower,
+                                end: upper + 1,
+                            })
+                        }
+                        ArgumentParser::RangeGotLowerLimit(lower) => {
+                            if range.is_some() {
+                                return Err(Error::new_spanned(
+                                    &range_span,
+                                    "bitfield!: Seen multiple bit-ranges, but only one is allowed",
+                                ));
+                            }
+                            if is_range {
+                                return Err(Error::new_spanned(
+                                    &range_span,
+                                    "bitfield!: bit requires a single bit, for examples bit(10). bits(10..=12) can be used to specify multiple bits",
+                                ));
+                            }
+                            range = Some(Range {
+                                start: lower,
+                                end: lower + 1,
+                            })
+                        }
+                        ArgumentParser::ReadWrite => {
+                            provide_getter = true;
+                            provide_setter = true;
+                        }
+                        ArgumentParser::Read => {
+                            provide_getter = true;
+                        }
+                        ArgumentParser::Write => {
+                            provide_setter = true;
+                        }
+                        ArgumentParser::StrideComplete(stride) => {
+                            if indexed_count.is_none() {
+                                return Err(Error::new_spanned(
+                                        &attr.meta,
+                                        "bitfield!: stride is only supported for indexed properties. Use array type (e.g. [u8; 8]) to indicate"
+                                    ));
+                            }
+                            indexed_stride = Some(stride);
+                        }
+                        _ => Err(Error::new_spanned(
+                            &range_span,
+                            "bitfield!: Invalid syntax. Supported: bits(5..=6, access, stride = x), where x is an integer and access can be r, w or rw",
+                        ))?,
+                    };
+                    Ok(())
+                };
+
                 // Get the token_string, which is "bit(...) or bits()". Then get the arguments inside the parentheses.
+                let meta_list = parse2::<MetaList>(attr.meta.to_token_stream()).unwrap();
+                let mut argument_parser = ArgumentParser::Reset;
+                for meta in meta_list.tokens {
+                    match meta {
+                        TokenTree::Group(_) => {
+                            // TODO: Handle this for arrays
+                        }
+                        TokenTree::Ident(id) => {
+                            argument_parser = argument_parser
+                                .take_ident(id)
+                                .map_err(|e| e.to_compile_error())?;
+                        }
+                        TokenTree::Punct(punct) => match punct.as_char() {
+                            ',' => {
+                                finished_argument(argument_parser)
+                                    .map_err(|e| e.to_compile_error())?;
+                                argument_parser = ArgumentParser::Reset;
+                            }
+                            _ => {
+                                argument_parser = argument_parser
+                                    .take_punct(punct)
+                                    .map_err(|e| e.to_compile_error())?;
+                            }
+                        },
+                        TokenTree::Literal(lit) => {
+                            argument_parser = argument_parser
+                                .take_literal(lit)
+                                .map_err(|e| e.to_compile_error())?;
+                        }
+                    }
+                }
+
+                finished_argument(argument_parser).map_err(|e| e.to_compile_error())?;
+
                 let token_string = attr.meta.to_token_stream().to_string();
                 assert!(token_string.starts_with("bit"));
                 let attr_token_string = if token_string.starts_with("bits") {
@@ -705,217 +886,18 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                 };
 
                 if &attr_token_string[..1] != "(" {
-                    return Err(syn::Error::new_spanned(
+                    return Err(Error::new_spanned(
                         &attr.meta,
                         format!("bitfield!: Expected '(' after '{}'", start),
                     )
                     .to_compile_error());
                 }
                 if &attr_token_string[attr_token_string.len() - 1..] != ")" {
-                    return Err(syn::Error::new_spanned(
+                    return Err(Error::new_spanned(
                         &attr.meta,
                         format!("bitfield!: Expected ')' to close '{}'", start),
                     )
                     .to_compile_error());
-                }
-                let arguments_string = &attr_token_string[1..attr_token_string.len() - 1];
-                let arguments: Vec<&str> = arguments_string.split(',').map(|s| s.trim()).collect();
-
-                if arguments.len() < 2 {
-                    if is_range {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            "bitfield!: Expected inclusive bit-range and read/write specifier, e.g. bits(1..=8, rw). Supported read/write specifiers: rw, w, r."
-                        ).to_compile_error());
-                    } else {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            "bitfield!: Expected bit index and read/write specifier, e.g. bit(5, rw). Supported read/write specifiers: rw, w, r."
-                        ).to_compile_error());
-                    }
-                }
-
-                // *** Parse first argument:
-                //   inclusive range like "6..=10" if attr_name = "bits"
-                //   single bit "6" if attr_name = "bit"
-                if is_range {
-                    let range_elements: Vec<&str> =
-                        arguments[0].split("..").map(|s| s.trim()).collect();
-                    if range_elements.len() != 2 {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            "bitfield!: Expected inclusive range, e.g. bits(1..=8, rw)'",
-                        )
-                        .to_compile_error());
-                    }
-                    let start = range_elements[0].parse::<usize>()
-                        .map_err(|_| if range_elements[0] == "" {
-                            syn::Error::new_spanned(
-                                &range_span,
-                                "bitfield!: Expected valid integer, but found an empty string"
-                            ).to_compile_error()
-                        } else {
-                            syn::Error::new_spanned(
-                                &range_span,
-                                format!("bitfield!: Expected valid range, e.g. 1..=8 but '{}' is not a number", range_elements[0])
-                            ).to_compile_error()
-                        })?;
-                    let rest = range_elements[1];
-                    if &rest[0..1] != "=" {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            "bitfield!: Expected inclusive range, e.g. bits(1..=8, rw)'",
-                        )
-                        .to_compile_error());
-                    }
-                    let end_string = rest[1..].trim();
-
-                    let end = end_string.parse::<usize>()
-                        .map_err(|_| if end_string == "" {
-                            syn::Error::new_spanned(
-                                &range_span,
-                                "bitfield!: Expected valid integer, but found an empty string"
-                            ).to_compile_error()
-                        } else {
-                            syn::Error::new_spanned(
-                                &range_span,
-                                format!("bitfield!: Expected valid range, e.g. 1..=8 but '{}' is not a number", end_string)
-                            ).to_compile_error()
-                        })?;
-                    if start > end {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            format!(
-                                "bitfield!: In Range {}..={}, start is not <= end",
-                                start, end
-                            ),
-                        )
-                        .to_compile_error());
-                    }
-                    if start >= base_data_size {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            format!("bitfield!: In Range {}..={}, start is out of range, as the base type has {} bits", start, end, base_data_size)
-                        ).to_compile_error());
-                    }
-                    if end >= base_data_size {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            format!("bitfield!: In Range {}..={}, end is out of range, as the base type has {} bits", start, end, base_data_size)
-                        ).to_compile_error());
-                    }
-                    if start == end {
-                        return Err(syn::Error::new_spanned(
-                            &attr.meta.require_list().unwrap().tokens,
-                            format!("bitfield!: In Range {start}..={end}, start is equal to end. Use the syntax 'bit({start})' instead", start = start, end = end)
-                        ).to_compile_error());
-                    }
-                    range = Some(Range {
-                        start,
-                        end: end + 1,
-                    });
-                } else {
-                    let bit_index_string = arguments[0];
-                    let bit_index = bit_index_string.parse::<usize>()
-                        .map_err(|e| if arguments[0] == "" {
-                            syn::Error::new_spanned(
-                                &attr.meta.require_list().unwrap().tokens,
-                                "bitfield!: Expected valid integer, but found an empty string"
-                            ).to_compile_error()
-                        } else {
-                            syn::Error::new_spanned(
-                                &range_span,
-                                format!("bitfield!: Expected valid bit index, e.g. bit(8) but '{}' is not a number: {}", bit_index_string, e)
-                            ).to_compile_error()
-                        })?;
-                    if bit_index >= base_data_size {
-                        return Err(syn::Error::new_spanned(
-                            &range_span,
-                            format!("bitfield!: Bit index {} is out of range", bit_index),
-                        )
-                        .to_compile_error());
-                    }
-                    range = Some(Range {
-                        start: bit_index,
-                        end: bit_index + 1,
-                    });
-                }
-
-                // *** Parse second argument: we expect either "r", "w" or "rw"
-                match arguments[1] {
-                    "rw" => {
-                        provide_getter = true;
-                        provide_setter = true;
-                    }
-                    "r" => {
-                        provide_getter = true;
-                        provide_setter = false;
-                    }
-                    "w" => {
-                        provide_getter = false;
-                        provide_setter = true;
-                    }
-                    "" => return Err(syn::Error::new_spanned(
-                        &attr.meta.require_list().unwrap().tokens,
-                        format!("bitfield!: No read/write specifier. Expected 'r', 'w', or 'rw'")
-                        ).to_compile_error()),
-                    _ => return Err(
-                        syn::Error::new_spanned(
-                        attr.meta.require_list().unwrap().tokens
-                            .clone()
-                            .into_iter()
-                            .skip_while(|t| &t.to_string() != ",")
-                            .skip(1)
-                            .collect::<proc_macro2::TokenStream>(),
-                        format!("bitfield!: Unhandled read/write specifier {}. Expected 'r', 'w', or 'rw'", arguments[1])
-                        ).to_compile_error())
-                }
-
-                // *** Parse additional named arguments (at the moment just stride: X)
-                for argument in arguments.iter().skip(2) {
-                    let argument_elements: Vec<&str> = argument
-                        .split(|c| c == '=' || c == ':')
-                        .map(|s| s.trim())
-                        .collect();
-                    if argument_elements.len() != 2 {
-                        return Err(syn::Error::new_spanned(
-                                &attr.meta,
-                                format!("bitfield!: Named arguments have to be in the form of 'argument = value'. Seen: {:?}", argument_elements)
-                            ).to_compile_error());
-                    }
-                    match argument_elements[0] {
-                        "stride" => {
-                            if indexed_count.is_none() {
-                                return Err(syn::Error::new_spanned(
-                                        &attr.meta,
-                                        "bitfield!: stride is only supported for indexed properties. Use array type (e.g. [u8; 8]) to indicate"
-                                    ).to_compile_error());
-                            }
-                            indexed_stride = match argument_elements[1].parse() {
-                                Ok(x) => Some(x),
-                                Err(_) => {
-                                    return Err(syn::Error::new_spanned(
-                                        &attr.meta,
-                                        format!(
-                                            "bitfield!: Stride {} is not a number",
-                                            argument_elements[1]
-                                        ),
-                                    )
-                                    .to_compile_error());
-                                }
-                            }
-                        }
-                        _ => {
-                            return Err(syn::Error::new_spanned(
-                                &attr.meta,
-                                format!(
-                                    "bitfield!: Unhandled named argument '{}'. Supported: 'stride'",
-                                    argument_elements[0]
-                                ),
-                            )
-                            .to_compile_error());
-                        }
-                    }
                 }
             }
             "doc" => {
