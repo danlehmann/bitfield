@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 bitbybit = { path = "../bitbybit" }
-arbitrary-int = "1.2.6"
+arbitrary-int = "1.2.7"
 
 [features]
 # This is to allow cfg for enum members
