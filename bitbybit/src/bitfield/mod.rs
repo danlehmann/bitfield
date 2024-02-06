@@ -224,7 +224,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
-    let (new_with_constructor, new_with_builder_chain) = codegen::make_new_with_constructor(
+    let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
         default_value.is_some(),
         &struct_vis,

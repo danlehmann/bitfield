@@ -79,6 +79,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
     };
 
     let mut ranges: Vec<Range<usize>> = Vec::new();
+    let mut ranges_token: Option<u32> = None;
     let mut provide_getter = false;
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
@@ -106,17 +107,38 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                     .collect::<proc_macro2::TokenStream>();
 
                 let mut finished_argument = |range_parser: ArgumentParser,
-                                             is_in_array: bool|
+                                             is_in_array: bool,
+                                             token_id: u32|
                  -> Result<(), Error> {
+                    // Ensure we didn't get a range if we already had one before
+                    match range_parser {
+                        ArgumentParser::RangeGotBothLimits(_, _)
+                        | ArgumentParser::RangeGotLowerLimit(_) => {
+                            if is_in_array {
+                                // If we've previously seen a range, make sure it had the same token
+                                if let Some(ranges_token) = ranges_token {
+                                    if ranges_token != token_id {
+                                        return Err(Error::new_spanned(
+                                            &range_span,
+                                            "bitfield!: Seen multiple bit-ranges, but only one is allowed",
+                                        ));
+                                    }
+                                }
+                            } else {
+                                if !ranges.is_empty() {
+                                    return Err(Error::new_spanned(
+                                        &range_span,
+                                        "bitfield!: Seen multiple bit-ranges, but only one is allowed",
+                                    ));
+                                }
+                            }
+                            ranges_token = Some(token_id);
+                        }
+                        _ => {}
+                    }
                     match range_parser {
                         ArgumentParser::RangeGotBothLimits(lower, upper) => {
-                            if !ranges.is_empty() && !is_in_array {
-                                return Err(Error::new_spanned(
-                                    &range_span,
-                                    "bitfield!: Seen multiple bit-ranges, but only one is allowed",
-                                ));
-                            }
-                            if !is_range && !is_in_array {
+                            if !is_in_array && !is_range {
                                 return Err(Error::new_spanned(
                                     &range_span,
                                     "bitfield!: bit requires an inclusive range, for examples bits(10..=19). bit(10) allows specifying a single bit",
@@ -128,12 +150,6 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                             });
                         }
                         ArgumentParser::RangeGotLowerLimit(lower) => {
-                            if !ranges.is_empty() && !is_in_array {
-                                return Err(Error::new_spanned(
-                                    &range_span,
-                                    "bitfield!: Seen multiple bit-ranges, but only one is allowed",
-                                ));
-                            }
                             if is_range && !is_in_array {
                                 return Err(Error::new_spanned(
                                     &range_span,
@@ -183,6 +199,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                         .tokens,
                     false,
                     &mut finished_argument,
+                    None,
                 )
                 .map_err(|e| e.to_compile_error())?;
 
@@ -263,22 +280,35 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
 
     // Verify bounds for arrays
     if let Some(indexed_count) = indexed_count {
-        // If stride wasn't given, use the field width
-        if indexed_stride.is_none() {
-            indexed_stride = Some(number_of_bits)
-        }
-
-        if number_of_bits > indexed_stride.unwrap() {
-            return Err(Error::new_spanned(
-                &field.attrs.first(),
-                format!(
-                    "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
-                    field_name,
-                    number_of_bits,
-                    indexed_stride.unwrap()
-                ),
-            )
-                .to_compile_error());
+        if ranges.len() == 1 {
+            // If stride wasn't given, use the field width
+            if indexed_stride.is_none() {
+                indexed_stride = Some(number_of_bits)
+            }
+            if number_of_bits > indexed_stride.unwrap() {
+                return Err(Error::new_spanned(
+                    &field.attrs.first(),
+                    format!(
+                        "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
+                        field_name,
+                        number_of_bits,
+                        indexed_stride.unwrap()
+                    ),
+                )
+                    .to_compile_error());
+            }
+        } else {
+            // With multiple ranges, strides are mandatory
+            if indexed_stride.is_none() {
+                return Err(Error::new_spanned(
+                    &field,
+                    format!(
+                        "bitfield!: Field {} is declared as non-contiguous and array, so it needs a stride. Specify using \"stride = x\".",
+                        field_name,
+                    ),
+                )
+                    .to_compile_error());
+            }
         }
 
         let highest_bit_index_in_ranges = ranges.iter().map(|range| range.end).max().unwrap_or(0);
@@ -474,16 +504,22 @@ impl ArgumentParser {
         }
     }
 
-    fn parse_argument_tokens<F: FnMut(ArgumentParser, bool) -> Result<(), Error>>(
+    fn parse_argument_tokens<F: FnMut(ArgumentParser, bool, u32) -> Result<(), Error>>(
         token_stream: TokenStream2,
         is_in_array: bool,
         finished_argument: &mut F,
+        outer_token_id: Option<u32>,
     ) -> Result<(), Error> {
+        // finished_argument is run with a token, which represents the index of the outer run.
+        // This allows us to catch multiple array ranges (e.g. "[0..1], [2..3]") as they will have
+        // different tokens.
+
         let reset = if is_in_array {
             Self::ResetOnlyRangeAllowed
         } else {
             Self::Reset
         };
+        let mut token_id = 0;
         let mut argument_parser = reset;
         for meta in token_stream {
             match meta {
@@ -494,6 +530,7 @@ impl ArgumentParser {
                             range.to_token_stream(),
                             true,
                             finished_argument,
+                            Some(token_id),
                         )?;
                     }
                 }
@@ -502,7 +539,11 @@ impl ArgumentParser {
                 }
                 TokenTree::Punct(punct) => match punct.as_char() {
                     ',' => {
-                        finished_argument(argument_parser, is_in_array)?;
+                        finished_argument(
+                            argument_parser,
+                            is_in_array,
+                            outer_token_id.unwrap_or(token_id),
+                        )?;
                         argument_parser = reset;
                     }
                     _ => {
@@ -513,8 +554,13 @@ impl ArgumentParser {
                     argument_parser = argument_parser.take_literal(lit)?;
                 }
             }
+            token_id += 1;
         }
-        finished_argument(argument_parser, is_in_array)?;
+        finished_argument(
+            argument_parser,
+            is_in_array,
+            outer_token_id.unwrap_or(token_id),
+        )?;
 
         Ok(())
     }

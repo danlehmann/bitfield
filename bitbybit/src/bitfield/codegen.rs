@@ -1,9 +1,17 @@
 use crate::bitfield::{setter_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::quote;
+use std::ops::Range;
 use std::str::FromStr;
 use syn::{LitInt, Type, Visibility};
 
+/// Performs the codegen for the bitfield.
+///
+/// # Arguments
+/// * `field_definitions` - The field definitions, as reported by `super::parsing`
+/// * `base_data_size` - The size of the bitfield (e.g. u32 for bitfield(u32))
+/// * `internal_base_data_type` - A [`syn::ty::Type`] that represents the same base data type as
+/// passed in via `base_data_size.internal`. This is a redundant argument to avoid recreating it.
 pub fn generate(
     field_definitions: &Vec<FieldDefinition>,
     base_data_size: BaseDataSize,
@@ -168,8 +176,7 @@ fn extracted_bits(
     if field_definition.use_regular_int {
         let primitive_type = &field_definition.primitive_type;
         // Special case: If there's one bitrange which covers the whole
-        if field_definition.use_regular_int
-            && field_definition.ranges.len() == 1
+        if field_definition.ranges.len() == 1
             && field_definition.ranges[0].len() == base_data_size.internal
         {
             // If the field is the whole size of the bitfield and that special type is a regular type,
@@ -181,9 +188,6 @@ fn extracted_bits(
             quote! {  #packed as #primitive_type }
         }
     } else {
-        // TODO: We could fast-path a little here. If we're just doing a single range,
-        // no need to combine things first and then use extract(_, 0). We can just call extract
-        // That would be the very common case.
         let custom_type =
             TokenStream2::from_str(format!("arbitrary_int::u{}", total_number_bits).as_str())
                 .unwrap();
@@ -226,7 +230,6 @@ fn setter_new_raw_value(
                 }
             }
         } else {
-            // TODO: Handle ranges and remove - these are hacks
             if field_definition.ranges.len() == 1 {
                 let lowest_bit = field_definition.ranges[0].start;
                 let number_of_bits = field_definition.ranges[0].len();
@@ -313,7 +316,27 @@ fn setter_mask(one: &LitInt, field_definition: &FieldDefinition) -> TokenStream 
     quote! { (#(#clear_mask_expressions)|*) }
 }
 
-pub fn make_new_with_constructor(
+/// Range definition are pretty flexible; it is possible for them to overlap with each other.
+/// In the regular definition this is allowed, but in that case we won't make a builder
+fn ranges_have_self_overlap(
+    ranges: &[Range<usize>],
+    array_stride: usize,
+    array_length: usize,
+) -> bool {
+    let mut mask = 0;
+    for i in 0..array_length {
+        for range in ranges {
+            let bits = ((1u128 << range.len()) - 1) << (range.start + i * array_stride);
+            if bits & mask != 0 {
+                return true;
+            }
+            mask |= bits;
+        }
+    }
+    false
+}
+
+pub fn make_builder(
     struct_name: &Ident,
     has_default: bool,
     struct_vis: &Visibility,
@@ -343,45 +366,56 @@ pub fn make_new_with_constructor(
             let field_name = &field_definition.field_name;
             let setter_name = setter_name(field_name);
 
-            let (field_mask, value_transform, argument_type) =
-                if let Some(array) = field_definition.array {
-                    // For arrays, we'll generate this code:
-                    // self.0
-                    //   .with_a(0, value[0])
-                    //   .with_a(1, value[1])
-                    //   .with_a(2, value[2])
+            let (field_mask, value_transform, argument_type) = if let Some(array) =
+                field_definition.array
+            {
+                // For arrays, we'll generate this code:
+                // self.0
+                //   .with_a(0, value[0])
+                //   .with_a(1, value[1])
+                //   .with_a(2, value[2])
 
-                    let array_count = array.0;
-                    let mut mask = 0;
-                    let mut array_setters = Vec::with_capacity(array_count);
-                    for i in 0..array_count {
-                        mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
-                            a | ((1u128 << range.len()) - 1) << (range.start + i * array.1)
-                        });
+                let array_count = array.0;
+                let array_stride = array.1;
+                if ranges_have_self_overlap(&field_definition.ranges, array_stride, array_count) {
+                    return (quote! {}, Vec::new());
+                }
+                let mut mask = 0;
+                let mut array_setters = Vec::with_capacity(array_count);
+                for i in 0..array_count {
+                    mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
+                        a | ((1u128 << range.len()) - 1) << (range.start + i * array_stride)
+                    });
 
-                        array_setters.push(quote! { .#setter_name(#i, value[#i]) });
-                    }
-                    let value_transform = quote!(self.0 #( #array_setters )*);
-                    let array_type = quote! { [#setter_type; #array_count] };
+                    array_setters.push(quote! { .#setter_name(#i, value[#i]) });
+                }
+                let value_transform = quote!(self.0 #( #array_setters )*);
+                let array_type = quote! { [#setter_type; #array_count] };
 
-                    (mask, value_transform, array_type)
-                } else {
-                    let mask = if field_definition.ranges.len() == 1
-                        && field_definition.ranges[0].len() == 128
-                    {
+                (mask, value_transform, array_type)
+            } else {
+                let mask = if field_definition.ranges.len() == 1 {
+                    if field_definition.ranges[0].len() == 128 {
                         u128::MAX
                     } else {
-                        field_definition.ranges.iter().fold(0u128, |a, range| {
-                            a | ((1u128 << range.len()) - 1) << (range.start)
-                        })
-                    };
-
-                    (
-                        mask,
-                        quote! { self.0.#setter_name(value)},
-                        quote! { #setter_type },
-                    )
+                        ((1u128 << field_definition.ranges[0].len()) - 1)
+                            << (field_definition.ranges[0].start)
+                    }
+                } else {
+                    if ranges_have_self_overlap(&field_definition.ranges, 0, 0) {
+                        return (quote! {}, Vec::new());
+                    }
+                    field_definition.ranges.iter().fold(0u128, |a, range| {
+                        a | ((1u128 << range.len()) - 1) << (range.start)
+                    })
                 };
+
+                (
+                    mask,
+                    quote! { self.0.#setter_name(value)},
+                    quote! { #setter_type },
+                )
+            };
             let previous_mask = running_mask;
             let previous_mask_token_tree = running_mask_token_tree;
 

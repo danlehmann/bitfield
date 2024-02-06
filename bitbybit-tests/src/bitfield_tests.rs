@@ -1421,3 +1421,29 @@ fn test_noncontiguous_ranges_array() {
         0b10001101_01010101_10101010_11111111
     );
 }
+
+/// Use arrays and non-contiguous together
+#[test]
+fn test_noncontiguous_ranges_array_with_interleaving_and_builder() {
+    #[bitfield(u8)]
+    struct A8 {
+        #[bits([0, 2, 4, 6], rw, stride = 1)]
+        every_other_bit: [u4; 2],
+    }
+    assert_eq!(
+        A8::new_with_raw_value(0b01101101).every_other_bit(0),
+        u4::new(0b1011)
+    );
+    assert_eq!(
+        A8::new_with_raw_value(0b01101101).every_other_bit(1),
+        u4::new(0b0110)
+    );
+
+    assert_eq!(
+        A8::builder()
+            .with_every_other_bit([u4::new(0b0110), u4::new(0b1100)])
+            .build()
+            .raw_value(),
+        0b10110100
+    );
+}
