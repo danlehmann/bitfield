@@ -279,7 +279,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         #default_trait
         #( #new_with_builder_chain )*
     };
-    println!("Expanded: {}", expanded.to_string());
+    //println!("Expanded: {}", expanded.to_string());
     TokenStream::from(expanded)
 }
 
