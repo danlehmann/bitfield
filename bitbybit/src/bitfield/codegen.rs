@@ -345,10 +345,6 @@ pub fn make_builder(
     base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
 ) -> (TokenStream2, Vec<TokenStream2>) {
-    if !cfg!(feature = "experimental_builder_syntax") {
-        return (quote! {}, Vec::new());
-    }
-
     let builder_struct_name =
         syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
 

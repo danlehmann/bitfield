@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Support for non-contiguous bitranges
+- Removed experimental_builder_syntax feature; this is now always enabled
 - Switched default attribute argument syntax from field type to assignment type (colon field style is still allowed, but might be deprecated in the future):
 ```rs
 #[bitenum(u2, exhaustive = true)]

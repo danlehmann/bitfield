@@ -14,8 +14,6 @@ categories = ["embedded", "no-std", "data-structures"]
 proc-macro = true
 
 [features]
-# Opts-into the new `builder()`...`build()` syntax, which allows set all fields at once
-experimental_builder_syntax = []
 
 [dependencies]
 syn = { version = "2.0", features = ["full"] }

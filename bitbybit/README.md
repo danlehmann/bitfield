@@ -150,7 +150,7 @@ const A: Bitfield1 = Bitfield1::DEFAULT;
 
 Default values are used as-is, even if they affect bits that aren't defined within the bitfield.
 
-## Setting all fields at once using the builder syntax (experimental)
+## Setting all fields at once using the builder syntax
 
 It is possible to set all fields at once, like this:
 ```rs
@@ -169,14 +169,25 @@ For the `builder()` to be available, the following has to be true:
 - The bitfield has to be completely filled with writable fields (no gaps) OR there has to be a default value specified,
 - No writable fields overlap.
 
-This syntax is experimental. Use the `experimental_builder_syntax` feature to enable it and please provide feedback.
+## Non-contiguous bitranges
+
+Occasionally it can be useful for bitranges to not be contiguous. For example, RISC-V defines some
+immediates in a way that they have to be reassembled. This can be achieved like this:
+
+```rs
+  #[bitfield(u32)]
+  struct SBFormat {
+      #[bits([8..=11, 25..=30, 7, 31], rw)]
+      imm_half: u12,
+  }
+```
 
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```toml
-arbitrary-int = "1.2.6"
+arbitrary-int = "1.2.7"
 ```
 
 ## Usage
