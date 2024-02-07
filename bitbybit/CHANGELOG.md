@@ -1,5 +1,10 @@
 # Changelog
 
+## bitbybit 1.3.1
+
+### Fixed
+- Fixed a compilation error when non-contiguous ranges would produce a regular int (u8, u16, etc.).
+
 ## bitbybit 1.3.0
 
 ### Changed
