@@ -1,4 +1,4 @@
-use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u5, u57, u7};
+use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
 
@@ -1350,55 +1350,105 @@ fn test_noncontiguous_ranges_bitswap7() {
 
 #[test]
 fn test_noncontiguous_ranges_byteswap() {
-    #[bitfield(u32)]
+    // Same outer type as inner type
+    #[bitfield(u32, default = 0)]
     struct A32 {
-        #[bits([24..=31, 16..=23, 8..=15, 0..=7], r)]
+        #[bits([24..=31, 16..=23, 8..=15, 0..=7], rw)]
         byteswapped: u32,
     }
 
-    #[bitfield(u32)]
-    struct A32_24 {
-        #[bits([16..=23, 8..=15, 0..=7], r)]
+    #[bitfield(u24, default = 0)]
+    struct A24 {
+        #[bits([16..=23, 8..=15, 0..=7], rw)]
         byteswapped: u24,
     }
 
-    #[bitfield(u24)]
-    struct A24 {
-        #[bits([16..=23, 8..=15, 0..=7], r)]
+    // Arbitrary inside regular int, but with same base data type
+    #[bitfield(u32, default = 0)]
+    struct A32_24 {
+        #[bits([16..=23, 8..=15, 0..=7], rw)]
         byteswapped: u24,
+    }
+
+    // Mixing arbitrary int and regular int where the base types don't match
+    #[bitfield(u64, default = 0)]
+    struct A64_24 {
+        #[bits([16..=23, 8..=15, 0..=7], rw)]
+        byteswapped: u24,
+    }
+
+    #[bitfield(u24, default = 0)]
+    struct A24_16 {
+        #[bits([8..=15, 0..=7], rw)]
+        byteswapped: u16,
+    }
+
+    // Mixing different regular ints
+    #[bitfield(u32, default = 0)]
+    struct A32_16 {
+        #[bits([8..=15, 0..=7], rw)]
+        byteswapped: u16,
     }
 
     for x in [0, 0x11223344, 0x12345678] {
-        // Reading
-        assert_eq!(A32::new_with_raw_value(x).byteswapped(), x.swap_bytes());
         let x24 = u24::extract_u32(x, 0);
-        assert_eq!(
-            A32_24::new_with_raw_value(x24.value()).byteswapped(),
-            x24.swap_bytes()
-        );
-        assert_eq!(A24::new_with_raw_value(x24).byteswapped(), x24.swap_bytes());
+        assert_eq!(A32::new_with_raw_value(x).byteswapped(), x.swap_bytes());
+        assert_eq!(A32::DEFAULT.with_byteswapped(x).raw_value(), x.swap_bytes());
 
-        // Writing
-        assert_eq!(A32::new_with_raw_value(x).byteswapped(), x.swap_bytes());
-        let x24 = u24::extract_u32(x, 0);
+        assert_eq!(A24::new_with_raw_value(x24).byteswapped(), x24.swap_bytes());
+        assert_eq!(
+            A24::DEFAULT.with_byteswapped(x24).raw_value(),
+            x24.swap_bytes()
+        );
+
         assert_eq!(
             A32_24::new_with_raw_value(x24.value()).byteswapped(),
             x24.swap_bytes()
         );
-        assert_eq!(A24::new_with_raw_value(x24).byteswapped(), x24.swap_bytes());
+        assert_eq!(
+            A32_24::DEFAULT.with_byteswapped(x24).raw_value(),
+            x24.swap_bytes().value()
+        );
+
+        assert_eq!(
+            A64_24::new_with_raw_value(x24.value() as u64).byteswapped(),
+            x24.swap_bytes()
+        );
+        assert_eq!(
+            A64_24::DEFAULT.with_byteswapped(x24).raw_value(),
+            x24.swap_bytes().value() as u64
+        );
+
+        assert_eq!(
+            A24_16::new_with_raw_value(x24).byteswapped(),
+            (x as u16).swap_bytes()
+        );
+        assert_eq!(
+            A24_16::DEFAULT.with_byteswapped(x as u16).raw_value(),
+            u24::new((x as u16).swap_bytes() as u32)
+        );
+
+        assert_eq!(
+            A32_16::new_with_raw_value(x).byteswapped(),
+            (x as u16).swap_bytes()
+        );
+
+        assert_eq!(
+            A32_16::DEFAULT.with_byteswapped(x as u16).raw_value(),
+            (x as u16).swap_bytes() as u32
+        );
     }
 }
 
-/// Use arrays and non-contiguous together
 #[test]
-fn test_noncontiguous_ranges_array() {
+fn test_noncontiguous_ranges_array_arbitrary_in_regular() {
     #[bitfield(u32)]
-    struct A32 {
+    struct A32_4 {
         #[bits([0, 2, 4, 6], rw, stride = 8)]
         even: [u4; 4],
     }
 
-    let a = A32::new_with_raw_value(0b11001001_01010101_10101010_11111111);
+    let a = A32_4::new_with_raw_value(0b11001001_01010101_10101010_11111111);
     assert_eq!(a.even(0), u4::new(0b1111));
     assert_eq!(a.even(1), u4::new(0b0000));
     assert_eq!(a.even(2), u4::new(0b1111));
@@ -1419,6 +1469,57 @@ fn test_noncontiguous_ranges_array() {
     assert_eq!(
         a.with_even(3, u4::new(0b0011)).raw_value(),
         0b10001101_01010101_10101010_11111111
+    );
+}
+
+#[test]
+fn test_noncontiguous_ranges_array_regular_in_regular() {
+    #[bitfield(u32)]
+    struct A32_8 {
+        #[bits([0, 2, 4, 6, 8, 10, 12, 14], rw, stride = 16)]
+        even: [u8; 2],
+    }
+
+    let a = A32_8::new_with_raw_value(0b11001001_01010101_10101010_11111111);
+    assert_eq!(a.even(0), 0b00001111);
+    assert_eq!(a.even(1), 0b10011111);
+
+    assert_eq!(
+        a.with_even(0, 0b10010000).raw_value(),
+        0b11001001_01010101_11101011_10101010
+    );
+    assert_eq!(
+        a.with_even(1, 0b00111001).raw_value(),
+        0b10001101_01000001_10101010_11111111
+    );
+}
+
+#[test]
+fn test_noncontiguous_ranges_array_regular_in_arbitrary() {
+    #[bitfield(u48)]
+    struct A48_8 {
+        #[bits([0, 2, 4, 6, 8, 10, 12, 14], rw, stride = 16)]
+        even: [u8; 3],
+    }
+
+    let a = A48_8::new_with_raw_value(u48::new(
+        0b11110000_11100010_11001001_01010101_10101010_11111111,
+    ));
+    assert_eq!(a.even(0), 0b00001111);
+    assert_eq!(a.even(1), 0b10011111);
+    assert_eq!(a.even(2), 0b11001000);
+
+    assert_eq!(
+        a.with_even(0, 0b10010000).raw_value(),
+        u48::new(0b11110000_11100010_11001001_01010101_11101011_10101010)
+    );
+    assert_eq!(
+        a.with_even(1, 0b00111001).raw_value(),
+        u48::new(0b11110000_11100010_10001101_01000001_10101010_11111111)
+    );
+    assert_eq!(
+        a.with_even(2, 0b00111001).raw_value(),
+        u48::new(0b10100101_11100011_11001001_01010101_10101010_11111111)
     );
 }
 

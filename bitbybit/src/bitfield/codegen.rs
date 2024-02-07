@@ -145,7 +145,7 @@ fn getter_packed(
         })
     });
     quote! {
-        #(#expressions)|*
+        (#(#expressions)|*)
     }
 }
 
