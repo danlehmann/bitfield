@@ -491,7 +491,7 @@ impl ArgumentParser {
     }
 
     fn take_ident(&self, id: Ident) -> Result<ArgumentParser, Error> {
-        let s = id.span().source_text().unwrap_or("".to_string());
+        let s = id.to_string();
         match self {
             ArgumentParser::Reset if s == "rw" => Ok(ArgumentParser::ReadWrite),
             ArgumentParser::Reset if s == "r" => Ok(ArgumentParser::Read),
@@ -499,7 +499,10 @@ impl ArgumentParser {
             ArgumentParser::Reset if s == "stride" => Ok(ArgumentParser::StrideStarted),
             _ => Err(Error::new_spanned(
                 &id,
-                "bitfield!: Invalid ident. Expected r, rw, w or stride",
+                format!(
+                    "bitfield!: Invalid ident '{}'. Expected r, rw, w or stride",
+                    s
+                ),
             )),
         }
     }
