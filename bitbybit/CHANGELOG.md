@@ -1,8 +1,16 @@
 # Changelog
 
+## bitbybit 1.3.2
+
+### Fixed
+
+- Fixed macro behavior when used within an IDE. The macro sees empty identifiers which don't happen
+  during regular compilation. These are now ignored to allow proper autocomplete again.
+
 ## bitbybit 1.3.1
 
 ### Fixed
+
 - Fixed a compilation error when non-contiguous ranges would produce a regular int (u8, u16, etc.).
 
 ## bitbybit 1.3.0
@@ -11,7 +19,9 @@
 
 - Support for non-contiguous bitranges
 - Removed experimental_builder_syntax feature; this is now always enabled
-- Switched default attribute argument syntax from field type to assignment type (colon field style is still allowed, but might be deprecated in the future):
+- Switched default attribute argument syntax from field type to assignment type (colon field style
+  is still allowed, but might be deprecated in the future):
+
 ```rs
 #[bitenum(u2, exhaustive = true)]
 enum ExhaustiveEnum {
@@ -35,7 +45,9 @@ struct BitfieldWithEnum {
 
 ### Added
 
-- Bitfields can support any arbitrary-int as a base-data-type, not just built-ins. For example, this is now supported:
+- Bitfields can support any arbitrary-int as a base-data-type, not just built-ins. For example, this
+  is now supported:
+
 ```rs
 #[bitfield(u12)]
 struct Bitfield {
@@ -47,15 +59,16 @@ struct Bitfield {
 
 ### Fixed
 
-- Multi-line doc-comments on fields are now fully put into the resulting accessors (previously, just the last line was)
+- Multi-line doc-comments on fields are now fully put into the resulting accessors (previously, just
+  the last line was)
 - Masking of signed fields setters is now correct
-
 
 ## bitbybit 1.2.1
 
 ### Added
 
-- Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk of forgetting any. Requires opt-in via new `experimental_builder_syntax` feature
+- Experimental new `builder()`...`build()` syntax, which allows setting all values without the risk
+  of forgetting any. Requires opt-in via new `experimental_builder_syntax` feature
 - Bump to [arbitrary-int](https://crates.io/crates/arbitrary-int) version 1.2.6
 
 ### Changed
@@ -63,8 +76,8 @@ struct Bitfield {
 ### Fixed
 
 - Accessors for array fields now assert that the index is within the size of the array.
-- Most usage errors are now associated correctly to the line where they happen, instead of at the top of the declaration.
-
+- Most usage errors are now associated correctly to the line where they happen, instead of at the
+  top of the declaration.
 
 ## bitbybit 1.2.0
 
@@ -72,7 +85,9 @@ struct Bitfield {
 
 ### Changed
 
-- `new()` has caused some confusion - it's a harmless way to create a default. In practice, this wasn't really clear and people thought the function might read e.g. from hardware. `new()` is now deprecated. `default()` (or `DEFAULT` in const contexts) take its place.
+- `new()` has caused some confusion - it's a harmless way to create a default. In practice, this
+  wasn't really clear and people thought the function might read e.g. from hardware. `new()` is now
+  deprecated. `default()` (or `DEFAULT` in const contexts) take its place.
 
 ### Fixed
 
