@@ -251,6 +251,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! { #base_data_type::#extract(self.raw_value, 0) }
     };
 
+    let zero = if base_data_size.exposed == base_data_size.internal {
+        quote! { 0 }
+    } else {
+        quote! { #base_data_type::new(0) }
+    };
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -260,6 +266,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         impl #struct_name {
+            pub const ZERO: Self = Self::new_with_raw_value(#zero);
+
             #default_constructor
             /// Returns the underlying raw value of this bitfield
             #[inline]
