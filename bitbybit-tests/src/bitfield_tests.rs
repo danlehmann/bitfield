@@ -15,6 +15,18 @@ fn test_construction() {
 }
 
 #[test]
+fn test_zero() {
+    #[bitfield(u32)]
+    struct TestA {}
+
+    #[bitfield(u32, default = 0x123)]
+    struct TestB {}
+
+    assert_eq!(0, TestA::ZERO.raw_value());
+    assert_eq!(0, TestB::ZERO.raw_value());
+}
+
+#[test]
 fn test_getter_and_with() {
     #[bitfield(u128, default = 0)]
     struct Test2 {
@@ -1548,7 +1560,6 @@ fn test_noncontiguous_ranges_array_with_interleaving_and_builder() {
         0b10110100
     );
 }
-
 
 #[test]
 fn test_getter_and_setter() {
