@@ -1601,7 +1601,7 @@ fn test_getter_and_setter_arbitrary_uint() {
 
     let mut t = Test2::new_with_raw_value(0xFE06);
     assert_eq!(0xE0, t.baudrate());
-    assert_eq!(0xF122, t.raw_value);
+    assert_eq!(u4::new(0x6), t.some_other_bits());
 
     t.set_baudrate(0x12);
     t.set_some_other_bits(u4::new(0x2));
