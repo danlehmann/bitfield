@@ -1,4 +1,4 @@
-use crate::bitfield::{setter_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
+use crate::bitfield::{with_name, setter_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::quote;
 use std::ops::Range;
@@ -92,27 +92,39 @@ pub fn generate(
             let new_raw_value = setter_new_raw_value(&one, &argument_converted, field_definition, base_data_size, internal_base_data_type);
 
             let setter_name = setter_name(field_name);
+            let with_name = with_name(field_name);
 
             if let Some(array) = field_definition.array {
                 let indexed_count = array.0;
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #setter_name(&self, index: usize, field_value: #setter_type) -> Self {
+                    pub const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
                         assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
                         }
+                    }
+                    #(#doc_comment)*
+                    #[inline]
+                    pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
+                        assert!(index < #indexed_count);
+                        self.raw_value = #new_raw_value;
                     }
                 }
             } else {
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #setter_name(&self, field_value: #setter_type) -> Self {
+                    pub const fn #with_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
                         }
+                    }
+                    #(#doc_comment)*
+                    #[inline]
+                    pub fn #setter_name(&mut self, field_value: #setter_type) {
+                        self.raw_value = #new_raw_value;
                     }
                 }
             }
@@ -360,7 +372,7 @@ pub fn make_builder(
     for field_definition in field_definitions {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
-            let setter_name = setter_name(field_name);
+            let with_name = with_name(field_name);
 
             let (field_mask, value_transform, argument_type) = if let Some(array) =
                 field_definition.array
@@ -383,7 +395,7 @@ pub fn make_builder(
                         a | ((1u128 << range.len()) - 1) << (range.start + i * array_stride)
                     });
 
-                    array_setters.push(quote! { .#setter_name(#i, value[#i]) });
+                    array_setters.push(quote! { .#with_name(#i, value[#i]) });
                 }
                 let value_transform = quote!(self.0 #( #array_setters )*);
                 let array_type = quote! { [#setter_type; #array_count] };
@@ -408,7 +420,7 @@ pub fn make_builder(
 
                 (
                     mask,
-                    quote! { self.0.#setter_name(value)},
+                    quote! { self.0.#with_name(value)},
                     quote! { #setter_type },
                 )
             };
@@ -425,7 +437,7 @@ pub fn make_builder(
                 syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
             new_with_builder_chain.push(quote! {
                 impl #builder_struct_name<#previous_mask_token_tree> {
-                    pub const fn #setter_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
+                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
                         #builder_struct_name(#value_transform)
                     }
                 }

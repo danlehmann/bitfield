@@ -283,7 +283,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-fn setter_name(field_name: &Ident) -> Ident {
+fn with_name(field_name: &Ident) -> Ident {
     // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
     let field_name_without_prefix = {
         let s = field_name.to_string();
@@ -295,6 +295,21 @@ fn setter_name(field_name: &Ident) -> Ident {
     };
 
     syn::parse_str::<Ident>(format!("with_{}", field_name_without_prefix).as_str())
+        .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+}
+
+fn setter_name(field_name: &Ident) -> Ident {
+    // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
+    let field_name_without_prefix = {
+        let s = field_name.to_string();
+        if s.starts_with("r#") {
+            s[2..].to_string()
+        } else {
+            s
+        }
+    };
+
+    syn::parse_str::<Ident>(format!("set_{}", field_name_without_prefix).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
 }
 

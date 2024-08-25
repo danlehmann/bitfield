@@ -15,7 +15,7 @@ fn test_construction() {
 }
 
 #[test]
-fn test_getter_and_setter() {
+fn test_getter_and_with() {
     #[bitfield(u128, default = 0)]
     struct Test2 {
         #[bits(98..=127, rw)]
@@ -54,7 +54,7 @@ fn test_getter_and_setter() {
 }
 
 #[test]
-fn test_getter_and_setter_arbitrary_uint() {
+fn test_getter_and_with_arbitrary_uint() {
     #[bitfield(u128, default = 0)]
     struct Test2 {
         #[bits(4..=11, rw)]
@@ -1547,4 +1547,65 @@ fn test_noncontiguous_ranges_array_with_interleaving_and_builder() {
             .raw_value(),
         0b10110100
     );
+}
+
+
+#[test]
+fn test_getter_and_setter() {
+    #[bitfield(u128, default = 0)]
+    struct Test2 {
+        #[bits(98..=127, rw)]
+        val30: u30,
+
+        #[bits(41..=97, rw)]
+        val57: u57,
+
+        #[bits(28..=40, rw)]
+        val13: u13,
+
+        #[bits(12..=27, rw)]
+        val16: u16,
+
+        #[bits(4..=11, rw)]
+        baudrate: u8,
+
+        #[bits(0..=3, rw)]
+        some_other_bits: u4,
+    }
+
+    let mut t = Test2::new_with_raw_value(0xAE42_315A_2134_FE06_3412_345A_2134_FE06);
+    assert_eq!(u30::new(0x2B908C56), t.val30());
+    assert_eq!(u57::new(0x0110_9A7F_031A_091A), t.val57());
+    assert_eq!(u13::new(0x5A2), t.val13());
+    assert_eq!(0x134F, t.val16());
+    assert_eq!(0xE0, t.baudrate());
+    assert_eq!(u4::new(0x6), t.some_other_bits());
+
+    t.set_baudrate(0x12);
+    t.set_some_other_bits(u4::new(0x2));
+    assert_eq!(0x12, t.baudrate());
+    assert_eq!(u4::new(0x2), t.some_other_bits());
+    assert_eq!(0xAE42_315A_2134_FE06_3412_345A_2134_F122, t.raw_value);
+}
+
+#[test]
+fn test_getter_and_setter_arbitrary_uint() {
+    #[bitfield(u128, default = 0)]
+    struct Test2 {
+        #[bits(4..=11, rw)]
+        baudrate: u8,
+
+        #[bits(0..=3, rw)]
+        some_other_bits: u4,
+    }
+
+    let mut t = Test2::new_with_raw_value(0xFE06);
+    assert_eq!(0xE0, t.baudrate());
+    assert_eq!(u4::new(0x6), t.some_other_bits());
+
+    t.set_baudrate(0x12);
+    t.set_some_other_bits(u4::new(0x2));
+    assert_eq!(0x12, t.baudrate());
+    assert_eq!(u4::new(0x2), t.some_other_bits());
+    assert_eq!(0xF122, t.raw_value);
 }
