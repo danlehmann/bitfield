@@ -1581,11 +1581,16 @@ fn test_getter_and_setter() {
     assert_eq!(0xE0, t.baudrate());
     assert_eq!(u4::new(0x6), t.some_other_bits());
 
-    t.set_baudrate(0x12);
-    t.set_some_other_bits(u4::new(0x2));
+    t.set_baudrate(0x12).set_some_other_bits(u4::new(0x2));
     assert_eq!(0x12, t.baudrate());
     assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0xAE42_315A_2134_FE06_3412_345A_2134_F122, t.raw_value);
+
+    t.set_baudrate(0x43);
+    t.set_some_other_bits(u4::new(0x5));
+    assert_eq!(0x43, t.baudrate());
+    assert_eq!(u4::new(0x5), t.some_other_bits());
+    assert_eq!(0xAE42_315A_2134_FE06_3412_345A_2134_F435, t.raw_value);
 }
 
 #[test]
@@ -1603,9 +1608,14 @@ fn test_getter_and_setter_arbitrary_uint() {
     assert_eq!(0xE0, t.baudrate());
     assert_eq!(u4::new(0x6), t.some_other_bits());
 
-    t.set_baudrate(0x12);
-    t.set_some_other_bits(u4::new(0x2));
+    t.set_baudrate(0x12).set_some_other_bits(u4::new(0x2));
     assert_eq!(0x12, t.baudrate());
     assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0xF122, t.raw_value);
+
+    t.set_baudrate(0x43);
+    t.set_some_other_bits(u4::new(0x5));
+    assert_eq!(0x43, t.baudrate());
+    assert_eq!(u4::new(0x5), t.some_other_bits());
+    assert_eq!(0xF435, t.raw_value);
 }

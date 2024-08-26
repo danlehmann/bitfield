@@ -107,9 +107,10 @@ pub fn generate(
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
+                    pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) -> &mut Self {
                         assert!(index < #indexed_count);
                         self.raw_value = #new_raw_value;
+                        self
                     }
                 }
             } else {
@@ -123,8 +124,9 @@ pub fn generate(
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, field_value: #setter_type) {
+                    pub fn #setter_name(&mut self, field_value: #setter_type) -> &mut Self {
                         self.raw_value = #new_raw_value;
+                        self
                     }
                 }
             }
