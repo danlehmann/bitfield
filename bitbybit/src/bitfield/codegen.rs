@@ -1,4 +1,4 @@
-use crate::bitfield::{with_name, setter_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
+use crate::bitfield::{prefix_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::quote;
 use std::ops::Range;
@@ -91,8 +91,8 @@ pub fn generate(
 
             let new_raw_value = setter_new_raw_value(&one, &argument_converted, field_definition, base_data_size, internal_base_data_type);
 
-            let setter_name = setter_name(field_name);
-            let with_name = with_name(field_name);
+            let setter_name = prefix_name(field_name, "set_");
+            let with_name = prefix_name(field_name, "with_");
 
             if let Some(array) = field_definition.array {
                 let indexed_count = array.0;
@@ -372,7 +372,7 @@ pub fn make_builder(
     for field_definition in field_definitions {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
-            let with_name = with_name(field_name);
+            let with_name = prefix_name(field_name, "with_");
 
             let (field_mask, value_transform, argument_type) = if let Some(array) =
                 field_definition.array
