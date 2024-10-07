@@ -1226,6 +1226,7 @@ fn underlying_type_is_arbitrary_array_complete() {
 fn underlying_type_is_arbitrary_default() {
     #[bitfield(u14, default = 0x567)]
     struct Nibbles {
+        /// The nibbles
         #[bits(0..=3, rw)]
         first_nibble: u4,
     }
@@ -1548,7 +1549,6 @@ fn test_noncontiguous_ranges_array_with_interleaving_and_builder() {
         0b10110100
     );
 }
-
 
 #[test]
 fn test_getter_and_setter() {
