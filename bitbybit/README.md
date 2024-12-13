@@ -39,7 +39,8 @@ How this works:
 
 - #[bitfield(u32)] specifies that this is a bitfield in which u32 is the underlying data type. This means that all the
   bits inside of the bitfield
-  have to fit within 32 bits. Built-in Rust types (u8, u16, u32, u64, u128) as well as arbitrary-ints (u17, u48 etc) are supported.
+  have to fit within 32 bits. Built-in Rust types (u8, u16, u32, u64, u128) as well as arbitrary-ints (u17, u48 etc) are
+  supported.
 - Each field is annotated with the range of bits that are used by the field. The data type must match the number of
   bits: A range of 0..=8 with u8 would cause a compile error, as u9 is the data type that matches 0..=8.
 - Single bit fields are declared as "bit", all other fields as "bits"
@@ -153,6 +154,7 @@ Default values are used as-is, even if they affect bits that aren't defined with
 ## Setting all fields at once using the builder syntax
 
 It is possible to set all fields at once, like this:
+
 ```rs
 const T: Test = Test::builder()
     .with_baudrate(0x12)
@@ -161,11 +163,14 @@ const T: Test = Test::builder()
     .build();
 ```
 
-Using `builder()` it is impossible to forget setting any fields. This is checked at compile time: If any field is not set, `build()` can not be called.
+Using `builder()` it is impossible to forget setting any fields. This is checked at compile time: If any field is not
+set, `build()` can not be called.
 
-At the moment, it is required to set all fields in the same order as they are specified. As Rust's const generics become more powerful, this restriction might be lifted.
+At the moment, it is required to set all fields in the same order as they are specified. As Rust's const generics become
+more powerful, this restriction might be lifted.
 
 For the `builder()` to be available, the following has to be true:
+
 - The bitfield has to be completely filled with writable fields (no gaps) OR there has to be a default value specified,
 - No writable fields overlap.
 
@@ -187,7 +192,7 @@ immediates in a way that they have to be reassembled. This can be achieved like 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
 
 ```toml
-arbitrary-int = "1.2.7"
+arbitrary-int = "1.3.0"
 ```
 
 ## Usage
