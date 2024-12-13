@@ -6,6 +6,7 @@
 
 - `ZERO` constant as a shorthand for `new_with_raw_value(0)` is now provided, even for bitfields without a default
   value.
+- Introduces new `set_foo(&mut self, x)` methods as an alternative to `with_foo(&self, x)`
 
 ### Fixed
 
