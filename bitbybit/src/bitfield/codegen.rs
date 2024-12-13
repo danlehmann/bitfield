@@ -1,4 +1,6 @@
-use crate::bitfield::{with_name, setter_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL};
+use crate::bitfield::{
+    setter_name, with_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL,
+};
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::quote;
 use std::ops::Range;
@@ -435,8 +437,10 @@ pub fn make_builder(
             running_mask = previous_mask | field_mask;
             running_mask_token_tree =
                 syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
+            let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 impl #builder_struct_name<#previous_mask_token_tree> {
+                    #(#doc_comment)*
                     pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
                         #builder_struct_name(#value_transform)
                     }
@@ -452,6 +456,7 @@ pub fn make_builder(
 
     new_with_builder_chain.push(quote! {
         impl #builder_struct_name<#running_mask_token_tree> {
+            /// Builds the bitfield from the values passed into this builder
             pub const fn build(&self) -> #struct_name {
                 self.0
             }
