@@ -1,5 +1,20 @@
 # Changelog
 
+## bitbybit 1.3.3
+
+### Added
+
+- `ZERO` constant as a shorthand for `new_with_raw_value(0)` is now provided, even for bitfields without a default
+  value.
+
+### Fixed
+
+- `with_` methods in the builder now produce `///` documentation.
+
+### Changed
+
+- Bump to arbitrary_int 1.3.0
+
 ## bitbybit 1.3.2
 
 ### Fixed
