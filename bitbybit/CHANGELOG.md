@@ -1,5 +1,11 @@
 # Changelog
 
+## unreleased
+
+### Fixed
+
+- Allow qualified paths for `arbitrary_int` fields as well es (optional) `bitenum` fields.
+
 ## bitbybit 1.3.3
 
 ### Added

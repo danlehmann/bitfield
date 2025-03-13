@@ -248,8 +248,8 @@ pub(crate) fn fallback_impl(input: &syn::ItemEnum) -> TokenStream {
 }
 pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<TokenStream> {
     let config = config.explicit()?;
-    check_explicit_conditional(&config, &input)?;
-    check_explicit_exhaustive(&config, &input)?;
+    check_explicit_conditional(&config, input)?;
+    check_explicit_exhaustive(&config, input)?;
 
     let bits = config.bits;
     let (base_type, qualified_type) = (bits.base_type()?, bits.qualified_path()?);
