@@ -187,6 +187,29 @@ immediates in a way that they have to be reassembled. This can be achieved like 
   }
 ```
 
+## Debug
+
+The `bitfield` macro can generate a `Debug` implementation for you which prints
+the `Debug` implementation of the inner fields. You can do this using the `debug`
+specifier:
+
+```rs
+#[bitfield(u32, debug)]
+struct GICD_TYPER {
+    #[bits(11..=15, r)]
+    lspi: u5,
+
+    #[bit(10, r)]
+    security_extn: bool,
+
+    #[bits(5..=7, r)]
+    cpu_number: u3,
+
+    #[bits(0..=4, r)]
+    itlines_number: u5,
+}
+```
+
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:

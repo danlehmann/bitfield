@@ -1,4 +1,6 @@
 use arbitrary_int::Number;
+use std::fmt::Debug;
+
 use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
@@ -1660,4 +1662,19 @@ fn test_fully_qualified_paths() {
     assert_eq!(t.some_other_bits().as_u8(), 0x4);
     assert_eq!(t.exhaustive_enum(), inner::TestEnum::Var2);
     assert_eq!(t.non_exhaustive_enum(), Ok(inner::TestEnum2::Var1));
+}
+
+#[test]
+fn test_debug_impl() {
+    #[bitfield(u16, debug)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    let display_str = format!("{:?}", test);
+    assert_eq!(display_str, "Test { upper: 31, lower: 47 }");
 }
