@@ -1,6 +1,6 @@
 name: test debug
 run-name: ${{ github.actor }}'s patch
-on: [push]
+on: [push, pull_request]
 jobs:
   build-and-test:
     runs-on: ubuntu-22.04
