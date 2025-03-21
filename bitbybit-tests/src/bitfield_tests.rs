@@ -1,3 +1,6 @@
+use core::fmt;
+use std::fmt::Debug;
+
 use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
@@ -1620,4 +1623,19 @@ fn test_getter_and_setter_arbitrary_uint() {
     assert_eq!(0x12, t.baudrate());
     assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0xF122, t.raw_value);
+}
+
+#[test]
+fn test_debug_impl() {
+    #[bitfield(u16, debug)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    let display_str = format!("{:?}", test);
+    assert_eq!(display_str, "Test { upper: 31, lower: 47 }");
 }
