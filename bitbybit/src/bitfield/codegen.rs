@@ -13,9 +13,9 @@ use syn::{LitInt, Type, Visibility};
 /// * `field_definitions` - The field definitions, as reported by `super::parsing`
 /// * `base_data_size` - The size of the bitfield (e.g. u32 for bitfield(u32))
 /// * `internal_base_data_type` - A [`syn::ty::Type`] that represents the same base data type as
-/// passed in via `base_data_size.internal`. This is a redundant argument to avoid recreating it.
+///   passed in via `base_data_size.internal`. This is a redundant argument to avoid recreating it.
 pub fn generate(
-    field_definitions: &Vec<FieldDefinition>,
+    field_definitions: &[FieldDefinition],
     base_data_size: BaseDataSize,
     internal_base_data_type: &Type,
 ) -> Vec<TokenStream> {
@@ -28,7 +28,7 @@ pub fn generate(
         let getter =
             if let Some(getter_type) = field_definition.getter_type.as_ref() {
                 // Main work: Shift and mask the bits into extracted_bits
-                let extracted_bits = extracted_bits(&one, &field_definition, base_data_size, total_number_bits);
+                let extracted_bits = extracted_bits(&one, field_definition, base_data_size, total_number_bits);
 
                 // We might need a CustomType (e.g. bitenum). Do that conversion
                 let converted = match &field_definition.custom_type {
@@ -198,7 +198,7 @@ fn extracted_bits(
             assert_eq!(field_definition.ranges[0].start, 0);
             quote! { self.raw_value as #primitive_type }
         } else {
-            let packed = getter_packed(&field_definition, &array_shift, one);
+            let packed = getter_packed(field_definition, &array_shift, one);
             quote! {  #packed as #primitive_type }
         }
     } else {
@@ -216,7 +216,7 @@ fn extracted_bits(
             }
         } else {
             // First, pack the various range together. Then, extract from that value without shifting
-            let packed = getter_packed(&field_definition, &array_shift, one);
+            let packed = getter_packed(field_definition, &array_shift, one);
             quote! {
                 #custom_type::#extract(#packed, 0)
             }
@@ -243,26 +243,24 @@ fn setter_new_raw_value(
                     if #argument_converted { self.raw_value | (#one << effective_index) } else { self.raw_value & !(#one << effective_index) }
                 }
             }
-        } else {
-            if field_definition.ranges.len() == 1 {
-                let lowest_bit = field_definition.ranges[0].start;
-                let number_of_bits = field_definition.ranges[0].len();
-                quote! {
-                    {
-                        let effective_index = #lowest_bit + index * #indexed_stride;
-                        (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #internal_base_data_type) << effective_index)
-                    }
+        } else if field_definition.ranges.len() == 1 {
+            let lowest_bit = field_definition.ranges[0].start;
+            let number_of_bits = field_definition.ranges[0].len();
+            quote! {
+                {
+                    let effective_index = #lowest_bit + index * #indexed_stride;
+                    (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #internal_base_data_type) << effective_index)
                 }
-            } else {
-                // Replace multiple ranges - We have to split up the incoming value and set them into multiple places
-                let clear_mask = setter_mask(one, field_definition);
-                let new_bits = setter_new_bits(one, field_definition);
-                quote! {
-                    {
-                        let temp = #argument_converted as #internal_base_data_type;
-                        const MASK: #internal_base_data_type = #clear_mask;
-                        self.raw_value & (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
-                    }
+            }
+        } else {
+            // Replace multiple ranges - We have to split up the incoming value and set them into multiple places
+            let clear_mask = setter_mask(one, field_definition);
+            let new_bits = setter_new_bits(one, field_definition);
+            quote! {
+                {
+                    let temp = #argument_converted as #internal_base_data_type;
+                    const MASK: #internal_base_data_type = #clear_mask;
+                    self.raw_value & (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
                 }
             }
         }
@@ -394,7 +392,7 @@ pub fn make_builder(
                 let mut array_setters = Vec::with_capacity(array_count);
                 for i in 0..array_count {
                     mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | ((1u128 << range.len()) - 1) << (range.start + i * array_stride)
+                        a | (((1u128 << range.len()) - 1) << (range.start + i * array_stride))
                     });
 
                     array_setters.push(quote! { .#with_name(#i, value[#i]) });
@@ -416,7 +414,7 @@ pub fn make_builder(
                         return (quote! {}, Vec::new());
                     }
                     field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | ((1u128 << range.len()) - 1) << (range.start)
+                        a | (((1u128 << range.len()) - 1) << (range.start))
                     })
                 };
 
@@ -465,14 +463,12 @@ pub fn make_builder(
 
     let default = if has_default {
         quote! { #builder_struct_name(#struct_name::DEFAULT) }
+    } else if base_data_size.exposed == base_data_size.internal {
+        quote! { #builder_struct_name(#struct_name::new_with_raw_value(0)) }
     } else {
-        if base_data_size.exposed == base_data_size.internal {
-            quote! { #builder_struct_name(#struct_name::new_with_raw_value(0)) }
-        } else {
-            quote! {
-                const ZERO: #base_data_type = #base_data_type::new(0);
-                #builder_struct_name(#struct_name::new_with_raw_value(ZERO))
-            }
+        quote! {
+            const ZERO: #base_data_type = #base_data_type::new(0);
+            #builder_struct_name(#struct_name::new_with_raw_value(ZERO))
         }
     };
     let result_new_with_constructor = quote! {

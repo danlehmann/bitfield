@@ -2,7 +2,7 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use quote::spanned::Spanned;
 
-const BAD_SIZE: &'static str = "The specified storage size is invalid, valid is in range 1..=64";
+const BAD_SIZE: &str = "The specified storage size is invalid, valid is in range 1..=64";
 
 /// Explicitly declared storage type for `bitenum` enums.
 pub(crate) struct Bits {
