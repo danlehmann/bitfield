@@ -1,13 +1,16 @@
 mod codegen;
 mod parsing;
 
+use proc_macro::Span;
 use proc_macro::TokenStream;
+use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use proc_macro2::{Ident, TokenTree};
+use quote::TokenStreamExt;
 use quote::{quote, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
-use syn::{Attribute, Data, DeriveInput, Type};
+use syn::meta::ParseNestedMeta;
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
 /// from u1
@@ -73,78 +76,82 @@ impl BaseDataSize {
     }
 }
 
+pub enum DefaultVal {
+    Lit(LitInt),
+    Constant(Ident),
+}
+
+impl ToTokens for DefaultVal {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            DefaultVal::Lit(lit) => lit.to_tokens(tokens),
+            DefaultVal::Constant(ident) => ident.to_tokens(tokens),
+        }
+    }
+}
+
+#[derive(Default)]
+struct BitfieldAttributes {
+    pub base_type: Option<Ident>,
+    pub default_val: Option<DefaultVal>,
+    pub debug_trait: bool,
+}
+
+impl BitfieldAttributes {
+    fn parse(&mut self, meta: ParseNestedMeta, index: usize) -> Result<(), syn::Error> {
+        if index == 0 {
+            self.base_type = Some(meta.path.require_ident()?.clone());
+            return Ok(());
+        }
+        if meta.path.is_ident("default") {
+            let stream = &meta.input;
+
+            // Try parsing either `:` or `=`
+            if stream.parse::<Token![:]>().is_err() && stream.parse::<Token![=]>().is_err() {
+                return Err(syn::Error::new(
+                    meta.input.span(),
+                    "Expected `:` or `=` after `default`",
+                ));
+            }
+            let lit_int: Result<LitInt, syn::Error> = stream.parse();
+            if lit_int.is_ok() {
+                self.default_val = Some(DefaultVal::Lit(lit_int.unwrap()));
+                return Ok(());
+            }
+            let path: Result<Ident, syn::Error> = stream.parse();
+            if path.is_ok() {
+                self.default_val = Some(DefaultVal::Constant(path.unwrap()));
+                return Ok(());
+            }
+            return Ok(());
+        }
+        if meta.path.is_ident("debug") {
+            self.debug_trait = true;
+            return Ok(());
+        }
+        Ok(())
+    }
+}
+
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
-    let args: Vec<_> = proc_macro2::TokenStream::from(args).into_iter().collect();
-
+    let mut bitfield_attrs = BitfieldAttributes::default();
+    let mut index = 0;
+    let bitfield_parser = syn::meta::parser(|meta| {
+        let result = bitfield_attrs.parse(meta, index);
+        index += 1;
+        result
+    });
     if args.is_empty() {
-        panic!(
-            "bitfield! No arguments given, but need at least base data type (e.g. 'bitfield(u32)')"
-        );
+        return syn::Error::new(
+            Span::call_site().into(),
+            "bitfield! No arguments given, but need at least a base data type (e.g. 'bitfield(u32)')").to_compile_error().into();
     }
+    parse_macro_input!(args with bitfield_parser);
 
-    // Parse arguments: the first argument is required and has the base data type. Further arguments are
-    // optional and are key:value pairs
-    let base_data_type = &args[0];
-    let mut default_value: Option<TokenStream2> = None;
-
-    enum ArgumentType {
-        Default,
+    if bitfield_attrs.base_type.is_none() {
+        panic!("bitfield!: First argument must be the base data type, e.g. 'bitfield(u32)'",);
     }
-    let mut next_expected: Option<ArgumentType> = None;
-
-    fn handle_next_expected(
-        next_expected: &Option<ArgumentType>,
-        default_value: &mut Option<TokenStream2>,
-        token_stream: TokenStream2,
-    ) {
-        match next_expected {
-            None => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default = 0)]", token_stream),
-            Some(ArgumentType::Default) => {
-                *default_value = Some(token_stream);
-            }
-        }
-    }
-    for arg in args.iter().skip(1) {
-        match arg {
-            TokenTree::Punct(p) => match p.as_char() {
-                ',' => next_expected = None,
-                '=' | ':' => (),
-                _ => panic!(
-                    "bitfield!: Expected ',', '=' or ':' in argument list. Saw '{}'",
-                    p
-                ),
-            },
-            TokenTree::Ident(sym) => {
-                if next_expected.is_some() {
-                    // We might end up here if we refer to a constant, like 'default = SOME_CONSTANT'
-                    handle_next_expected(&next_expected, &mut default_value, sym.to_token_stream());
-                } else {
-                    match sym.to_string().as_str() {
-                        "default" => {
-                            if default_value.is_some() {
-                                panic!("bitfield!: default must only be specified at most once");
-                            }
-                            next_expected = Some(ArgumentType::Default)
-                        }
-                        _ => panic!(
-                            "bitfield!: Unexpected argument {}. Supported: 'default'",
-                            sym
-                        ),
-                    }
-                }
-            }
-            TokenTree::Literal(literal) => {
-                // We end up here if we see a literal, like 'default = 0x1234'
-                handle_next_expected(
-                    &next_expected,
-                    &mut default_value,
-                    literal.to_token_stream(),
-                );
-            }
-            t => panic!("bitfield!: Unexpected token {}. Example of valid syntax: #[bitfield(u32, default = 0)]", t),
-        }
-    }
-
+    let base_data_type = bitfield_attrs.base_type.as_ref().unwrap();
     // If an arbitrary-int is specified as a base-type, we only use that when exposing it
     // (e.g. through raw_value() and for bounds-checks). The actual raw_value field will be the next
     // larger integer field
@@ -184,7 +191,10 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let accessors = codegen::generate(&field_definitions, base_data_size, &internal_base_data_type);
 
-    let (default_constructor, default_trait) = if let Some(default_value) = default_value.clone() {
+    let (default_constructor, default_trait) = if let Some(default_value) =
+        &bitfield_attrs.default_val
+    {
+        let default_value = default_value.to_token_stream();
         let constructor = {
             let comment = format!("An instance that uses the default value {}", default_value);
             let deprecated_warning = format!(
@@ -224,9 +234,30 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
+    let mut debug_trait = TokenStream2::new();
+    if bitfield_attrs.debug_trait {
+        let debug_fields: Vec<TokenStream2> = field_definitions
+            .iter()
+            .map(|field| {
+                let field_name = &field.field_name;
+                quote! {
+                    .field(stringify!(#field_name), &self.#field_name())
+                }
+            })
+            .collect();
+        debug_trait.append_all(quote! {
+            impl ::core::fmt::Debug for #struct_name {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                    f.debug_struct(stringify!(#struct_name))
+                        #(#debug_fields)*
+                        .finish()
+                }
+            }
+        });
+    }
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
-        default_value.is_some(),
+        bitfield_attrs.default_val.is_some(),
         &struct_vis,
         &internal_base_data_type,
         base_data_type,
@@ -285,6 +316,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #( #accessors )*
         }
         #default_trait
+        #debug_trait
         #( #new_with_builder_chain )*
     };
     //println!("Expanded: {}", expanded.to_string());

@@ -16,3 +16,13 @@ jobs:
         with:
           command: test
           args: --release --no-default-features
+
+  build-no-std:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        target:
+          - thumbv7em-none-eabihf
+      - run: cargo build --release --manifest-path ./test-no-std/Cargo.toml --target thumbv7em-none-eabihf --no-default-features

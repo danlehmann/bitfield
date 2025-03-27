@@ -353,7 +353,7 @@ pub fn make_builder(
     has_default: bool,
     struct_vis: &Visibility,
     internal_base_data_type: &Type,
-    base_data_type: &TokenTree,
+    base_data_type: &Ident,
     base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
 ) -> (TokenStream2, Vec<TokenStream2>) {
