@@ -19,21 +19,21 @@ const fn is_int_size_regular_type(size: usize) -> bool {
     size == BITCOUNT_BOOL || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
 }
 
-fn parse_arbitrary_int_type(s: &str) -> Result<usize, ()> {
+fn try_parse_arbitrary_int_type(s: &str) -> Option<usize> {
     if !s.starts_with('u') || s.len() < 2 {
-        return Err(());
+        return None;
     }
 
     let size = usize::from_str(s.split_at(1).1);
     match size {
         Ok(size) => {
-            if size >= 1 && size < 128 && !is_int_size_regular_type(size) {
-                Ok(size)
+            if (1..128).contains(&size) && !is_int_size_regular_type(size) {
+                Some(size)
             } else {
-                Err(())
+                None
             }
         }
-        Err(_) => Err(()),
+        Err(_) => None,
     }
 }
 
@@ -154,12 +154,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         "u32" => BaseDataSize::new(32),
         "u64" => BaseDataSize::new(64),
         "u128" => BaseDataSize::new(128),
-        s if parse_arbitrary_int_type(s).is_ok() => {
-            BaseDataSize::new(parse_arbitrary_int_type(s).unwrap())
+        s if try_parse_arbitrary_int_type(s).is_some() => {
+            BaseDataSize::new(try_parse_arbitrary_int_type(s).unwrap())
         }
         _ => {
             return syn::Error::new_spanned(
-                &base_data_type,
+                base_data_type,
                 format!("bitfield!: Supported values for base data type are u8, u16, u32, u64, u128. {} is invalid", base_data_type.to_string().as_str()),
             ).to_compile_error().into();
         }
@@ -180,7 +180,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let field_definitions = match parsing::parse(&fields, base_data_size) {
         Ok(definitions) => definitions,
-        Err(token_stream) => return token_stream.into(),
+        Err(token_stream) => return token_stream.into_compile_error().into(),
     };
     let accessors = codegen::generate(&field_definitions, base_data_size, &internal_base_data_type);
 
@@ -295,8 +295,8 @@ fn with_name(field_name: &Ident) -> Ident {
     // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
     let field_name_without_prefix = {
         let s = field_name.to_string();
-        if s.starts_with("r#") {
-            s[2..].to_string()
+        if let Some(s) = s.strip_prefix("r#") {
+            s.to_string()
         } else {
             s
         }
@@ -310,8 +310,8 @@ fn setter_name(field_name: &Ident) -> Ident {
     // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
     let field_name_without_prefix = {
         let s = field_name.to_string();
-        if s.starts_with("r#") {
-            s[2..].to_string()
+        if let Some(s) = s.strip_prefix("r#") {
+            s.to_string()
         } else {
             s
         }

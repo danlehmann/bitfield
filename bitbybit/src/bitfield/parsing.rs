@@ -1,23 +1,20 @@
 use crate::bitfield::{
-    is_int_size_regular_type, parse_arbitrary_int_type, BaseDataSize, CustomType, FieldDefinition,
-    BITCOUNT_BOOL,
+    is_int_size_regular_type, try_parse_arbitrary_int_type, BaseDataSize, CustomType,
+    FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use syn::{
-    parse2, Attribute, Error, ExprArray, Field, Fields, GenericArgument, MetaList, PathArguments,
-    Type,
+    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument,
+    MetaList, PathArguments, Result, Type,
 };
 
-pub fn parse(
-    fields: &Fields,
-    base_data_size: BaseDataSize,
-) -> Result<Vec<FieldDefinition>, TokenStream2> {
+pub fn parse(fields: &Fields, base_data_size: BaseDataSize) -> Result<Vec<FieldDefinition>> {
     let mut field_definitions = Vec::with_capacity(fields.len());
 
     for field in fields {
-        match parse_field(base_data_size.internal, &field) {
+        match parse_field(base_data_size.internal, field) {
             Ok(def) => field_definitions.push(def),
             Err(ts) => return Err(ts),
         }
@@ -26,7 +23,96 @@ pub fn parse(
     Ok(field_definitions)
 }
 
-fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, TokenStream2> {
+fn parse_scalar_field(ty: &Type) -> Result<(Option<usize>, bool)> {
+    match ty {
+        Type::Path(path) => {
+            let type_str = path.to_token_stream().to_string();
+            let result = match type_str.as_str() {
+                "bool" => Some((Some(BITCOUNT_BOOL), false)),
+                "u8" => Some((Some(8), false)),
+                "i8" => Some((Some(8), true)),
+                "u16" => Some((Some(16), false)),
+                "i16" => Some((Some(16), true)),
+                "u32" => Some((Some(32), false)),
+                "i32" => Some((Some(32), true)),
+                "u64" => Some((Some(64), false)),
+                "i64" => Some((Some(64), true)),
+                "u128" => Some((Some(128), false)),
+                "i128" => Some((Some(128), true)),
+                _ => None,
+            };
+
+            if let Some(value) = result {
+                return Ok(value);
+            }
+
+            if let Some(last_segment) = path.path.segments.last() {
+                return Ok((try_parse_arbitrary_int_type(&last_segment.ident.to_string()), false));
+            }
+
+            Err(Error::new(path.span(), "invalid path for bitfield field"))
+        }
+        _ => Err(Error::new(
+            ty.span(),
+            format!(
+                "bitfield!: Field type {} not valid. Supported types: bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g., u1, u3, u62). Their arrays are also supported.",
+                ty.into_token_stream()
+            ),
+        )),
+    }
+}
+
+fn parse_enumeration(ty: &Type, primitive_type: &TokenStream2) -> Result<(CustomType, Type, Type)> {
+    // Test for optional type. We have to dissect the Option<T> type to do that
+    let (inner_type, result_type) = if let Type::Path(type_path) = ty {
+        if let Some(last_segment) = type_path.path.segments.last() {
+            if last_segment.ident == "Option" {
+                match &last_segment.arguments {
+                    PathArguments::AngleBracketed(args) => {
+                        if args.args.len() != 1 {
+                            return Err(Error::new_spanned(last_segment, "Invalid Option<T> path. Expected exactly one generic type argument"));
+                        }
+                        let option_generic_type = args.args.last().unwrap();
+                        match option_generic_type {
+                            GenericArgument::Type(generic_type) => {
+                                let result_type_string = format!(
+                                    "Result<{}, {}>",
+                                    generic_type.to_token_stream(),
+                                    primitive_type,
+                                );
+                                let result_type = syn::parse_str::<Type>(&result_type_string)
+                                    .expect("bitfield!: Error creating type from Result<,>");
+
+                                (generic_type, result_type)
+                            }
+                            _ => {
+                                return Err(Error::new_spanned(
+                                    option_generic_type,
+                                    "Invalid Option binding: Expected generic type",
+                                ))
+                            }
+                        }
+                    }
+                    _ => panic!("Expected < after Option"),
+                }
+            } else {
+                (ty, ty.clone())
+            }
+        } else {
+            (ty, ty.clone())
+        }
+    } else {
+        (ty, ty.clone())
+    };
+
+    Ok((
+        CustomType::Yes(inner_type.clone()),
+        result_type,
+        inner_type.clone(),
+    ))
+}
+
+fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> {
     let field_name = field.ident.as_ref().unwrap();
 
     let (ty, indexed_count) = {
@@ -46,27 +132,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             _ => (&field.ty, None),
         }
     };
-    let (field_type_size_from_data_type, field_type_is_signed) = match ty {
-        Type::Path(path) => {
-            match path.to_token_stream().to_string().as_str() {
-                "bool" => (Some(BITCOUNT_BOOL), false),
-                "u8" => (Some(8), false),
-                "i8" => (Some(8), true),
-                "u16" => (Some(16), false),
-                "i16" => (Some(16), true),
-                "u32" => (Some(32), false),
-                "i32" => (Some(32), true),
-                "u64" => (Some(64), false),
-                "i64" => (Some(64), true),
-                "u128" => (Some(128), false),
-                "i128" => (Some(128), true),
-                s if parse_arbitrary_int_type(s).is_ok() => (Some(parse_arbitrary_int_type(s).unwrap()), false),
-                _ => (None, false), // Enum type - size is the the number of bits
-            }
-        }
-        _ => panic!("bitfield!: Field type {} not valid. bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g. u1, u3, u62). Their arrays are also supported", ty.into_token_stream()),
-    };
-
+    let (field_type_size_from_data_type, field_type_is_signed) = parse_scalar_field(ty)?;
     let unsigned_field_type = if field_type_is_signed {
         Some(
             syn::parse_str::<Type>(
@@ -109,7 +175,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                 let mut finished_argument = |range_parser: ArgumentParser,
                                              is_in_array: bool,
                                              token_id: u32|
-                 -> Result<(), Error> {
+                 -> Result<()> {
                     // Ensure we didn't get a range if we already had one before
                     match range_parser {
                         ArgumentParser::RangeGotBothLimits(_, _)
@@ -124,13 +190,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                                         ));
                                     }
                                 }
-                            } else {
-                                if !ranges.is_empty() {
-                                    return Err(Error::new_spanned(
-                                        &range_span,
-                                        "bitfield!: Seen multiple bit-ranges, but only one is allowed",
-                                    ));
-                                }
+                            } else if !ranges.is_empty() {
+                                return Err(Error::new_spanned(
+                                    &range_span,
+                                    "bitfield!: Seen multiple bit-ranges, but only one is allowed",
+                                ));
                             }
                             ranges_token = Some(token_id);
                         }
@@ -200,8 +264,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                     false,
                     &mut finished_argument,
                     None,
-                )
-                .map_err(|e| e.to_compile_error())?;
+                )?;
+                //.map_err(|e| e.to_compile_error())?;
 
                 let token_string = attr.meta.to_token_stream().to_string();
                 assert!(token_string.starts_with("bit"));
@@ -215,15 +279,13 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                     return Err(Error::new_spanned(
                         &attr.meta,
                         format!("bitfield!: Expected '(' after '{}'", start),
-                    )
-                    .to_compile_error());
+                    ));
                 }
                 if &attr_token_string[attr_token_string.len() - 1..] != ")" {
                     return Err(Error::new_spanned(
                         &attr.meta,
                         format!("bitfield!: Expected ')' to close '{}'", start),
-                    )
-                    .to_compile_error());
+                    ));
                 }
             }
             "doc" => {
@@ -232,9 +294,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             }
             _ => {
                 return Err(Error::new_spanned(
-                    &attr_name,
-                    format!("bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'", attr_name)
-                ).to_compile_error());
+                    attr_name,
+                    format!(
+                        "bitfield!: Unhandled attribute '{}'. Only supported attributes are 'bit' or 'bits'",
+                        attr_name)
+                    ));
             }
         }
     }
@@ -265,17 +329,15 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
     if field_type_size == BITCOUNT_BOOL {
         if number_of_bits != 1 || ranges.len() != 1 {
             return Err(Error::new_spanned(
-                &field.attrs.first(),
+                field.attrs.first(),
                 format!("bitfield!: Field {} is a bool, so it should only use a single bit (use syntax 'bit({})' instead)", field_name, ranges[0].start)
-            ).to_compile_error());
+            ));
         }
-    } else {
-        if number_of_bits != field_type_size {
-            return Err(Error::new_spanned(
-                &field.ty,
-                format!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits)
-            ).to_compile_error());
-        }
+    } else if number_of_bits != field_type_size {
+        return Err(Error::new_spanned(
+            &field.ty,
+            format!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits)
+        ));
     }
 
     // Verify bounds for arrays
@@ -287,27 +349,25 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             }
             if number_of_bits > indexed_stride.unwrap() {
                 return Err(Error::new_spanned(
-                    &field.attrs.first(),
+                    field.attrs.first(),
                     format!(
                         "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
                         field_name,
                         number_of_bits,
                         indexed_stride.unwrap()
                     ),
-                )
-                    .to_compile_error());
+                ));
             }
         } else {
             // With multiple ranges, strides are mandatory
             if indexed_stride.is_none() {
                 return Err(Error::new_spanned(
-                    &field,
+                    field,
                     format!(
                         "bitfield!: Field {} is declared as non-contiguous and array, so it needs a stride. Specify using \"stride = x\".",
                         field_name,
                     ),
-                )
-                    .to_compile_error());
+                ));
             }
         }
 
@@ -316,11 +376,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
             (indexed_count - 1) * indexed_stride.unwrap() + highest_bit_index_in_ranges;
         if number_of_bits_indexed > base_data_size {
             return Err(Error::new_spanned(
-                &field.attrs.first(),
+                field.attrs.first(),
                 format!(
                     "bitfield!: Array-field {} requires {number_of_bits_indexed} bits for the array, but only has ({})", field_name, base_data_size
-                ),
-            ).to_compile_error());
+                )
+            ));
         }
 
         if indexed_count < 2 {
@@ -330,54 +390,12 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition, 
                     "bitfield!: Field {} is declared as array, but with fewer than 2 elements.",
                     field_name
                 ),
-            )
-            .to_compile_error());
+            ));
         }
     }
 
     let (custom_type, getter_type, setter_type) = if field_type_size_from_data_type.is_none() {
-        // Test for optional type. We have to dissect the Option<T> type to do that
-        let (inner_type, result_type) = if let Type::Path(type_path) = ty {
-            if type_path.path.segments.len() != 1 {
-                panic!("Invalid path segment. Expected Enumeration or Option<Enumeration>");
-            }
-            let option_segment = type_path.path.segments.first().unwrap();
-            if option_segment.ident == "Option" {
-                match &option_segment.arguments {
-                    PathArguments::AngleBracketed(args) => {
-                        if args.args.len() != 1 {
-                            panic!("Invalid Option<T> path. Expected exactly one generic type argument");
-                        }
-                        let option_generic_type = args.args.first().unwrap();
-                        match option_generic_type {
-                            GenericArgument::Type(generic_type) => {
-                                let result_type_string = format!(
-                                    "Result<{}, {}>",
-                                    generic_type.to_token_stream(),
-                                    primitive_type.to_token_stream(),
-                                );
-                                let result_type = syn::parse_str::<Type>(&result_type_string)
-                                    .expect("bitfield!: Error creating type from Result<,>");
-
-                                (generic_type, result_type)
-                            }
-                            _ => panic!("Invalid Option binding: Expected generic type"),
-                        }
-                    }
-                    _ => panic!("Expected < after Option"),
-                }
-            } else {
-                (ty, ty.clone())
-            }
-        } else {
-            (ty, ty.clone())
-        };
-
-        (
-            CustomType::Yes(inner_type.clone()),
-            result_type,
-            inner_type.clone(),
-        )
+        parse_enumeration(ty, &primitive_type)?
     } else {
         (CustomType::No, ty.clone(), ty.clone())
     };
@@ -443,14 +461,14 @@ enum ArgumentParser {
 }
 
 impl ArgumentParser {
-    fn parse_literal_number(number: Literal) -> Result<usize, Error> {
+    fn parse_literal_number(number: Literal) -> Result<usize> {
         number
             .to_string()
             .parse()
             .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid number in bitrange."))
     }
 
-    pub fn take_literal(&self, lit: Literal) -> Result<ArgumentParser, Error> {
+    pub fn take_literal(&self, lit: Literal) -> Result<ArgumentParser> {
         match self {
             ArgumentParser::Reset | ArgumentParser::ResetOnlyRangeAllowed => Ok(
                 ArgumentParser::RangeGotLowerLimit(Self::parse_literal_number(lit)?),
@@ -469,7 +487,7 @@ impl ArgumentParser {
         }
     }
 
-    fn take_punct(&self, punct: Punct) -> Result<ArgumentParser, Error> {
+    fn take_punct(&self, punct: Punct) -> Result<ArgumentParser> {
         match self {
             ArgumentParser::RangeGotLowerLimit(lower) if punct.as_char() == '.' => {
                 Ok(ArgumentParser::RangeGotFirstPeriod(*lower))
@@ -490,7 +508,7 @@ impl ArgumentParser {
         }
     }
 
-    fn take_ident(&self, id: Ident) -> Result<ArgumentParser, Error> {
+    fn take_ident(&self, id: Ident) -> Result<ArgumentParser> {
         let s = id.to_string();
         match self {
             ArgumentParser::Reset if s == "rw" => Ok(ArgumentParser::ReadWrite),
@@ -507,12 +525,12 @@ impl ArgumentParser {
         }
     }
 
-    fn parse_argument_tokens<F: FnMut(ArgumentParser, bool, u32) -> Result<(), Error>>(
+    fn parse_argument_tokens<F: FnMut(ArgumentParser, bool, u32) -> Result<()>>(
         token_stream: TokenStream2,
         is_in_array: bool,
         finished_argument: &mut F,
         outer_token_id: Option<u32>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         // finished_argument is run with a token, which represents the index of the outer run.
         // This allows us to catch multiple array ranges (e.g. "[0..1], [2..3]") as they will have
         // different tokens.

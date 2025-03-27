@@ -1,3 +1,4 @@
+use arbitrary_int::Number;
 use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
@@ -1620,4 +1621,43 @@ fn test_getter_and_setter_arbitrary_uint() {
     assert_eq!(0x12, t.baudrate());
     assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0xF122, t.raw_value);
+}
+
+#[test]
+fn test_fully_qualified_paths() {
+    mod inner {
+        use super::*;
+        #[bitenum(u2, exhaustive = true)]
+        #[derive(Eq, PartialEq, Debug)]
+        pub enum TestEnum {
+            Var0 = 0b00,
+            Var1 = 0b01,
+            Var2 = 0b10,
+            Var3 = 0b11,
+        }
+
+        #[bitenum(u2, exhaustive = false)]
+        #[derive(Eq, PartialEq, Debug)]
+        pub enum TestEnum2 {
+            Var0 = 0b00,
+            Var1 = 0b01,
+            Var2 = 0b10,
+        }
+    }
+    #[bitfield(u16, default = 0)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        baudrate: u8,
+        #[bits(6..=7, rw)]
+        exhaustive_enum: inner::TestEnum,
+        #[bits(4..=5, rw)]
+        non_exhaustive_enum: Option<inner::TestEnum2>,
+        #[bits(0..=3, rw)]
+        some_other_bits: arbitrary_int::u4,
+    }
+    let t = Test::new_with_raw_value(0x1894);
+    assert_eq!(t.baudrate(), 0x18);
+    assert_eq!(t.some_other_bits().as_u8(), 0x4);
+    assert_eq!(t.exhaustive_enum(), inner::TestEnum::Var2);
+    assert_eq!(t.non_exhaustive_enum(), Ok(inner::TestEnum2::Var1));
 }
