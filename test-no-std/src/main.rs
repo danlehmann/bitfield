@@ -1,9 +1,10 @@
-#![no_std] #![no_main]
+#![no_std]
+#![no_main]
 
-#[bitbybit::bitfield(u32)]
+#[bitbybit::bitfield(u32, debug)]
 pub struct TestReg {
     #[bits(0..=31, rw)]
-    value: u32
+    value: u32,
 }
 
 #[panic_handler]
