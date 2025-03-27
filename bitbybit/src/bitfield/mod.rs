@@ -246,8 +246,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             })
             .collect();
         debug_trait.append_all(quote! {
-            impl core::fmt::Debug for #struct_name {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            impl ::core::fmt::Debug for #struct_name {
+                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                     f.debug_struct(stringify!(#struct_name))
                         #(#debug_fields)*
                         .finish()

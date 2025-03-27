@@ -4,4 +4,6 @@ members = [
     "bitbybit",
     "bitbybit-tests",
 ]
-
+exclude = [
+    "test-no-std",
+]
