@@ -1,10 +1,11 @@
 # Changelog
 
-## unreleased
+## bitbybit 1.4.0
 
 ### Fixed
 
 - Allow qualified paths for `arbitrary_int` fields as well es (optional) `bitenum` fields.
+- Fix the build for users that `#[deny(missing_docs)]`
 
 ## bitbybit 1.3.3
 
