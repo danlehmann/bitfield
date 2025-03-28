@@ -6,3 +6,5 @@ mod bitenum_tests;
 mod bitfield_tests;
 #[cfg(test)]
 mod bitfield_tests_legacy;
+#[cfg(test)]
+pub mod doc;
