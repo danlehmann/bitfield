@@ -211,9 +211,9 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 #default_raw_value
 
                 #[doc = #comment]
-                #[inline]
                 pub const DEFAULT: Self = Self::new_with_raw_value(Self::DEFAULT_RAW_VALUE);
 
+                /// Creates a new instance of this struct using the default value
                 #[deprecated(note = #deprecated_warning)]
                 pub const fn new() -> Self {
                     Self::DEFAULT
@@ -288,6 +288,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! { #base_data_type::new(0) }
     };
 
+    let zero_comment = format!(
+        "Creates a new instance with a raw value of 0. Equivalent to [`Self::new_with_raw_value({})`].",
+        zero
+    );
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -297,6 +302,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         }
 
         impl #struct_name {
+            #[doc = #zero_comment]
             pub const ZERO: Self = Self::new_with_raw_value(#zero);
 
             #default_constructor

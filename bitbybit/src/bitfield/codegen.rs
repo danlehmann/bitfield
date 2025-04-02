@@ -366,7 +366,8 @@ pub fn make_builder(
         Vec::with_capacity(field_definitions.len() + 2);
 
     new_with_builder_chain.push(quote! {
-       #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
+        /// Partial builder struct
+        #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
     });
 
     for field_definition in field_definitions {
