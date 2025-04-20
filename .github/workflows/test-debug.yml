@@ -15,7 +15,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --no-default-features
+          args: --no-default-features --features "defmt"
 
   build-no-std:
     runs-on: ubuntu-latest
@@ -23,6 +23,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        target:
-          - thumbv7em-none-eabihf
-      - run: cargo build --manifest-path ./test-no-std/Cargo.toml --target thumbv7em-none-eabihf --no-default-features
+        with:
+          targets: "thumbv7em-none-eabihf"
+      - run: cargo build --manifest-path ./qemu-tests/Cargo.toml --target thumbv7em-none-eabihf
+
+  # Run some programs in QEMU 9
+  qemu-test:
+    runs-on: ubuntu-24.04
+    needs: [build-and-test, build-no-std]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Dependencies
+        run: |
+          sudo apt-get -y update
+          sudo apt-get -y install libpixman-1-0 libfdt1 libglib2.0-0t64
+
+      - uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: defmt-print --locked
+      - name: Install custom QEMU into /opt
+        run: |
+          curl -sSL https://github.com/jonathanpallant/qemu9-for-ubuntu-2404/releases/download/qemu-9.2.3%2Bbuild0/qemu-9.2.3-ubuntu-24.04.tar.gz | sudo tar xvzf - -C /
+      - name: Run tests in QEMU
+        run: |
+          export PATH=/opt/qemu/bin:$PATH
+          cd qemu-tests
+          ./tests.sh

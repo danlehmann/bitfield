@@ -10,6 +10,7 @@ use quote::{quote, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
+use syn::LitStr;
 use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
@@ -76,6 +77,7 @@ impl BaseDataSize {
     }
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 pub enum DefaultVal {
     Lit(LitInt),
     Constant(Ident),
@@ -90,12 +92,26 @@ impl ToTokens for DefaultVal {
     }
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+pub struct DefmtTrait {
+    variant: DefmtVariant,
+    feature_gate: Option<String>,
+}
+
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+pub enum DefmtVariant {
+    Bitfields,
+    Fields,
+}
+
 #[derive(Default)]
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 struct BitfieldAttributes {
     pub base_type: Option<Ident>,
     pub default_val: Option<DefaultVal>,
     pub debug_trait: bool,
     pub introspect: bool,
+    pub defmt_trait: Option<DefmtTrait>,
 }
 
 impl BitfieldAttributes {
@@ -132,6 +148,39 @@ impl BitfieldAttributes {
         }
         if meta.path.is_ident("introspect") {
             self.introspect = true;
+            return Ok(());
+        }
+        let parse_feature_gate = |meta: ParseNestedMeta<'_>| -> Result<Option<String>, syn::Error> {
+            let mut feature_gate = None;
+            if meta.input.is_empty() {
+                return Ok(feature_gate);
+            }
+            meta.parse_nested_meta(|meta| {
+                if meta.path.is_ident("feature") {
+                    let value = meta.value()?; // this parses the `=`
+                    let s: LitStr = value.parse()?;
+                    feature_gate = Some(s.value());
+                    Ok(())
+                } else {
+                    Err(meta.error("unsupported attribute"))
+                }
+            })?;
+            Ok(feature_gate)
+        };
+        if meta.path.is_ident("defmt_fields") {
+            let feature_gate = parse_feature_gate(meta)?;
+            self.defmt_trait = Some(DefmtTrait {
+                variant: DefmtVariant::Fields,
+                feature_gate,
+            });
+            return Ok(());
+        }
+        if meta.path.is_ident("defmt_bitfields") {
+            let feature_gate = parse_feature_gate(meta)?;
+            self.defmt_trait = Some(DefmtTrait {
+                variant: DefmtVariant::Bitfields,
+                feature_gate,
+            });
             return Ok(());
         }
         Ok(())
@@ -268,6 +317,85 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         });
     }
+    let mut defmt_trait = TokenStream2::new();
+
+    if let Some(defmt_format) = bitfield_attrs.defmt_trait {
+        let mut feature_gate = TokenStream2::new();
+        if let Some(feature_gate_str) = defmt_format.feature_gate {
+            feature_gate.extend(quote! {
+                #[cfg(feature = #feature_gate_str)]
+            });
+        }
+        match defmt_format.variant {
+            DefmtVariant::Bitfields => {
+                let format_string = {
+                    let labels_result: Result<Vec<_>, syn::Error> = field_definitions
+                        .iter()
+                        .map(|field| {
+                            if field.ranges.len() != 1 {
+                                return Err(syn::Error::new(
+                                    field.field_name.span(),
+                                    "defmt_bitfields currently only supports single ranges",
+                                ));
+                            }
+                            let range = field.ranges.first().unwrap();
+                            Ok(format!(
+                                "{}: {{0={}..{}}}",
+                                field.field_name, range.start, range.end
+                            ))
+                        })
+                        .collect();
+                    if let Err(e) = labels_result {
+                        return e.into_compile_error().into();
+                    }
+                    let labels = labels_result.unwrap().join(", ");
+                    format!("{} {{{{ {} }}}}", struct_name, labels)
+                };
+                defmt_trait.append_all(quote! {
+                    #feature_gate
+                    impl defmt::Format for #struct_name {
+                        fn format(&self, fmt: defmt::Formatter) {
+                            defmt::write!(
+                                fmt,
+                                #format_string,
+                                self.raw_value()
+                            )
+                        }
+                    }
+                });
+            }
+            DefmtVariant::Fields => {
+                let format_string = {
+                    let labels = field_definitions
+                        .iter()
+                        .map(|field| format!("{}: {{}}", field.field_name))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{} {{{{ {} }}}}", struct_name, labels)
+                };
+                let defmt_fields: Vec<TokenStream2> = field_definitions
+                    .iter()
+                    .map(|field| {
+                        let field_name = &field.field_name;
+                        quote! { self.#field_name(), }
+                    })
+                    .collect();
+                defmt_trait.append_all(quote! {
+                    #feature_gate
+                    impl defmt::Format for #struct_name {
+                        fn format(&self, fmt: defmt::Formatter) {
+                            defmt::write!(
+                                fmt,
+                                #format_string,
+                                #(#defmt_fields)*
+                            )
+                        }
+                    }
+                });
+            }
+        }
+    }
+
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
         bitfield_attrs.default_val.is_some(),
@@ -335,7 +463,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #( #accessors )*
         }
         #default_trait
+
         #debug_trait
+
+        #defmt_trait
+
         #( #new_with_builder_chain )*
     };
     //println!("Expanded: {}", expanded.to_string());

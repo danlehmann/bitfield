@@ -15,7 +15,7 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --release --no-default-features
+          args: --release --no-default-features --features "defmt"
 
   build-no-std:
     runs-on: ubuntu-latest
@@ -23,6 +23,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        target:
-          - thumbv7em-none-eabihf
-      - run: cargo build --release --manifest-path ./test-no-std/Cargo.toml --target thumbv7em-none-eabihf --no-default-features
+        with:
+          targets: "thumbv7em-none-eabihf"
+      - run: cargo build --manifest-path ./qemu-tests/Cargo.toml --release --target thumbv7em-none-eabihf

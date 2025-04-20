@@ -1717,3 +1717,51 @@ fn introspection() {
     assert_eq!(Bitfield::ref_mask(0), 0x40000000);
     assert_eq!(Bitfield::ref_mask(1), 0x80000000);
 }
+
+fn test_defmt_impl_fields() {
+    #[bitfield(u16, defmt_fields)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+}
+
+#[test]
+fn test_defmt_impl_bitfields() {
+    #[bitfield(u16, defmt_bitfields)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+    // I'd like to test the actual printout/impl, but I do not know how to do this on a host PC
+    // yet..
+}
+
+#[test]
+#[cfg(feature = "defmt")]
+fn test_defmt_impl_bitfield_feature_gated() {
+    #[bitfield(u16, defmt_bitfields(feature = "defmt"))]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+    // I'd like to test the actual printout/impl, but I do not know how to do this on a host PC
+    // yet..
+}
+
+pub fn defmt_impl_check<T: defmt::Format>(_: &T) {}

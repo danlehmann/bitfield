@@ -247,6 +247,41 @@ If information like bit offsets or mask values are needed at runtime, use the `i
 
 This functionality can be enabled for all bitfields by enabling the `introspect` feature.
 
+## `defmt` support
+
+The `bitfield` macro can generate a `defmt::Format` implementation for you.
+There are two variants:
+
+- Bitfield variant which used the [bitfield support](https://defmt.ferrous-systems.com/bitfields)
+  provided by `defmt` to print the bits of the raw value. Can be activated using the
+  `defmt_bitfields` attribute.
+- Field variant which simply forwards to the `defmt` implementation of the field getter functions.
+  This might not be as bandwidth-efficient as the bitfield variant but might be preferred for
+  something like inner `bitenum` fields.
+
+Additionally, both specifiers allow to feature gate the generated code, which is commonly done
+in libaries. For example, to put the `defmt::Format` implementation behind a `defmt` feature gate,
+you can use `defmt_bitfields(feature = "defmt")` or `defmt_fields(feature = "defmt")`.
+
+Example:
+
+```rs
+#[bitfield(u32, defmt_bitfields(feature = "defmt")]
+struct GICD_TYPER {
+    #[bits(11..=15, r)]
+    lspi: u5,
+
+    #[bit(10, r)]
+    security_extn: bool,
+
+    #[bits(5..=7, r)]
+    cpu_number: u3,
+
+    #[bits(0..=4, r)]
+    itlines_number: u5,
+}
+```
+
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
