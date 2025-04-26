@@ -187,14 +187,24 @@ immediates in a way that they have to be reassembled. This can be achieved like 
   }
 ```
 
-## Debug
+## Debug / Eq / PartialEq / Ord / PartialOrd / Hash
 
-The `bitfield` macro can generate a `Debug` implementation for you which prints
-the `Debug` implementation of the inner fields. You can do this using the `debug`
-specifier:
+The `bitfield` macro can generate implementations of a few core traits for you.
+You can do this using the specifiers from the following table:
+
+| Trait        | Specifier     | Description                                                              |
+|--------------|---------------|--------------------------------------------------------------------------|
+| `Debug`      | `debug`       | Prints the `Debug` implementation of all fields.                         |
+| `Eq`         | `eq`          |                                                                          |
+| `PartialEq`  | `partial_eq`  | Unused bits are ignored.                                                 |
+| `Ord`        | `ord`         | Uses the `Ord` implementation of all fields in declaration order.        |
+| `PartialOrd` | `partial_ord` | Uses the `PartialOrd` implementation of all fields in declaration order. |
+| `Hash`       | `hash`        | Unused bits are ignored.                                                 |
+
+Example:
 
 ```rs
-#[bitfield(u32, debug)]
+#[bitfield(u32, debug, eq, partial_eq, ord, partial_ord, hash)]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
     lspi: u5,

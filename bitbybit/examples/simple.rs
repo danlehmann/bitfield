@@ -1,7 +1,7 @@
 use arbitrary_int::u4;
 use bitbybit::bitfield;
 
-#[bitfield(u32, debug)]
+#[bitfield(u32, debug, eq, partial_eq, ord, partial_ord, hash)]
 pub struct BitfieldU32 {
     #[bits(28..=31, rw)]
     val3: u4,
