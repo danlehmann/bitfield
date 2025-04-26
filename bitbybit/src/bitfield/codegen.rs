@@ -389,13 +389,9 @@ pub fn make_builder(
                 if ranges_have_self_overlap(&field_definition.ranges, array_stride, array_count) {
                     return (quote! {}, Vec::new());
                 }
-                let mut mask = 0;
+                let mask = super::used_bits_mask_for_field(field_definition);
                 let mut array_setters = Vec::with_capacity(array_count);
                 for i in 0..array_count {
-                    mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | (((1u128 << range.len()) - 1) << (range.start + i * array_stride))
-                    });
-
                     array_setters.push(quote! { .#with_name(#i, value[#i]) });
                 }
                 let value_transform = quote!(self.0 #( #array_setters )*);
@@ -403,24 +399,12 @@ pub fn make_builder(
 
                 (mask, value_transform, array_type)
             } else {
-                let mask = if field_definition.ranges.len() == 1 {
-                    if field_definition.ranges[0].len() == 128 {
-                        u128::MAX
-                    } else {
-                        ((1u128 << field_definition.ranges[0].len()) - 1)
-                            << (field_definition.ranges[0].start)
-                    }
-                } else {
-                    if ranges_have_self_overlap(&field_definition.ranges, 0, 0) {
-                        return (quote! {}, Vec::new());
-                    }
-                    field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | (((1u128 << range.len()) - 1) << (range.start))
-                    })
-                };
+                if ranges_have_self_overlap(&field_definition.ranges, 0, 0) {
+                    return (quote! {}, Vec::new());
+                }
 
                 (
-                    mask,
+                    super::used_bits_mask_for_field(field_definition),
                     quote! { self.0.#with_name(value)},
                     quote! { #setter_type },
                 )

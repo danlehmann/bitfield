@@ -1,11 +1,11 @@
 mod codegen;
+mod codegen_traits;
 mod parsing;
 
 use proc_macro::Span;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::TokenStreamExt;
 use quote::{quote, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
@@ -95,6 +95,11 @@ struct BitfieldAttributes {
     pub base_type: Option<Ident>,
     pub default_val: Option<DefaultVal>,
     pub debug_trait: bool,
+    pub eq_trait: bool,
+    pub partial_eq_trait: bool,
+    pub ord_trait: bool,
+    pub partial_ord_trait: bool,
+    pub hash_trait: bool,
 }
 
 impl BitfieldAttributes {
@@ -127,6 +132,26 @@ impl BitfieldAttributes {
         }
         if meta.path.is_ident("debug") {
             self.debug_trait = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("eq") {
+            self.eq_trait = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("partial_eq") {
+            self.partial_eq_trait = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("ord") {
+            self.ord_trait = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("partial_ord") {
+            self.partial_ord_trait = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("hash") {
+            self.hash_trait = true;
             return Ok(());
         }
         Ok(())
@@ -234,27 +259,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         (quote! {}, quote! {})
     };
 
-    let mut debug_trait = TokenStream2::new();
-    if bitfield_attrs.debug_trait {
-        let debug_fields: Vec<TokenStream2> = field_definitions
-            .iter()
-            .map(|field| {
-                let field_name = &field.field_name;
-                quote! {
-                    .field(stringify!(#field_name), &self.#field_name())
-                }
-            })
-            .collect();
-        debug_trait.append_all(quote! {
-            impl ::core::fmt::Debug for #struct_name {
-                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    f.debug_struct(stringify!(#struct_name))
-                        #(#debug_fields)*
-                        .finish()
-                }
-            }
-        });
-    }
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
         bitfield_attrs.default_val.is_some(),
@@ -293,6 +297,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         zero
     );
 
+    let traits = codegen_traits::generate(&struct_name, &bitfield_attrs, &field_definitions);
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -322,7 +328,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #( #accessors )*
         }
         #default_trait
-        #debug_trait
+        #( #traits )*
         #( #new_with_builder_chain )*
     };
     //println!("Expanded: {}", expanded.to_string());
@@ -357,6 +363,43 @@ fn setter_name(field_name: &Ident) -> Ident {
 
     syn::parse_str::<Ident>(format!("set_{}", field_name_without_prefix).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+}
+
+fn used_bits_mask_for_struct(field_definitions: &[FieldDefinition]) -> u128 {
+    field_definitions
+        .iter()
+        .map(used_bits_mask_for_field)
+        .fold(0u128, |a, b| a | b)
+}
+
+fn used_bits_mask_for_field(field_definition: &FieldDefinition) -> u128 {
+    if let Some(array) = field_definition.array {
+        let array_count = array.0;
+        let array_stride = array.1;
+        let mut mask = 0;
+        for i in 0..array_count {
+            mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
+                a | (((1u128 << range.len()) - 1) << (range.start + i * array_stride))
+            });
+        }
+
+        mask
+    } else {
+        let mask = if field_definition.ranges.len() == 1 {
+            if field_definition.ranges[0].len() == 128 {
+                u128::MAX
+            } else {
+                ((1u128 << field_definition.ranges[0].len()) - 1)
+                    << (field_definition.ranges[0].start)
+            }
+        } else {
+            field_definition.ranges.iter().fold(0u128, |a, range| {
+                a | (((1u128 << range.len()) - 1) << (range.start))
+            })
+        };
+
+        mask
+    }
 }
 
 struct FieldDefinition {

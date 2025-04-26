@@ -1,9 +1,10 @@
 use arbitrary_int::Number;
-use std::fmt::Debug;
-
 use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
 use bitbybit::bitenum;
 use bitbybit::bitfield;
+use std::cmp::Ordering;
+use std::fmt::Debug;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[test]
 fn test_construction() {
@@ -1677,4 +1678,225 @@ fn test_debug_impl() {
     let test = Test::new_with_raw_value(0x1F2F);
     let display_str = format!("{:?}", test);
     assert_eq!(display_str, "Test { upper: 31, lower: 47 }");
+}
+
+#[test]
+fn test_eq_impl() {
+    #[bitfield(u16, eq, partial_eq)]
+    struct Test {
+        #[bits(12..=15, rw)]
+        upper: u4,
+
+        #[bits(0..=3, rw)]
+        lower: u4,
+    }
+    fn assert_impl(_: impl Eq) {}
+    assert_impl(Test::new_with_raw_value(0x1F2F));
+}
+
+#[test]
+fn test_partial_eq_impl() {
+    #[bitfield(u16, debug, partial_eq)]
+    struct Test {
+        #[bits(12..=15, rw)]
+        upper: u4,
+
+        #[bits(0..=3, rw)]
+        lower: u4,
+    }
+    let a = Test::new_with_raw_value(0b0101_0101_0101_0101);
+    let b = Test::new_with_raw_value(0b0101_1010_1010_0101);
+    let c = Test::new_with_raw_value(0b1010_0101_0101_1010);
+    assert_eq!(a, b);
+    assert_ne!(a, c);
+}
+
+#[test]
+fn test_ord_impl() {
+    #[bitfield(u16, default = 0, eq, partial_eq, ord, partial_ord)]
+    struct Test {
+        #[bits(0..=7, rw)]
+        lower: u8,
+
+        #[bits(8..=15, rw)]
+        upper: u8,
+    }
+
+    fn create(lower: u8, upper: u8) -> Test {
+        Test::builder().with_lower(lower).with_upper(upper).build()
+    }
+
+    let a = create(8, 1);
+    let b = create(8, 2);
+    let c = create(8, 3);
+    assert_eq!(Ordering::Less, b.cmp(&c));
+    assert_eq!(Ordering::Equal, b.cmp(&b));
+    assert_eq!(Ordering::Greater, b.cmp(&a));
+
+    let a = create(7, 2);
+    let b = create(8, 2);
+    let c = create(9, 2);
+    assert_eq!(Ordering::Less, b.cmp(&c));
+    assert_eq!(Ordering::Equal, b.cmp(&b));
+    assert_eq!(Ordering::Greater, b.cmp(&a));
+
+    let a = create(7, 3);
+    let b = create(8, 2);
+    let c = create(9, 1);
+    assert_eq!(Ordering::Less, b.cmp(&c));
+    assert_eq!(Ordering::Equal, b.cmp(&b));
+    assert_eq!(Ordering::Greater, b.cmp(&a));
+}
+
+#[test]
+fn test_partial_ord_impl() {
+    #[bitfield(u8, default = 0)]
+    struct PartialOrdWrapper {
+        #[bits(0..=7, rw)]
+        inner: u8,
+    }
+
+    impl PartialEq<Self> for PartialOrdWrapper {
+        fn eq(&self, other: &Self) -> bool {
+            self.partial_cmp(other) == Some(Ordering::Equal)
+        }
+    }
+    impl PartialOrd for PartialOrdWrapper {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            if self.inner() == 0 || other.inner() == 0 {
+                None
+            } else {
+                Some(self.inner().cmp(&other.inner()))
+            }
+        }
+    }
+
+    #[bitfield(u16, default = 0, partial_eq, partial_ord)]
+    struct Test {
+        #[bits(0..=7, rw)]
+        lower: PartialOrdWrapper,
+
+        #[bits(8..=15, rw)]
+        upper: PartialOrdWrapper,
+    }
+
+    fn create(lower: u8, upper: u8) -> Test {
+        Test::builder()
+            .with_lower(PartialOrdWrapper::builder().with_inner(lower).build())
+            .with_upper(PartialOrdWrapper::builder().with_inner(upper).build())
+            .build()
+    }
+
+    let a = create(8, 1);
+    let b = create(8, 2);
+    let c = create(8, 3);
+    assert_eq!(Some(Ordering::Less), b.partial_cmp(&c));
+    assert_eq!(Some(Ordering::Equal), b.partial_cmp(&b));
+    assert_eq!(Some(Ordering::Greater), b.partial_cmp(&a));
+
+    let a = create(7, 2);
+    let b = create(8, 2);
+    let c = create(9, 2);
+    assert_eq!(Some(Ordering::Less), b.partial_cmp(&c));
+    assert_eq!(Some(Ordering::Equal), b.partial_cmp(&b));
+    assert_eq!(Some(Ordering::Greater), b.partial_cmp(&a));
+
+    let a = create(7, 3);
+    let b = create(8, 2);
+    let c = create(9, 1);
+    assert_eq!(Some(Ordering::Less), b.partial_cmp(&c));
+    assert_eq!(Some(Ordering::Equal), b.partial_cmp(&b));
+    assert_eq!(Some(Ordering::Greater), b.partial_cmp(&a));
+
+    let a = create(0, 1);
+    let b = create(0, 2);
+    let c = create(0, 3);
+    assert_eq!(None, b.partial_cmp(&c));
+    assert_eq!(None, b.partial_cmp(&b));
+    assert_eq!(None, b.partial_cmp(&a));
+
+    let a = create(7, 0);
+    let b = create(8, 0);
+    let c = create(9, 0);
+    assert_eq!(Some(Ordering::Less), b.partial_cmp(&c));
+    assert_eq!(None, b.partial_cmp(&b));
+    assert_eq!(Some(Ordering::Greater), b.partial_cmp(&a));
+}
+
+#[test]
+fn test_hash_impl() {
+    #[bitfield(u16, debug, hash)]
+    struct Test {
+        #[bits(12..=15, rw)]
+        upper: u4,
+
+        #[bits(0..=3, rw)]
+        lower: u4,
+    }
+
+    fn hash(value: Test) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        value.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    let a = Test::new_with_raw_value(0b0101_0101_0101_0101);
+    let b = Test::new_with_raw_value(0b0101_1010_1010_0101);
+    let c = Test::new_with_raw_value(0b1010_0101_0101_1010);
+    assert_eq!(hash(a), hash(b));
+    assert_ne!(hash(a), hash(c));
+}
+
+#[test]
+fn test_eq_ord_consistency_with_enum_nonexhaustive() {
+    #[bitenum(u2, exhaustive = false)]
+    #[derive(Eq, PartialEq, Ord, PartialOrd, Debug)]
+    pub enum NonExhaustiveEnum {
+        One = 0b01,
+        Two = 0b10,
+    }
+
+    #[bitfield(u64, default = 0, debug, eq, partial_eq, ord, partial_ord)]
+    pub struct BitfieldWithEnumNonExhaustive {
+        #[bits(2..=3, rw)]
+        e2: Option<NonExhaustiveEnum>,
+    }
+
+    fn assert(
+        expected: Ordering,
+        a: BitfieldWithEnumNonExhaustive,
+        b: BitfieldWithEnumNonExhaustive,
+    ) {
+        assert_eq!(expected, a.cmp(&b), "{:?}.cmp({:?})", a, b);
+        assert_eq!(Some(expected), a.partial_cmp(&b), "{:?}.partial_cmp({:?})", a, b);
+
+        if expected == Ordering::Equal {
+            assert_eq!(a, b, "{:?}.eq({:?})", a, b);
+        } else {
+            assert_ne!(a, b, "{:?}.ne({:?})", a, b);
+        }
+    }
+
+    let zero = BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0010);
+    let one = BitfieldWithEnumNonExhaustive::new_with_raw_value(0b0110);
+    let two = BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1010);
+    let three = BitfieldWithEnumNonExhaustive::new_with_raw_value(0b1110);
+
+    // From Result.cmp(): Ok(One) < Ok(Two) < Err(0) < Err(3)
+    assert(Ordering::Equal, zero, zero);
+    assert(Ordering::Greater, zero, one);
+    assert(Ordering::Greater, zero, two);
+    assert(Ordering::Less, zero, three);
+    assert(Ordering::Less, one, zero);
+    assert(Ordering::Equal, one, one);
+    assert(Ordering::Less, one, two);
+    assert(Ordering::Less, one, three);
+    assert(Ordering::Less, two, zero);
+    assert(Ordering::Greater, two, one);
+    assert(Ordering::Equal, two, two);
+    assert(Ordering::Less, two, three);
+    assert(Ordering::Greater, three, zero);
+    assert(Ordering::Greater, three, one);
+    assert(Ordering::Greater, three, two);
+    assert(Ordering::Equal, three, three);
 }
