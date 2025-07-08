@@ -210,6 +210,43 @@ struct GICD_TYPER {
 }
 ```
 
+## Introspection
+
+If information like bit offsets or mask values are needed at runtime, use the `introspect` specifier:
+
+```rs
+    #[bitfield(u32, introspect)]
+    struct Bitfield {
+        #[bits(0..=7)]
+        a: u8,
+        #[bits(8..=15)]
+        b: [u8; 2],
+        #[bits([24..=25, 30..=31])]
+        c: u4,
+        #[bit(29)]
+        d: bool,
+    }
+
+    // <NAME>_BITS exposes the "bits" value(s):
+    assert_eq!(Bitfield::A_BITS, 0..=7);
+    assert_eq!(Bitfield::B_BITS, 8..=15);
+    assert_eq!(Bitfield::C_BITS, [24..=25, 30..=31]);
+    assert_eq!(Bitfield::D_BITS, 29..=29);
+
+    // Arrays also have <NAME>_COUNT and <NAME>_STRIDE
+    assert_eq!(Bitfield::B_COUNT, 2);
+    assert_eq!(Bitfield::B_STRIDE, 8);
+
+    // <name>_mask() returns a mask for the field
+    assert_eq!(Bitfield::a_mask(), 0x000000FF);
+    assert_eq!(Bitfield::b_mask(0), 0x0000FF00);
+    assert_eq!(Bitfield::b_mask(1), 0x00FF0000);
+    assert_eq!(Bitfield::c_mask(), 0xC3000000);
+    assert_eq!(Bitfield::d_mask(), 0x20000000);
+```
+
+This functionality can be enabled for all bitfields by enabling the `introspect` feature.
+
 ## Dependencies
 
 Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
