@@ -141,7 +141,7 @@ impl BitfieldAttributes {
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut bitfield_attrs = BitfieldAttributes::default();
     if cfg!(feature = "introspect") {
-        bitfield_attrs.introspect = true
+        bitfield_attrs.introspect = true;
     }
     let mut index = 0;
     let bitfield_parser = syn::meta::parser(|meta| {
