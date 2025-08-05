@@ -1691,6 +1691,8 @@ fn introspection() {
         c: u4,
         #[bit(29)]
         d: bool,
+        #[bit(30)]
+        r#ref: [bool; 2],
     }
 
     // <NAME>_BITS exposes the "bits" value(s):
@@ -1698,10 +1700,13 @@ fn introspection() {
     assert_eq!(Bitfield::B_BITS, 8..=15);
     assert_eq!(Bitfield::C_BITS, [24..=25, 30..=31]);
     assert_eq!(Bitfield::D_BITS, 29..=29);
+    assert_eq!(Bitfield::REF_BITS, 30..=30);
 
     // Arrays also have <NAME>_COUNT and <NAME>_STRIDE
     assert_eq!(Bitfield::B_COUNT, 2);
     assert_eq!(Bitfield::B_STRIDE, 8);
+    assert_eq!(Bitfield::REF_COUNT, 2);
+    assert_eq!(Bitfield::REF_STRIDE, 1);
 
     // <name>_mask() returns a mask for the field
     assert_eq!(Bitfield::a_mask(), 0x000000FF);
@@ -1709,4 +1714,6 @@ fn introspection() {
     assert_eq!(Bitfield::b_mask(1), 0x00FF0000);
     assert_eq!(Bitfield::c_mask(), 0xC3000000);
     assert_eq!(Bitfield::d_mask(), 0x20000000);
+    assert_eq!(Bitfield::ref_mask(0), 0x40000000);
+    assert_eq!(Bitfield::ref_mask(1), 0x80000000);
 }
