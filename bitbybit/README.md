@@ -266,7 +266,7 @@ you can use `defmt_bitfields(feature = "defmt")` or `defmt_fields(feature = "def
 Example:
 
 ```rs
-#[bitfield(u32, defmt_bitfields(feature = "defmt")]
+#[bitfield(u32, defmt_bitfields(feature = "defmt"))]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
     lspi: u5,
