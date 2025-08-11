@@ -44,7 +44,8 @@ fn try_parse_arbitrary_int_type(s: &str) -> Option<usize> {
 // If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
 enum CustomType {
     No,
-    Yes(Type),
+    /// Boxed because this is a relatively large type.
+    Yes(Box<Type>),
 }
 
 #[derive(Copy, Clone)]
@@ -131,13 +132,13 @@ impl BitfieldAttributes {
                 ));
             }
             let lit_int: Result<LitInt, syn::Error> = stream.parse();
-            if lit_int.is_ok() {
-                self.default_val = Some(DefaultVal::Lit(lit_int.unwrap()));
+            if let Ok(lit_int) = lit_int {
+                self.default_val = Some(DefaultVal::Lit(lit_int));
                 return Ok(());
             }
             let path: Result<Ident, syn::Error> = stream.parse();
-            if path.is_ok() {
-                self.default_val = Some(DefaultVal::Constant(path.unwrap()));
+            if let Ok(path) = path {
+                self.default_val = Some(DefaultVal::Constant(path));
                 return Ok(());
             }
             return Ok(());
@@ -331,18 +332,35 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 let format_string = {
                     let labels_result: Result<Vec<_>, syn::Error> = field_definitions
                         .iter()
-                        .map(|field| {
-                            if field.ranges.len() != 1 {
-                                return Err(syn::Error::new(
-                                    field.field_name.span(),
-                                    "defmt_bitfields currently only supports single ranges",
-                                ));
+                        .map(|field| match field.ranges.len() {
+                            0 => Err(syn::Error::new(
+                                field.field_name.span(),
+                                "defmt_bitfields detected fields without a range",
+                            )),
+                            1 => {
+                                let range = field.ranges.first().unwrap();
+                                Ok(format!(
+                                    "{}: {{0={}..{}}}",
+                                    field.field_name, range.start, range.end
+                                ))
                             }
-                            let range = field.ranges.first().unwrap();
-                            Ok(format!(
-                                "{}: {{0={}..{}}}",
-                                field.field_name, range.start, range.end
-                            ))
+                            _ => {
+                                let items = field
+                                    .ranges
+                                    .iter()
+                                    .map(|r| {
+                                        format!(
+                                            "{{0={}..{}}} ({}..={})",
+                                            r.start,
+                                            r.end,
+                                            r.start,
+                                            r.end - 1
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                Ok(format!("{}: {}", field.field_name, items))
+                            }
                         })
                         .collect();
                     if let Err(e) = labels_result {

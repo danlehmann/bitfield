@@ -1718,6 +1718,7 @@ fn introspection() {
     assert_eq!(Bitfield::ref_mask(1), 0x80000000);
 }
 
+#[test]
 fn test_defmt_impl_fields() {
     #[bitfield(u16, defmt_fields)]
     struct Test {

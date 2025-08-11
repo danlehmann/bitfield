@@ -1,5 +1,16 @@
 # Changelog
 
+## unreleased
+
+### Added
+
+- Added `defmt` support by providing two bitfield macro arguments: `defmt_bitfields` and
+  `defmt_fields` which generate `defmt` implementations for the bitfield.
+  `defmt_bitfields` supports the efficient [bitfield](https://defmt.ferrous-systems.com/bitfields)
+  feature provided by `defmt`, while the `defmt_fields` attribute simply forwards to the `defmt`
+  implementations of the inner fields. These attribute macros arguments allow specifying a feature
+  gate as well.
+
 ## bitbybit 1.4.0
 
 ### Added

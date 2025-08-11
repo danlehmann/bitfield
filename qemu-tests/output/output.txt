@@ -1,7 +1,8 @@
 ELF_BINARY=target/thumbv7em-none-eabihf/debug/qemu-tests
 Running on '-cpu cortex-m4 -machine mps2-an386'...
 ------------------------------------------------------------------------
-Hello, world!
-[INFO ] Bitfields: TestBitfields { number: 16, boolean: 1, enumeration: 0 } (src/main.rs:54)
-[INFO ] Fields: TestFields { number: 12, boolean: true, enumeration: C } (src/main.rs:55)
+bitbybit defmt test
+[INFO ] Bitfields: TestBitfields { number: 16, boolean: 1, enumeration: 0 } (src/main.rs:67)
+[INFO ] Fields: TestFields { number: 12, boolean: true, enumeration: C } (src/main.rs:68)
+[INFO ] MultiRangeBitfield: MultiRangeBitfield { field_in_between: 10, split_field: 10 (0..=3), 12 (8..=11) } (src/main.rs:69)
 ------------------------------------------------------------------------

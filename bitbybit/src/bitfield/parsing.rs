@@ -106,7 +106,7 @@ fn parse_enumeration(ty: &Type, primitive_type: &TokenStream2) -> Result<(Custom
     };
 
     Ok((
-        CustomType::Yes(inner_type.clone()),
+        CustomType::Yes(Box::new(inner_type.clone())),
         result_type,
         inner_type.clone(),
     ))

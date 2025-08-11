@@ -25,7 +25,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: "thumbv7em-none-eabihf"
-      - run: cargo build --manifest-path ./qemu-tests/Cargo.toml --target thumbv7em-none-eabihf
+      # I'd prefer --manifest-path ./qemu-tests/Cargo.toml, but I think this ignores
+      # the .cargo/config.toml file inside the QEMU test folder.
+      - run: cd qemu-tests && cargo build --target thumbv7em-none-eabihf
 
   # Run some programs in QEMU 9
   qemu-test:

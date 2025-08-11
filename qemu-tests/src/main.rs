@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use arbitrary_int::u5;
+use arbitrary_int::{u12, u4, u5};
 use defmt_semihosting as _;
 use qemu_tests as _;
 
@@ -37,9 +37,17 @@ struct TestFields {
     enumeration: TestEnum,
 }
 
+#[bitbybit::bitfield(u32, default = 0x0, defmt_bitfields)]
+struct MultiRangeBitfield {
+    #[bits(4..=7, rw)]
+    field_in_between: u4,
+    #[bits([0..=3, 8..=11], rw)]
+    split_field: u8,
+}
+
 #[cortex_m_rt::entry]
 fn main() -> ! {
-    defmt::println!("Hello, world!");
+    defmt::println!("bitbybit defmt test");
     let bitfield_register = TestBitfields::builder()
         .with_number(u5::new(16))
         .with_boolean(true)
@@ -51,8 +59,14 @@ fn main() -> ! {
         .with_boolean(true)
         .with_enumeration(TestEnum::C)
         .build();
+
+    let multi_range_bitfield = MultiRangeBitfield::builder()
+        .with_field_in_between(u4::new(0b1010))
+        .with_split_field(0b11001010)
+        .build();
     defmt::info!("Bitfields: {}", bitfield_register);
     defmt::info!("Fields: {}", fields_register);
+    defmt::info!("MultiRangeBitfield: {}", multi_range_bitfield);
     loop {
         cortex_m_semihosting::debug::exit(cortex_m_semihosting::debug::EXIT_SUCCESS);
     }
