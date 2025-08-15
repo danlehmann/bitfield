@@ -2,6 +2,11 @@
 
 ## bitbybit 1.4.0
 
+### Added
+
+- `*_mask()`, as well as `*_BITS`, `*_COUNT`, and `*_STRIDE` constants for fields that provide some information on a
+  field's structure. Enable with the `introspect` attribute on a struct, or globally with the `introspect` feature.
+
 ### Fixed
 
 - Allow qualified paths for `arbitrary_int` fields as well es (optional) `bitenum` fields.

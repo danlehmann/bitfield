@@ -95,6 +95,7 @@ struct BitfieldAttributes {
     pub base_type: Option<Ident>,
     pub default_val: Option<DefaultVal>,
     pub debug_trait: bool,
+    pub introspect: bool,
 }
 
 impl BitfieldAttributes {
@@ -129,12 +130,19 @@ impl BitfieldAttributes {
             self.debug_trait = true;
             return Ok(());
         }
+        if meta.path.is_ident("introspect") {
+            self.introspect = true;
+            return Ok(());
+        }
         Ok(())
     }
 }
 
 pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let mut bitfield_attrs = BitfieldAttributes::default();
+    if cfg!(feature = "introspect") {
+        bitfield_attrs.introspect = true;
+    }
     let mut index = 0;
     let bitfield_parser = syn::meta::parser(|meta| {
         let result = bitfield_attrs.parse(meta, index);
@@ -189,7 +197,12 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         Ok(definitions) => definitions,
         Err(token_stream) => return token_stream.into_compile_error().into(),
     };
-    let accessors = codegen::generate(&field_definitions, base_data_size, &internal_base_data_type);
+    let accessors = codegen::generate(
+        &field_definitions,
+        base_data_size,
+        &internal_base_data_type,
+        bitfield_attrs.introspect,
+    );
 
     let (default_constructor, default_trait) = if let Some(default_value) =
         &bitfield_attrs.default_val
@@ -357,6 +370,40 @@ fn setter_name(field_name: &Ident) -> Ident {
 
     syn::parse_str::<Ident>(format!("set_{}", field_name_without_prefix).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+}
+
+fn mask_name(field_name: &Ident) -> Ident {
+    // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
+    let field_name_without_prefix = {
+        let s = field_name.to_string();
+        if let Some(s) = s.strip_prefix("r#") {
+            s.to_string()
+        } else {
+            s
+        }
+    };
+
+    syn::parse_str::<Ident>(&format!("{field_name_without_prefix}_mask"))
+        .unwrap_or_else(|_| panic!("bitfield!: Error creating mask name"))
+}
+
+fn const_name(field_name: &Ident, suffix: &str) -> Ident {
+    // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
+    let field_name_without_prefix = {
+        let s = field_name.to_string();
+        if let Some(s) = s.strip_prefix("r#") {
+            s.to_string()
+        } else {
+            s
+        }
+    };
+
+    let name = format!("{field_name_without_prefix}_{suffix}")
+        .to_uppercase()
+        .to_string();
+
+    syn::parse_str::<Ident>(&name)
+        .unwrap_or_else(|_| panic!("bitfield!: Error creating {name} name"))
 }
 
 struct FieldDefinition {

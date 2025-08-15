@@ -1,5 +1,6 @@
 use crate::bitfield::{
-    setter_name, with_name, BaseDataSize, CustomType, FieldDefinition, BITCOUNT_BOOL,
+    const_name, mask_name, setter_name, with_name, BaseDataSize, CustomType, FieldDefinition,
+    BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::quote;
@@ -14,10 +15,12 @@ use syn::{LitInt, Type, Visibility};
 /// * `base_data_size` - The size of the bitfield (e.g. u32 for bitfield(u32))
 /// * `internal_base_data_type` - A [`syn::ty::Type`] that represents the same base data type as
 ///   passed in via `base_data_size.internal`. This is a redundant argument to avoid recreating it.
+/// * `introspect` - Whether to generate introspection constants
 pub fn generate(
     field_definitions: &[FieldDefinition],
     base_data_size: BaseDataSize,
     internal_base_data_type: &Type,
+    introspect: bool,
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
@@ -25,6 +28,60 @@ pub fn generate(
         let total_number_bits = field_definition.ranges.iter().fold(0, |a, b| a + b.len());
         let field_name = &field_definition.field_name;
         let doc_comment = &field_definition.doc_comment;
+
+        let introspect = if introspect {
+            let bits_name = const_name(field_name, "BITS");
+            let ranges_len = field_definition.ranges.len();
+
+            let bits = if ranges_len == 1 {
+                let start = field_definition.ranges[0].start;
+                let end = field_definition.ranges[0].end-1;
+                quote! {
+                    #(#doc_comment)*
+                    const #bits_name: core::ops::RangeInclusive<usize> = #start..=#end;
+                }
+            } else {
+                let range_starts = field_definition.ranges.iter().map(|r| r.start);
+                let range_ends = field_definition.ranges.iter().map(|r| r.end-1);
+                quote! {
+                    #(#doc_comment)*
+                    const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] = [#(#range_starts..=#range_ends),*];
+                }
+            };
+
+            let mask_name = mask_name(field_name);
+            let mask = setter_mask(&one, field_definition);
+
+            if let Some((count, stride)) = field_definition.array {
+                let count_name = const_name(field_name, "COUNT");
+                let stride_name = const_name(field_name, "STRIDE");
+                quote! {
+                    #bits
+                    #(#doc_comment)*
+                    const #count_name: usize = #count;
+                    #(#doc_comment)*
+                    const #stride_name: usize = #stride;
+                    #(#doc_comment)*
+                    #[inline]
+                    pub const fn #mask_name(index: usize) -> #internal_base_data_type {
+                        assert!(index < #count);
+                        (#mask) << (index * #stride)
+                    }
+                }
+            } else {
+                quote! {
+                    #bits
+                    #(#doc_comment)*
+                    #[inline]
+                    pub const fn #mask_name() -> #internal_base_data_type {
+                        #mask
+                    }
+                }
+            }
+        } else {
+            quote! {}
+        };
+
         let getter =
             if let Some(getter_type) = field_definition.getter_type.as_ref() {
                 // Main work: Shift and mask the bits into extracted_bits
@@ -135,6 +192,7 @@ pub fn generate(
         };
 
         quote! {
+            #introspect
             #getter
             #setter
         }

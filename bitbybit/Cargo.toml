@@ -14,6 +14,7 @@ categories = ["embedded", "no-std", "data-structures"]
 proc-macro = true
 
 [features]
+introspect = []
 
 [dependencies]
 syn = { version = "2.0", features = ["full"] }
