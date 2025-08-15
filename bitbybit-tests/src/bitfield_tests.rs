@@ -93,6 +93,35 @@ fn test_getter_and_with_arbitrary_uint() {
 }
 
 #[test]
+fn test_nested() {
+    #[bitfield(u2, default = 0)]
+    struct Inner {
+        #[bit(0, rw)]
+        bit0: bool,
+
+        #[bit(1, rw)]
+        bit1: bool,
+    }
+
+    #[bitfield(u32, default = 0)]
+    struct Outer {
+        #[bits(0..=1, rw)]
+        inner1: Inner,
+
+        #[bits(2..=3, rw)]
+        inner2: Inner,
+    }
+
+    let t = Outer::ZERO
+        .with_inner1(Inner::ZERO.with_bit0(false).with_bit1(true))
+        .with_inner2(Inner::ZERO.with_bit0(true).with_bit1(false));
+    assert!(!t.inner1().bit0());
+    assert!(t.inner1().bit1());
+    assert!(t.inner2().bit0());
+    assert!(!t.inner2().bit1());
+}
+
+#[test]
 fn test_bool() {
     #[bitfield(u16, default = 0)]
     struct Test {
