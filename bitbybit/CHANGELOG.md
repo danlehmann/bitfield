@@ -11,6 +11,7 @@
 
 - Allow qualified paths for `arbitrary_int` fields as well es (optional) `bitenum` fields.
 - Fix the build for users that `#[deny(missing_docs)]`
+- Moved LICENSE into the macro library's code so that it's available when distributed over crates.io
 
 ## bitbybit 1.3.3
 
