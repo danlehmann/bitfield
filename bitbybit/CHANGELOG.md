@@ -1,11 +1,19 @@
 # Changelog
 
+## unreleased
+
 ## bitbybit 1.4.0
 
 ### Added
 
 - `*_mask()`, as well as `*_BITS`, `*_COUNT`, and `*_STRIDE` constants for fields that provide some information on a
   field's structure. Enable with the `introspect` attribute on a struct, or globally with the `introspect` feature.
+- Added `defmt` support by providing two bitfield macro arguments: `defmt_bitfields` and
+  `defmt_fields` which generate `defmt` implementations for the bitfield.
+  `defmt_bitfields` supports the efficient [bitfield](https://defmt.ferrous-systems.com/bitfields)
+  feature provided by `defmt`, while the `defmt_fields` attribute simply forwards to the `defmt`
+  implementations of the inner fields. These attribute macros arguments allow specifying a feature
+  gate as well.
 
 ### Fixed
 

@@ -1,7 +1,0 @@
-[package]
-name = "test-no-std"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-bitbybit = { path = "../bitbybit" }
