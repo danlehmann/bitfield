@@ -1,3 +1,4 @@
+use arbitrary_int::u6;
 use arbitrary_int::Number;
 use std::fmt::Debug;
 
@@ -1744,8 +1745,33 @@ fn test_defmt_impl_bitfields() {
     }
     let test = Test::new_with_raw_value(0x1F2F);
     defmt_impl_check(&test);
-    // I'd like to test the actual printout/impl, but I do not know how to do this on a host PC
-    // yet..
+}
+
+#[test]
+fn test_defmt_impl_bitfields_on_arbitrary_int_fields_u8_primitive_val() {
+    #[bitfield(u6, defmt_bitfields)]
+    struct Test {
+        #[bits(3..=5, rw)]
+        upper: u3,
+
+        #[bits(0..=2, rw)]
+        lower: u3,
+    }
+    let test = Test::new_with_raw_value(u6::new(0b101010));
+    defmt_impl_check(&test);
+}
+
+#[test]
+fn test_defmt_impl_bitfields_on_arbitrary_int_fields_u16_primitive_val() {
+    #[bitfield(u14, defmt_bitfields)]
+    struct Test {
+        #[bits(0..=6, rw)]
+        upper: u7,
+        #[bits(7..=13, rw)]
+        lower: u7,
+    }
+    let test = Test::new_with_raw_value(u14::new(0b100101_10101010));
+    defmt_impl_check(&test);
 }
 
 #[test]
@@ -1761,8 +1787,6 @@ fn test_defmt_impl_bitfield_feature_gated() {
     }
     let test = Test::new_with_raw_value(0x1F2F);
     defmt_impl_check(&test);
-    // I'd like to test the actual printout/impl, but I do not know how to do this on a host PC
-    // yet..
 }
 
 pub fn defmt_impl_check<T: defmt::Format>(_: &T) {}

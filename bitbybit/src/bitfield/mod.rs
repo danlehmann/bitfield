@@ -41,13 +41,32 @@ fn try_parse_arbitrary_int_type(s: &str) -> Option<usize> {
     }
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+struct FieldDefinition {
+    field_name: Ident,
+    ranges: Vec<Range<usize>>,
+    unsigned_field_type: Option<Type>,
+    array: Option<(usize, usize)>,
+    field_type_size: usize,
+    getter_type: Option<Type>,
+    setter_type: Option<Type>,
+    field_type_size_from_data_type: Option<usize>,
+    /// If non-null: (count, stride)
+    use_regular_int: bool,
+    primitive_type: TokenStream2,
+    custom_type: CustomType,
+    doc_comment: Vec<Attribute>,
+}
+
 // If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 enum CustomType {
     No,
     /// Boxed because this is a relatively large type.
     Yes(Box<Type>),
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 #[derive(Copy, Clone)]
 struct BaseDataSize {
     /// The size of the raw_value field, e.g. u32
@@ -318,101 +337,13 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         });
     }
-    let mut defmt_trait = TokenStream2::new();
 
-    if let Some(defmt_format) = bitfield_attrs.defmt_trait {
-        let mut feature_gate = TokenStream2::new();
-        if let Some(feature_gate_str) = defmt_format.feature_gate {
-            feature_gate.extend(quote! {
-                #[cfg(feature = #feature_gate_str)]
-            });
-        }
-        match defmt_format.variant {
-            DefmtVariant::Bitfields => {
-                let format_string = {
-                    let labels_result: Result<Vec<_>, syn::Error> = field_definitions
-                        .iter()
-                        .map(|field| match field.ranges.len() {
-                            0 => Err(syn::Error::new(
-                                field.field_name.span(),
-                                "defmt_bitfields detected fields without a range",
-                            )),
-                            1 => {
-                                let range = field.ranges.first().unwrap();
-                                Ok(format!(
-                                    "{}: {{0={}..{}}}",
-                                    field.field_name, range.start, range.end
-                                ))
-                            }
-                            _ => {
-                                let items = field
-                                    .ranges
-                                    .iter()
-                                    .map(|r| {
-                                        format!(
-                                            "{{0={}..{}}} ({}..={})",
-                                            r.start,
-                                            r.end,
-                                            r.start,
-                                            r.end - 1
-                                        )
-                                    })
-                                    .collect::<Vec<_>>()
-                                    .join(", ");
-                                Ok(format!("{}: {}", field.field_name, items))
-                            }
-                        })
-                        .collect();
-                    if let Err(e) = labels_result {
-                        return e.into_compile_error().into();
-                    }
-                    let labels = labels_result.unwrap().join(", ");
-                    format!("{} {{{{ {} }}}}", struct_name, labels)
-                };
-                defmt_trait.append_all(quote! {
-                    #feature_gate
-                    impl defmt::Format for #struct_name {
-                        fn format(&self, fmt: defmt::Formatter) {
-                            defmt::write!(
-                                fmt,
-                                #format_string,
-                                self.raw_value()
-                            )
-                        }
-                    }
-                });
-            }
-            DefmtVariant::Fields => {
-                let format_string = {
-                    let labels = field_definitions
-                        .iter()
-                        .map(|field| format!("{}: {{}}", field.field_name))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    format!("{} {{{{ {} }}}}", struct_name, labels)
-                };
-                let defmt_fields: Vec<TokenStream2> = field_definitions
-                    .iter()
-                    .map(|field| {
-                        let field_name = &field.field_name;
-                        quote! { self.#field_name(), }
-                    })
-                    .collect();
-                defmt_trait.append_all(quote! {
-                    #feature_gate
-                    impl defmt::Format for #struct_name {
-                        fn format(&self, fmt: defmt::Formatter) {
-                            defmt::write!(
-                                fmt,
-                                #format_string,
-                                #(#defmt_fields)*
-                            )
-                        }
-                    }
-                });
-            }
-        }
-    }
+    let defmt_trait = codegen::generate_defmt_trait_impl(
+        &struct_name,
+        &bitfield_attrs,
+        &field_definitions,
+        base_data_size,
+    );
 
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
@@ -554,20 +485,4 @@ fn const_name(field_name: &Ident, suffix: &str) -> Ident {
 
     syn::parse_str::<Ident>(&name)
         .unwrap_or_else(|_| panic!("bitfield!: Error creating {name} name"))
-}
-
-struct FieldDefinition {
-    field_name: Ident,
-    ranges: Vec<Range<usize>>,
-    unsigned_field_type: Option<Type>,
-    array: Option<(usize, usize)>,
-    field_type_size: usize,
-    getter_type: Option<Type>,
-    setter_type: Option<Type>,
-    field_type_size_from_data_type: Option<usize>,
-    /// If non-null: (count, stride)
-    use_regular_int: bool,
-    primitive_type: TokenStream2,
-    custom_type: CustomType,
-    doc_comment: Vec<Attribute>,
 }
