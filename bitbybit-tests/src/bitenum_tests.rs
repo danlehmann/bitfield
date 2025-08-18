@@ -190,6 +190,26 @@ fn enum_with_64bits() {
 }
 
 #[test]
+fn enum_with_implicit_discriminants() {
+    #[bitenum(u8, exhaustive = false)]
+    #[derive(Eq, PartialEq, Debug)]
+    #[repr(u8)]
+    enum Foo {
+        Zero = 0,
+        One,
+        Two,
+        Four = 4,
+        Five,
+    }
+
+    assert_eq!(Foo::Zero.raw_value(), 0);
+    assert_eq!(Foo::One.raw_value(), 1);
+    assert_eq!(Foo::Two.raw_value(), 2);
+    assert_eq!(Foo::Four.raw_value(), 4);
+    assert_eq!(Foo::Five.raw_value(), 5);
+}
+
+#[test]
 fn documentation() {
     /// This is a comment for the whole enum
     #[bitenum(u2, exhaustive = true)]

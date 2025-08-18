@@ -24,10 +24,6 @@ enum Error<'a> {
         count: u32,
         max_count: u128,
     },
-    MissingDiscriminant {
-        variant: &'a syn::Ident,
-        suggest: u128,
-    },
     NonLitDiscriminant {
         variant: &'a syn::Ident,
         suggest: u128,
@@ -40,28 +36,46 @@ enum Error<'a> {
 impl fmt::Display for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingSize =>
-                write!(f, "Missing the storage type. It must be explicitly declared with #[bitenum(uN)], where N in range 1..=64"),
-            Self::InvalidAttribute =>
-                write!(f, "Invalid attribute. Expected either 'uN' where N in range 1..=64, or 'exhaustive = …'."),
-            Self::InvalidExhaustiveNextToken =>
-                write!(f, "'exhaustive' should be specified as 'exhaustive = …'. Possible values are: true, false, conditional."),
-            Self::InvalidExhaustive =>
-                write!(f, "The specified 'exhaustive' is invalid. Possible values are: true, false, conditional."),
-            Self::NotConditional =>
-                write!(f, "The enum contains at least one variant with a '#[cfg(…)]' attribute. It should be specified as 'exhaustive = conditional'."),
-            Self::NotExhaustive { count, size } =>
-                write!(f, "The enum has {count} variants, it is exhaustive for {size} bits. Either remove variants, use a larger storage type, or mark this enum as 'exhaustive = true'."),
-            Self::Exhaustive { count, max_count } =>
-                write!(f, "The enum has {count} variants, it would need {max_count} variants to be exhaustive. Either add variants, use a smaller storage type, or mark this enum as 'exhaustive = false'."),
-            Self::TooManyVariants { count, max_count } =>
-                write!(f, "The enum has more variants than can be stored in the provided storage type. Either use a larger storage type or reduce the number of variants. Up to {max_count} variants possible, got {count}."),
-            Self::MissingDiscriminant { variant, suggest } =>
-                write!(f, "All variants of a #[bitenum] must have an explicit literal discriminant. Eg: '{variant} = {suggest}'."),
-            Self::NonLitDiscriminant { variant, suggest } =>
-                write!(f, "Discriminants must be literal integers. Eg: '{variant} = {suggest}' '{suggest:#x}' '{suggest:#b}' '{suggest:#o}'."),
-            Self::TooLargeDiscriminant { max_value } =>
-                write!(f, "The largest discriminant value is larger than can be stored in the provided storage type. Max discriminant value is {max_value}."),
+            Self::MissingSize => write!(
+                f,
+                "Missing the storage type. It must be explicitly declared with #[bitenum(uN)], where N in range 1..=64"
+            ),
+            Self::InvalidAttribute => write!(
+                f,
+                "Invalid attribute. Expected either 'uN' where N in range 1..=64, or 'exhaustive = …'."
+            ),
+            Self::InvalidExhaustiveNextToken => write!(
+                f,
+                "'exhaustive' should be specified as 'exhaustive = …'. Possible values are: true, false, conditional."
+            ),
+            Self::InvalidExhaustive => write!(
+                f,
+                "The specified 'exhaustive' is invalid. Possible values are: true, false, conditional."
+            ),
+            Self::NotConditional => write!(
+                f,
+                "The enum contains at least one variant with a '#[cfg(…)]' attribute. It should be specified as 'exhaustive = conditional'."
+            ),
+            Self::NotExhaustive { count, size } => write!(
+                f,
+                "The enum has {count} variants, it is exhaustive for {size} bits. Either remove variants, use a larger storage type, or mark this enum as 'exhaustive = true'."
+            ),
+            Self::Exhaustive { count, max_count } => write!(
+                f,
+                "The enum has {count} variants, it would need {max_count} variants to be exhaustive. Either add variants, use a smaller storage type, or mark this enum as 'exhaustive = false'."
+            ),
+            Self::TooManyVariants { count, max_count } => write!(
+                f,
+                "The enum has more variants than can be stored in the provided storage type. Either use a larger storage type or reduce the number of variants. Up to {max_count} variants possible, got {count}."
+            ),
+            Self::NonLitDiscriminant { variant, suggest } => write!(
+                f,
+                "Discriminants must be literal integers. Eg: '{variant} = {suggest}' '{suggest:#x}' '{suggest:#b}' '{suggest:#o}'."
+            ),
+            Self::TooLargeDiscriminant { max_value } => write!(
+                f,
+                "The largest discriminant value is larger than can be stored in the provided storage type. Max discriminant value is {max_value}."
+            ),
         }
     }
 }
@@ -199,23 +213,24 @@ fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn:
         };
         return Err(syn::Error::new(config.exhaustive.span, err));
     }
-    let (mut max_discr, mut max_discr_span) = (0, Span::call_site());
+    let (mut max_discr, mut next_implicit_discr, mut max_discr_span) = (0, 0, Span::call_site());
     for variant in &input.variants {
-        let Some((_, discriminant)) = variant.discriminant.as_ref() else {
-            let variant = &variant.ident;
-            let suggest = max_discr + 1;
-            let err = Error::MissingDiscriminant { variant, suggest };
-            return Err(syn::Error::new_spanned(variant, err));
+        let (value, discr_span) = match variant.discriminant.as_ref() {
+            None => (next_implicit_discr, variant.ident.span()),
+            Some((_, discriminant)) => {
+                let Some(value) = parse_expr(discriminant) else {
+                    let variant = &variant.ident;
+                    let suggest = max_discr + 1;
+                    let err = Error::NonLitDiscriminant { variant, suggest };
+                    return Err(syn::Error::new_spanned(discriminant, err));
+                };
+                (value, discriminant.__span())
+            }
         };
-        let Some(value) = parse_expr(discriminant) else {
-            let variant = &variant.ident;
-            let suggest = max_discr + 1;
-            let err = Error::NonLitDiscriminant { variant, suggest };
-            return Err(syn::Error::new_spanned(discriminant, err));
-        };
+        next_implicit_discr = value + 1;
         if value > max_discr {
             max_discr = value;
-            max_discr_span = discriminant.__span();
+            max_discr_span = discr_span;
         }
     }
     if max_discr >= max_count {
@@ -267,9 +282,8 @@ pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<Toke
     };
     let new_match_branches = input.variants.iter().map(|variant| {
         let cfg_attrs = variant.attrs.iter().filter(|a| conditional_attr(a));
-        let value = &variant.discriminant.as_ref().unwrap().1;
         let variant_name = &variant.ident;
-        quote!( #( #cfg_attrs )* (#value) => #ok(Self::#variant_name) )
+        quote!( #( #cfg_attrs )* val if val == (Self::#variant_name as #base_type) => #ok(Self::#variant_name) )
     });
     let (attrs, vis, name, variants) = (&input.attrs, &input.vis, &input.ident, &input.variants);
     Ok(quote! {
