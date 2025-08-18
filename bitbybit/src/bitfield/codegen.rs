@@ -1,9 +1,9 @@
 use crate::bitfield::{
-    const_name, mask_name, setter_name, with_name, BaseDataSize, CustomType, FieldDefinition,
-    BITCOUNT_BOOL,
+    const_name, mask_name, setter_name, with_name, BaseDataSize, BitfieldAttributes, CustomType,
+    DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
-use quote::quote;
+use quote::{quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::{LitInt, Type, Visibility};
@@ -537,4 +537,122 @@ pub fn make_builder(
         }
     };
     (result_new_with_constructor, new_with_builder_chain)
+}
+
+pub fn generate_defmt_trait_impl(
+    struct_name: &Ident,
+    bitfield_attrs: &BitfieldAttributes,
+    field_definitions: &[FieldDefinition],
+    base_data_size: BaseDataSize,
+) -> TokenStream2 {
+    let mut defmt_trait = TokenStream2::new();
+
+    if let Some(defmt_format) = &bitfield_attrs.defmt_trait {
+        let mut feature_gate = TokenStream2::new();
+        if let Some(feature_gate_str) = &defmt_format.feature_gate {
+            feature_gate.extend(quote! {
+                #[cfg(feature = #feature_gate_str)]
+            });
+        }
+        match defmt_format.variant {
+            DefmtVariant::Bitfields => {
+                let format_string = {
+                    let labels_result: Result<Vec<_>, syn::Error> = field_definitions
+                        .iter()
+                        .map(|field| match field.ranges.len() {
+                            0 => Err(syn::Error::new(
+                                field.field_name.span(),
+                                "defmt_bitfields detected fields without a range",
+                            )),
+                            1 => {
+                                let range = field.ranges.first().unwrap();
+                                Ok(format!(
+                                    "{}: {{0={}..{}}}",
+                                    field.field_name, range.start, range.end
+                                ))
+                            }
+                            _ => {
+                                let items = field
+                                    .ranges
+                                    .iter()
+                                    .map(|r| {
+                                        format!(
+                                            "{{0={}..{}}} ({}..={})",
+                                            r.start,
+                                            r.end,
+                                            r.start,
+                                            r.end - 1
+                                        )
+                                    })
+                                    .collect::<Vec<_>>()
+                                    .join(", ");
+                                Ok(format!("{}: {}", field.field_name, items))
+                            }
+                        })
+                        .collect();
+                    if let Err(e) = labels_result {
+                        return e.into_compile_error();
+                    }
+                    let labels = labels_result.unwrap().join(", ");
+                    format!("{} {{{{ {} }}}}", struct_name, labels)
+                };
+                let raw_val_accessor = {
+                    match base_data_size.exposed {
+                        8 | 16 | 32 | 64 => {
+                            quote! { self.raw_value() }
+                        }
+                        _ => match base_data_size.internal {
+                            0..=7 => quote! { self.raw_value().as_u8() },
+                            8..=15 => quote! { self.raw_value().as_u16() },
+                            16..=31 => quote! { self.raw_value().as_u32() },
+                            32..=63 => quote! { self.raw_value().as_u64() },
+                            _ => panic!("Unsupported base data size for defmt_bitfields"),
+                        },
+                    }
+                };
+                defmt_trait.append_all(quote! {
+                    #feature_gate
+                    impl defmt::Format for #struct_name {
+                        fn format(&self, fmt: defmt::Formatter) {
+                            defmt::write!(
+                                fmt,
+                                #format_string,
+                                #raw_val_accessor,
+                            )
+                        }
+                    }
+                });
+            }
+            DefmtVariant::Fields => {
+                let format_string = {
+                    let labels = field_definitions
+                        .iter()
+                        .map(|field| format!("{}: {{}}", field.field_name))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{} {{{{ {} }}}}", struct_name, labels)
+                };
+                let defmt_fields: Vec<TokenStream2> = field_definitions
+                    .iter()
+                    .map(|field| {
+                        let field_name = &field.field_name;
+                        quote! { self.#field_name(), }
+                    })
+                    .collect();
+                defmt_trait.append_all(quote! {
+                    #feature_gate
+                    impl defmt::Format for #struct_name {
+                        fn format(&self, fmt: defmt::Formatter) {
+                            defmt::write!(
+                                fmt,
+                                #format_string,
+                                #(#defmt_fields)*
+                            )
+                        }
+                    }
+                });
+            }
+        }
+    }
+    defmt_trait
 }

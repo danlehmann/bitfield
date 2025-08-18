@@ -5,5 +5,5 @@ members = [
     "bitbybit-tests",
 ]
 exclude = [
-    "test-no-std",
+    "qemu-tests",
 ]
