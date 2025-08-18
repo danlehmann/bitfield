@@ -1,7 +1,6 @@
 #![no_std]
 
 use cortex_m_semihosting::debug as cmsd;
-mod interrupts;
 
 /// A panic handler which logs to defmt and then does a semihosting exit.
 #[panic_handler]
