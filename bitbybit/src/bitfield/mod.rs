@@ -10,6 +10,7 @@ use quote::{quote, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
+use syn::LitStr;
 use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
@@ -40,12 +41,32 @@ fn try_parse_arbitrary_int_type(s: &str) -> Option<usize> {
     }
 }
 
-// If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
-enum CustomType {
-    No,
-    Yes(Type),
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+struct FieldDefinition {
+    field_name: Ident,
+    ranges: Vec<Range<usize>>,
+    unsigned_field_type: Option<Type>,
+    array: Option<(usize, usize)>,
+    field_type_size: usize,
+    getter_type: Option<Type>,
+    setter_type: Option<Type>,
+    field_type_size_from_data_type: Option<usize>,
+    /// If non-null: (count, stride)
+    use_regular_int: bool,
+    primitive_type: TokenStream2,
+    custom_type: CustomType,
+    doc_comment: Vec<Attribute>,
 }
 
+// If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+enum CustomType {
+    No,
+    /// Boxed because this is a relatively large type.
+    Yes(Box<Type>),
+}
+
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 #[derive(Copy, Clone)]
 struct BaseDataSize {
     /// The size of the raw_value field, e.g. u32
@@ -76,6 +97,7 @@ impl BaseDataSize {
     }
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 pub enum DefaultVal {
     Lit(LitInt),
     Constant(Ident),
@@ -90,12 +112,26 @@ impl ToTokens for DefaultVal {
     }
 }
 
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+pub struct DefmtTrait {
+    variant: DefmtVariant,
+    feature_gate: Option<String>,
+}
+
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
+pub enum DefmtVariant {
+    Bitfields,
+    Fields,
+}
+
 #[derive(Default)]
+#[cfg_attr(feature = "extra-traits", derive(Debug))]
 struct BitfieldAttributes {
     pub base_type: Option<Ident>,
     pub default_val: Option<DefaultVal>,
     pub debug_trait: bool,
     pub introspect: bool,
+    pub defmt_trait: Option<DefmtTrait>,
 }
 
 impl BitfieldAttributes {
@@ -115,13 +151,13 @@ impl BitfieldAttributes {
                 ));
             }
             let lit_int: Result<LitInt, syn::Error> = stream.parse();
-            if lit_int.is_ok() {
-                self.default_val = Some(DefaultVal::Lit(lit_int.unwrap()));
+            if let Ok(lit_int) = lit_int {
+                self.default_val = Some(DefaultVal::Lit(lit_int));
                 return Ok(());
             }
             let path: Result<Ident, syn::Error> = stream.parse();
-            if path.is_ok() {
-                self.default_val = Some(DefaultVal::Constant(path.unwrap()));
+            if let Ok(path) = path {
+                self.default_val = Some(DefaultVal::Constant(path));
                 return Ok(());
             }
             return Ok(());
@@ -132,6 +168,39 @@ impl BitfieldAttributes {
         }
         if meta.path.is_ident("introspect") {
             self.introspect = true;
+            return Ok(());
+        }
+        let parse_feature_gate = |meta: ParseNestedMeta<'_>| -> Result<Option<String>, syn::Error> {
+            let mut feature_gate = None;
+            if meta.input.is_empty() {
+                return Ok(feature_gate);
+            }
+            meta.parse_nested_meta(|meta| {
+                if meta.path.is_ident("feature") {
+                    let value = meta.value()?; // this parses the `=`
+                    let s: LitStr = value.parse()?;
+                    feature_gate = Some(s.value());
+                    Ok(())
+                } else {
+                    Err(meta.error("unsupported attribute"))
+                }
+            })?;
+            Ok(feature_gate)
+        };
+        if meta.path.is_ident("defmt_fields") {
+            let feature_gate = parse_feature_gate(meta)?;
+            self.defmt_trait = Some(DefmtTrait {
+                variant: DefmtVariant::Fields,
+                feature_gate,
+            });
+            return Ok(());
+        }
+        if meta.path.is_ident("defmt_bitfields") {
+            let feature_gate = parse_feature_gate(meta)?;
+            self.defmt_trait = Some(DefmtTrait {
+                variant: DefmtVariant::Bitfields,
+                feature_gate,
+            });
             return Ok(());
         }
         Ok(())
@@ -268,6 +337,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         });
     }
+
+    let defmt_trait = codegen::generate_defmt_trait_impl(
+        &struct_name,
+        &bitfield_attrs,
+        &field_definitions,
+        base_data_size,
+    );
+
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         &struct_name,
         bitfield_attrs.default_val.is_some(),
@@ -335,7 +412,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #( #accessors )*
         }
         #default_trait
+
         #debug_trait
+
+        #defmt_trait
+
         #( #new_with_builder_chain )*
     };
     //println!("Expanded: {}", expanded.to_string());
@@ -404,20 +485,4 @@ fn const_name(field_name: &Ident, suffix: &str) -> Ident {
 
     syn::parse_str::<Ident>(&name)
         .unwrap_or_else(|_| panic!("bitfield!: Error creating {name} name"))
-}
-
-struct FieldDefinition {
-    field_name: Ident,
-    ranges: Vec<Range<usize>>,
-    unsigned_field_type: Option<Type>,
-    array: Option<(usize, usize)>,
-    field_type_size: usize,
-    getter_type: Option<Type>,
-    setter_type: Option<Type>,
-    field_type_size_from_data_type: Option<usize>,
-    /// If non-null: (count, stride)
-    use_regular_int: bool,
-    primitive_type: TokenStream2,
-    custom_type: CustomType,
-    doc_comment: Vec<Attribute>,
 }

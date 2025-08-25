@@ -1,3 +1,4 @@
+use arbitrary_int::u6;
 use arbitrary_int::Number;
 use std::fmt::Debug;
 
@@ -1717,3 +1718,75 @@ fn introspection() {
     assert_eq!(Bitfield::ref_mask(0), 0x40000000);
     assert_eq!(Bitfield::ref_mask(1), 0x80000000);
 }
+
+#[test]
+fn test_defmt_impl_fields() {
+    #[bitfield(u16, defmt_fields)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+}
+
+#[test]
+fn test_defmt_impl_bitfields() {
+    #[bitfield(u16, defmt_bitfields)]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+}
+
+#[test]
+fn test_defmt_impl_bitfields_on_arbitrary_int_fields_u8_primitive_val() {
+    #[bitfield(u6, defmt_bitfields)]
+    struct Test {
+        #[bits(3..=5, rw)]
+        upper: u3,
+
+        #[bits(0..=2, rw)]
+        lower: u3,
+    }
+    let test = Test::new_with_raw_value(u6::new(0b101010));
+    defmt_impl_check(&test);
+}
+
+#[test]
+fn test_defmt_impl_bitfields_on_arbitrary_int_fields_u16_primitive_val() {
+    #[bitfield(u14, defmt_bitfields)]
+    struct Test {
+        #[bits(0..=6, rw)]
+        upper: u7,
+        #[bits(7..=13, rw)]
+        lower: u7,
+    }
+    let test = Test::new_with_raw_value(u14::new(0b100101_10101010));
+    defmt_impl_check(&test);
+}
+
+#[test]
+#[cfg(feature = "defmt")]
+fn test_defmt_impl_bitfield_feature_gated() {
+    #[bitfield(u16, defmt_bitfields(feature = "defmt"))]
+    struct Test {
+        #[bits(8..=15, rw)]
+        upper: u8,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::new_with_raw_value(0x1F2F);
+    defmt_impl_check(&test);
+}
+
+pub fn defmt_impl_check<T: defmt::Format>(_: &T) {}
