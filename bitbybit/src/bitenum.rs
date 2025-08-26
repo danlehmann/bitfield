@@ -2,6 +2,7 @@ use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, spanned::Spanned};
+use syn::LitInt;
 use syn::{meta::ParseNestedMeta, Token};
 
 use crate::bit_size::Bits;
@@ -191,7 +192,10 @@ fn parse_expr(expr: &syn::Expr) -> Option<u128> {
     };
     lit_int.base10_parse().ok()
 }
-fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn::Result<()> {
+fn check_explicit_exhaustive(
+    config: &FullConfig,
+    input: &syn::ItemEnum,
+) -> syn::Result<Vec<LitInt>> {
     let max_count = 1_u128 << config.bits.size;
     let count = input.variants.len() as u128;
     let actually_exhaustive = match count.cmp(&max_count) {
@@ -203,6 +207,7 @@ fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn:
         }
         _ => false,
     };
+    let mut values = Vec::new();
     if !config.exhaustive.matches(actually_exhaustive) {
         let size = config.bits.size;
         let count = count as u32;
@@ -232,13 +237,14 @@ fn check_explicit_exhaustive(config: &FullConfig, input: &syn::ItemEnum) -> syn:
             max_discr = value;
             max_discr_span = discr_span;
         }
+        values.push(LitInt::new(&value.to_string(), discr_span));
     }
     if max_discr >= max_count {
         let max_value = max_count - 1;
         let err = Error::TooLargeDiscriminant { max_value };
         return Err(syn::Error::new(max_discr_span, err));
     }
-    Ok(())
+    Ok(values)
 }
 
 /// Generate _some code_ when the declared `#[bitenum]` is invalid,
@@ -264,7 +270,7 @@ pub(crate) fn fallback_impl(input: &syn::ItemEnum) -> TokenStream {
 pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<TokenStream> {
     let config = config.explicit()?;
     check_explicit_conditional(&config, input)?;
-    check_explicit_exhaustive(&config, input)?;
+    let values = check_explicit_exhaustive(&config, input)?;
 
     let bits = config.bits;
     let (base_type, qualified_type) = (bits.base_type()?, bits.qualified_path()?);
@@ -280,10 +286,10 @@ pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<Toke
         true => quote!(value => Err(value)),
         false => quote!(_ => unreachable!()),
     };
-    let new_match_branches = input.variants.iter().map(|variant| {
+    let new_match_branches = input.variants.iter().zip(values).map(|(variant, value)| {
         let cfg_attrs = variant.attrs.iter().filter(|a| conditional_attr(a));
         let variant_name = &variant.ident;
-        quote!( #( #cfg_attrs )* val if val == (Self::#variant_name as #base_type) => #ok(Self::#variant_name) )
+        quote!( #( #cfg_attrs )* (#value) => #ok(Self::#variant_name) )
     });
     let (attrs, vis, name, variants) = (&input.attrs, &input.vis, &input.ident, &input.variants);
     Ok(quote! {

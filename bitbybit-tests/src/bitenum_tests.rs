@@ -1,4 +1,4 @@
-use arbitrary_int::{u2, u63};
+use arbitrary_int::{u2, u4, u63};
 use bitbybit::bitenum;
 
 #[test]
@@ -191,7 +191,7 @@ fn enum_with_64bits() {
 
 #[test]
 fn enum_with_implicit_discriminants() {
-    #[bitenum(u8, exhaustive = false)]
+    #[bitenum(u4, exhaustive = false)]
     #[derive(Eq, PartialEq, Debug)]
     #[repr(u8)]
     enum Foo {
@@ -202,11 +202,12 @@ fn enum_with_implicit_discriminants() {
         Five,
     }
 
-    assert_eq!(Foo::Zero.raw_value(), 0);
-    assert_eq!(Foo::One.raw_value(), 1);
-    assert_eq!(Foo::Two.raw_value(), 2);
-    assert_eq!(Foo::Four.raw_value(), 4);
-    assert_eq!(Foo::Five.raw_value(), 5);
+    assert_eq!(Ok(Foo::Zero), Foo::new_with_raw_value(u4::new(0)));
+    assert_eq!(Ok(Foo::One), Foo::new_with_raw_value(u4::new(1)));
+    assert_eq!(Ok(Foo::Two), Foo::new_with_raw_value(u4::new(2)));
+    assert_eq!(Err(3), Foo::new_with_raw_value(u4::new(3)));
+    assert_eq!(Ok(Foo::Four), Foo::new_with_raw_value(u4::new(4)));
+    assert_eq!(Ok(Foo::Five), Foo::new_with_raw_value(u4::new(5)));
 }
 
 #[test]
