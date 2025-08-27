@@ -14,10 +14,11 @@
   feature provided by `defmt`, while the `defmt_fields` attribute simply forwards to the `defmt`
   implementations of the inner fields. These attribute macros arguments allow specifying a feature
   gate as well.
+- Support for implicit `bitenum` discriminants.
 
 ### Fixed
 
-- Allow qualified paths for `arbitrary_int` fields as well es (optional) `bitenum` fields.
+- Allow qualified paths for `arbitrary_int` fields as well as (optional) `bitenum` fields.
 - Fix the build for users that `#[deny(missing_docs)]`
 - Moved LICENSE into the macro library's code so that it's available when distributed over crates.io
 
