@@ -205,7 +205,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                             if !is_in_array && !is_range {
                                 return Err(Error::new_spanned(
                                     &range_span,
-                                    "bitfield!: bit requires an inclusive range, for examples bits(10..=19). bit(10) allows specifying a single bit",
+                                    "bitfield!: bit requires an inclusive range, for example bits(10..=19). bit(10) allows specifying a single bit",
                                 ));
                             }
                             ranges.push(Range {
@@ -217,7 +217,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                             if is_range && !is_in_array {
                                 return Err(Error::new_spanned(
                                     &range_span,
-                                    "bitfield!: bits requires a single bit, for examples bit(10). bits(10..=12) can be used to specify multiple bits",
+                                    "bitfield!: bits requires a single bit, for example bit(10). bits(10..=12) can be used to specify multiple bits",
                                 ));
                             }
                             ranges.push(Range {
