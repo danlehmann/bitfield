@@ -1,8 +1,8 @@
 # Changelog
 
-## unreleased
-
 ## bitbybit 1.4.0
+
+This is the final version to support arbitrary-int 1.x. Future versions will require arbitrary-int 2.x.
 
 ### Added
 
