@@ -1,10 +1,7 @@
-use arbitrary_int::u6;
-use arbitrary_int::Number;
-use std::fmt::Debug;
-
-use arbitrary_int::{u1, u12, u13, u14, u2, u24, u3, u30, u4, u48, u5, u57, u7};
+use arbitrary_int::prelude::*;
 use bitbybit::bitenum;
 use bitbybit::bitfield;
+use std::fmt::Debug;
 
 #[test]
 fn test_construction() {
@@ -67,6 +64,58 @@ fn test_getter_and_with() {
     assert_eq!(0x12, t.baudrate());
     assert_eq!(u4::new(0x2), t.some_other_bits());
     assert_eq!(0x0122, t.raw_value);
+}
+
+#[test]
+fn test_getter_and_with_signed() {
+    #[bitfield(u128, default = 0)]
+    struct Test2 {
+        #[bits(98..=127, rw)]
+        val30: i30,
+
+        #[bits(41..=97, rw)]
+        val57: i57,
+
+        #[bits(28..=40, rw)]
+        val13: i13,
+        #[bits(12..=27, rw)]
+        val16: i16,
+
+        #[bits(4..=11, rw)]
+        baudrate: i8,
+
+        #[bits(0..=3, rw)]
+        some_other_bits: i4,
+    }
+
+    let t = Test2::new_with_raw_value(0xAE42_315A_2134_FE06_3412_345A_2134_FE06);
+    assert_eq!(i30::from_bits(0x2B908C56), t.val30());
+    assert_eq!(i57::from_bits(0x0110_9A7F_031A_091A), t.val57());
+    assert_eq!(i13::new(0x5A2), t.val13());
+    assert_eq!(0x134F, t.val16());
+    assert_eq!(0xE0u8 as i8, t.baudrate());
+    assert_eq!(i4::new(0x6), t.some_other_bits());
+
+    let t = Test2::DEFAULT
+        .with_baudrate(0x12)
+        .with_some_other_bits(i4::new(2));
+    assert_eq!(0x12, t.baudrate());
+    assert_eq!(i4::new(2), t.some_other_bits());
+    assert_eq!(0x0122, t.raw_value);
+
+    // Ensure lower fields aren't accidentally sign extending into higher ones
+    assert_eq!(
+        0,
+        Test2::DEFAULT
+            .with_some_other_bits(i4::from_bits(0b1111))
+            .baudrate()
+    );
+
+    assert_eq!(0, {
+        let mut a = Test2::DEFAULT;
+        a.set_some_other_bits(i4::from_bits(0b1111));
+        a.baudrate()
+    });
 }
 
 #[test]
@@ -190,6 +239,42 @@ fn test_u1() {
     let t3 = t.with_bit1(u1::new(1));
     assert_eq!(t3.bit0(), u1::new(0));
     assert_eq!(t3.bit1(), u1::new(1));
+    assert_eq!(t3.raw_value, 0b10);
+}
+
+#[test]
+fn test_i1() {
+    #[bitfield(u16, default = 0)]
+    struct Test {
+        #[bit(0, rw)]
+        bit0: i1,
+
+        #[bit(1, rw)]
+        bit1: i1,
+
+        #[bits(2..=9, r)]
+        n: u8,
+
+        #[bits(10..=12, w)]
+        m: i3,
+
+        #[bits(13..=15, r)]
+        o: i3,
+    }
+
+    let t = Test::DEFAULT;
+    assert_eq!(t.bit0(), i1::new(0));
+    assert_eq!(t.bit1(), i1::new(0));
+    assert_eq!(t.raw_value, 0b00);
+
+    let t2 = t.with_bit0(i1::from_bits(1));
+    assert_eq!(t2.bit0(), i1::from_bits(1));
+    assert_eq!(t2.bit1(), i1::from_bits(0));
+    assert_eq!(t2.raw_value, 0b01);
+
+    let t3 = t.with_bit1(i1::new(-1));
+    assert_eq!(t3.bit0(), i1::from_bits(0));
+    assert_eq!(t3.bit1(), i1::from_bits(1));
     assert_eq!(t3.raw_value, 0b10);
 }
 

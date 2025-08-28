@@ -23,22 +23,22 @@ pub fn parse(fields: &Fields, base_data_size: BaseDataSize) -> Result<Vec<FieldD
     Ok(field_definitions)
 }
 
-fn parse_scalar_field(ty: &Type) -> Result<(Option<usize>, bool)> {
+fn parse_scalar_field(ty: &Type) -> Result<Option<(usize, bool)>> {
     match ty {
         Type::Path(path) => {
             let type_str = path.to_token_stream().to_string();
             let result = match type_str.as_str() {
-                "bool" => Some((Some(BITCOUNT_BOOL), false)),
-                "u8" => Some((Some(8), false)),
-                "i8" => Some((Some(8), true)),
-                "u16" => Some((Some(16), false)),
-                "i16" => Some((Some(16), true)),
-                "u32" => Some((Some(32), false)),
-                "i32" => Some((Some(32), true)),
-                "u64" => Some((Some(64), false)),
-                "i64" => Some((Some(64), true)),
-                "u128" => Some((Some(128), false)),
-                "i128" => Some((Some(128), true)),
+                "bool" => Some(Some((BITCOUNT_BOOL, false))),
+                "u8" => Some(Some((8, false))),
+                "i8" => Some(Some((8, true))),
+                "u16" => Some(Some((16, false))),
+                "i16" => Some(Some((16, true))),
+                "u32" => Some(Some((32, false))),
+                "i32" => Some(Some((32, true))),
+                "u64" => Some(Some((64, false))),
+                "i64" => Some(Some((64, true))),
+                "u128" => Some(Some((128, false))),
+                "i128" => Some(Some((128, true))),
                 _ => None,
             };
 
@@ -47,7 +47,7 @@ fn parse_scalar_field(ty: &Type) -> Result<(Option<usize>, bool)> {
             }
 
             if let Some(last_segment) = path.path.segments.last() {
-                return Ok((try_parse_arbitrary_int_type(&last_segment.ident.to_string()), false));
+                return Ok(try_parse_arbitrary_int_type(&last_segment.ident.to_string(), true));
             }
 
             Err(Error::new(path.span(), "invalid path for bitfield field"))
@@ -55,7 +55,7 @@ fn parse_scalar_field(ty: &Type) -> Result<(Option<usize>, bool)> {
         _ => Err(Error::new(
             ty.span(),
             format!(
-                "bitfield!: Field type {} not valid. Supported types: bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g., u1, u3, u62). Their arrays are also supported.",
+                "bitfield!: Field type {} not valid. Supported types: bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g., u1, u3, u62, i81). Their arrays are also supported.",
                 ty.into_token_stream()
             ),
         )),
@@ -132,14 +132,16 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             _ => (&field.ty, None),
         }
     };
-    let (field_type_size_from_data_type, field_type_is_signed) = parse_scalar_field(ty)?;
-    let unsigned_field_type = if field_type_is_signed {
-        Some(
-            syn::parse_str::<Type>(
-                format!("u{}", field_type_size_from_data_type.unwrap()).as_str(),
+    let field_type_size_from_data_type = parse_scalar_field(ty)?;
+    let unsigned_field_type = if let Some((bits, is_signed)) = field_type_size_from_data_type {
+        if is_signed {
+            Some(
+                syn::parse_str::<Type>(format!("u{}", bits).as_str())
+                    .unwrap_or_else(|_| panic!("bitfield!: Error parsing unsigned_field_type")),
             )
-            .unwrap_or_else(|_| panic!("bitfield!: Error parsing unsigned_field_type")),
-        )
+        } else {
+            None
+        }
     } else {
         None
     };
@@ -323,7 +325,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                 panic!("bitfield!: number_of_bits is too large!")
             }
         }),
-        Some(b) => (b, quote! { #ty }),
+        Some((b, _is_signed)) => (b, quote! { #ty }),
     };
 
     if field_type_size == BITCOUNT_BOOL {
@@ -401,7 +403,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     };
 
     let use_regular_int = match field_type_size_from_data_type {
-        Some(i) => is_int_size_regular_type(i),
+        Some((i, _is_signed)) => is_int_size_regular_type(i),
         None => {
             // For CustomTypes (e.g. enums), prefer u1 over bool
             number_of_bits != 1 && is_int_size_regular_type(number_of_bits)
@@ -427,7 +429,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         custom_type,
         doc_comment,
         array: indexed_count.map(|count| (count, indexed_stride.unwrap())),
-        field_type_size_from_data_type,
+        field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
+        is_signed: field_type_size_from_data_type.map_or(false, |v| v.1),
         unsigned_field_type,
     })
 }
