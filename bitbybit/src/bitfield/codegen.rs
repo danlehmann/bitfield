@@ -134,8 +134,14 @@ pub fn generate(
                                 quote! { field_value }
                             }
                         } else {
-                            // Once signed arbitrary-ints (e.g. i7) are a thing, we'll need to pay special attention to sign extension here
-                            quote! { field_value.value() }
+                            // For arbitrary-ints, signed numbers provide to_bits() which return an
+                            // unsigned, non-sign extended number. Using value() would be incorrect
+                            // here as the sign bit would pollute fields defined higher up.
+                            if field_definition.is_signed {
+                                quote! { field_value.to_bits() }
+                            } else {
+                                quote! { field_value.value() }
+                            }
                         }
                     }
                     CustomType::Yes(_) => {
@@ -260,8 +266,9 @@ fn extracted_bits(
             quote! {  #packed as #primitive_type }
         }
     } else {
+        let prefix = if field_definition.is_signed { "i" } else { "u" };
         let custom_type =
-            TokenStream2::from_str(format!("arbitrary_int::u{}", total_number_bits).as_str())
+            TokenStream2::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
                 .unwrap();
         let extract =
             TokenStream2::from_str(format!("extract_u{}", base_data_size.internal).as_str())

@@ -284,10 +284,11 @@ struct GICD_TYPER {
 
 ## Dependencies
 
-Arbitrary bit widths like u5 or u67 do not exist in Rust at the moment. Therefore, the following dependency is required:
+Arbitrary bit widths like u5, u67 or i81 do not exist in Rust at the moment. Therefore, the following dependency is
+required:
 
 ```toml
-arbitrary-int = "1.3.0"
+arbitrary-int = "2.0"
 ```
 
 ## Usage

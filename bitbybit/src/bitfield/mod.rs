@@ -23,21 +23,32 @@ const fn is_int_size_regular_type(size: usize) -> bool {
     size == BITCOUNT_BOOL || size == 8 || size == 16 || size == 32 || size == 64 || size == 128
 }
 
-fn try_parse_arbitrary_int_type(s: &str) -> Option<usize> {
-    if !s.starts_with('u') || s.len() < 2 {
+/// Parses an integer string, like "u8" or "i24".
+/// Allows "i" types if allow_signed is true.
+///
+/// Returns Some((size, is_signed)) if successful, None if not.
+fn try_parse_arbitrary_int_type(s: &str, allow_signed: bool) -> Option<(usize, bool)> {
+    if s.len() < 2 {
         return None;
     }
 
-    let size = usize::from_str(s.split_at(1).1);
-    match size {
-        Ok(size) => {
-            if (1..128).contains(&size) && !is_int_size_regular_type(size) {
-                Some(size)
-            } else {
-                None
+    let is_unsigned = s.starts_with('u');
+    let is_signed = s.starts_with('i');
+
+    if is_unsigned || (is_signed && allow_signed) {
+        let size = usize::from_str(s.split_at(1).1);
+        match size {
+            Ok(size) => {
+                if (1..128).contains(&size) && !is_int_size_regular_type(size) {
+                    Some((size, is_signed))
+                } else {
+                    None
+                }
             }
+            Err(_) => None,
         }
-        Err(_) => None,
+    } else {
+        None
     }
 }
 
@@ -51,6 +62,7 @@ struct FieldDefinition {
     getter_type: Option<Type>,
     setter_type: Option<Type>,
     field_type_size_from_data_type: Option<usize>,
+    is_signed: bool,
     /// If non-null: (count, stride)
     use_regular_int: bool,
     primitive_type: TokenStream2,
@@ -238,8 +250,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         "u32" => BaseDataSize::new(32),
         "u64" => BaseDataSize::new(64),
         "u128" => BaseDataSize::new(128),
-        s if try_parse_arbitrary_int_type(s).is_some() => {
-            BaseDataSize::new(try_parse_arbitrary_int_type(s).unwrap())
+        s if try_parse_arbitrary_int_type(s, false).is_some() => {
+            BaseDataSize::new(try_parse_arbitrary_int_type(s, false).unwrap().0)
         }
         _ => {
             return syn::Error::new_spanned(
