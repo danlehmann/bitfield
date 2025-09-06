@@ -1,0 +1,10 @@
+error: bitfield!: Detected overlap of field `lower_bits` with other field
+ --> tests/no_compile/overlapping_bitfield_u8_fields.rs:4:1
+  |
+4 | / struct Test {
+5 | |     #[bits(7..=14, rw)]
+6 | |     overlapping_bits: u8,
+7 | |     #[bits(0..=7, rw)]
+8 | |     lower_bits: u8,
+9 | | }
+  | |_^
