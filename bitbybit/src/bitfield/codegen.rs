@@ -1,6 +1,6 @@
 use crate::bitfield::{
-    const_name, mask_name, setter_name, with_name, BaseDataSize, BitfieldAttributes, CustomType,
-    DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
+    const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
+    CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::{quote, TokenStreamExt as _};
@@ -52,7 +52,7 @@ pub fn generate(
             let mask_name = mask_name(field_name);
             let mask = setter_mask(&one, field_definition);
 
-            if let Some((count, stride)) = field_definition.array {
+            if let Some(ArrayInfo { count, indexed_stride: stride }) = field_definition.array {
                 let count_name = const_name(field_name, "COUNT");
                 let stride_name = const_name(field_name, "STRIDE");
                 quote! {
@@ -99,7 +99,7 @@ pub fn generate(
                 };
 
                 if let Some(array) = field_definition.array {
-                    let indexed_count = array.0;
+                    let indexed_count = array.count;
                     quote! {
                         #(#doc_comment)*
                         #[inline]
@@ -160,7 +160,7 @@ pub fn generate(
             let with_name = with_name(field_name);
 
             if let Some(array) = field_definition.array {
-                let indexed_count = array.0;
+                let indexed_count = array.count;
                 quote! {
                     #(#doc_comment)*
                     #[inline]
@@ -235,7 +235,7 @@ fn extracted_bits(
     base_data_size: BaseDataSize,
     total_number_bits: usize,
 ) -> TokenStream {
-    let indexed_stride = field_definition.array.map(|(_, stride)| stride);
+    let indexed_stride = field_definition.array.map(|info| info.indexed_stride);
     let array_shift = indexed_stride.map_or_else(
         || quote! {},
         |indexed_stride| quote! { + index * #indexed_stride },
@@ -296,8 +296,8 @@ fn setter_new_raw_value(
     base_data_size: BaseDataSize,
     internal_base_data_type: &Type,
 ) -> TokenStream {
-    if let Some(array) = field_definition.array {
-        let indexed_stride = array.1;
+    if let Some(array) = &field_definition.array {
+        let indexed_stride = array.indexed_stride;
         // bool?
         if field_definition.field_type_size_from_data_type == Some(BITCOUNT_BOOL) {
             assert_eq!(field_definition.ranges.len(), 1);
@@ -449,8 +449,8 @@ pub fn make_builder(
                 //   .with_a(1, value[1])
                 //   .with_a(2, value[2])
 
-                let array_count = array.0;
-                let array_stride = array.1;
+                let array_count = array.count;
+                let array_stride = array.indexed_stride;
                 if ranges_have_self_overlap(&field_definition.ranges, array_stride, array_count) {
                     return (quote! {}, Vec::new());
                 }
