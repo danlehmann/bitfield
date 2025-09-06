@@ -1,5 +1,5 @@
 use crate::bitfield::{
-    is_int_size_regular_type, try_parse_arbitrary_int_type, BaseDataSize, CustomType,
+    is_int_size_regular_type, try_parse_arbitrary_int_type, ArrayInfo, BaseDataSize, CustomType,
     FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree};
@@ -428,7 +428,10 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         primitive_type,
         custom_type,
         doc_comment,
-        array: indexed_count.map(|count| (count, indexed_stride.unwrap())),
+        array: indexed_count.map(|count| ArrayInfo {
+            count,
+            indexed_stride: indexed_stride.unwrap(),
+        }),
         field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
         is_signed: field_type_size_from_data_type.map_or(false, |v| v.1),
         unsigned_field_type,

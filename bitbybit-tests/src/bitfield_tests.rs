@@ -1862,6 +1862,66 @@ fn test_defmt_impl_bitfields() {
 }
 
 #[test]
+fn test_forbidden_overlaps_okay_u8() {
+    #[bitfield(u8, forbid_overlaps)]
+    struct Test {
+        #[bits(4..=7, rw)]
+        bit_upper: u4,
+        #[bit(3, rw)]
+        bit_3: bool,
+        #[bit(2, rw)]
+        bit_2: bool,
+        #[bit(1, rw)]
+        bit_1: bool,
+        #[bit(0, rw)]
+        bit_0: bool,
+    }
+    Test::new_with_raw_value(0xFF);
+}
+
+#[test]
+fn test_forbidden_overlaps_okay_u16() {
+    #[bitfield(u16, forbid_overlaps)]
+    struct Test {
+        #[bits(12..=15, rw)]
+        bit_upper: u4,
+        #[bit(11, rw)]
+        bit_11: bool,
+        #[bit(10, rw)]
+        bit_10: bool,
+        #[bit(9, rw)]
+        bit_9: bool,
+        #[bit(8, rw)]
+        bit_8: bool,
+        #[bits(0..=7, rw)]
+        lower_bits: u8,
+    }
+    Test::new_with_raw_value(0x1F1F);
+}
+
+#[test]
+fn test_forbidden_overlaps_okay_u32() {
+    #[bitfield(u32, forbid_overlaps)]
+    struct Test {
+        #[bits(16..=31, rw)]
+        bits_upper_2: u16,
+        #[bits(12..=15, rw)]
+        bits_upper_1: u4,
+        #[bit(11, rw)]
+        bit_11: bool,
+        #[bit(10, rw)]
+        bit_10: bool,
+        #[bit(9, rw)]
+        bit_9: bool,
+        #[bit(8, rw)]
+        bit_8: bool,
+        #[bits(0..=7, rw)]
+        lower_bits: u8,
+    }
+    Test::new_with_raw_value(0x1F1FF1F1);
+}
+
+#[test]
 fn test_defmt_impl_bitfields_on_arbitrary_int_fields_u8_primitive_val() {
     #[bitfield(u6, defmt_bitfields)]
     struct Test {

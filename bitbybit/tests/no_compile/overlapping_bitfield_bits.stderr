@@ -1,0 +1,10 @@
+error: bitfield!: Detected overlap of field `bit` with other field
+ --> tests/no_compile/overlapping_bitfield_bits.rs:4:1
+  |
+4 | / struct Test {
+5 | |     #[bit(0, rw)]
+6 | |     overlapping_bit: bool,
+7 | |     #[bit(0, rw)]
+8 | |     bit: bool
+9 | | }
+  | |_^
