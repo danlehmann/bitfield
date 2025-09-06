@@ -34,7 +34,7 @@ fn bitrange_with_enum_type_nonexhaustive_2() {
     assert_eq!(Foo::new_with_raw_value(u2::new(0)), Ok(Foo::Zero));
     assert_eq!(Foo::new_with_raw_value(u2::new(1)), Ok(Foo::One));
     assert_eq!(Foo::new_with_raw_value(u2::new(2)), Ok(Foo::Two));
-    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(3));
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(u2::new(3)));
 
     assert_eq!(Foo::Zero.raw_value(), u2::new(0));
     assert_eq!(Foo::One.raw_value(), u2::new(1));
@@ -143,8 +143,8 @@ fn enum_with_63bits() {
     );
     assert_eq!(Foo::new_with_raw_value(u63::new(2)).unwrap(), Foo::Two);
     assert_eq!(Foo::new_with_raw_value(u63::new(3)).unwrap(), Foo::Three);
-    assert_eq!(Foo::new_with_raw_value(u63::new(4)), Err(4));
-    assert_eq!(Foo::new_with_raw_value(u63::new(255)), Err(255));
+    assert_eq!(Foo::new_with_raw_value(u63::new(4)), Err(u63::new(4)));
+    assert_eq!(Foo::new_with_raw_value(u63::new(255)), Err(u63::new(255)));
 
     assert_eq!(Foo::Zero.raw_value(), u63::new(0));
     assert_eq!(Foo::One.raw_value(), u63::new(0x7FFF_FFFF_FFFF_FFFF));
@@ -236,10 +236,10 @@ fn cfg_in_enum_values() {
     #[cfg(feature = "test123")]
     assert_eq!(Foo::new_with_raw_value(u2::new(2)), Ok(Foo::Test123));
     #[cfg(not(feature = "test123"))]
-    assert_eq!(Foo::new_with_raw_value(u2::new(2)), Err(2));
+    assert_eq!(Foo::new_with_raw_value(u2::new(2)), Err(u2::new(2)));
 
     #[cfg(not(feature = "test123"))]
     assert_eq!(Foo::new_with_raw_value(u2::new(3)), Ok(Foo::TestNot123));
     #[cfg(feature = "test123")]
-    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(3));
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(u2::new(3)));
 }
