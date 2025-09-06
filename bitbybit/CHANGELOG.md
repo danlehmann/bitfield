@@ -7,6 +7,7 @@ This version expects arbitrary-int 2.x.
 ### Added
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
+- Rust MSRV v1.83
 
 ## bitbybit 1.4.0
 
