@@ -23,8 +23,8 @@ examples = ["arbitrary-int/defmt"]
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
-arbitrary-int = "2.0"
 
 [dev-dependencies]
 defmt = "1"
 trybuild = "1"
+arbitrary-int = "2"
