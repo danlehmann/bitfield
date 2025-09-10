@@ -8,6 +8,11 @@ This version expects arbitrary-int 2.x.
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
 
+### Fixed
+
+- Use fully qualified trait syntax in `defmt_bitfields` macro implementation, avoiding the need
+  for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code.
+
 ## bitbybit 1.4.0
 
 This is the final version to support arbitrary-int 1.x. Future versions will require arbitrary-int 2.x.
