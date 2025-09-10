@@ -609,10 +609,18 @@ pub fn generate_defmt_trait_impl(
                             quote! { self.raw_value() }
                         }
                         _ => match base_data_size.internal {
-                            0..=7 => quote! { self.raw_value().as_u8() },
-                            8..=15 => quote! { self.raw_value().as_u16() },
-                            16..=31 => quote! { self.raw_value().as_u32() },
-                            32..=63 => quote! { self.raw_value().as_u64() },
+                            0..=7 => {
+                                quote! { arbitrary_int::traits::Integer::as_u8(self.raw_value()) }
+                            }
+                            8..=15 => {
+                                quote! { arbitrary_int::traits::Integer::as_u16(self.raw_value()) }
+                            }
+                            16..=31 => {
+                                quote! { arbitrary_int::traits::Integer::as_u32(self.raw_value()) }
+                            }
+                            32..=63 => {
+                                quote! { arbitrary_int::traits::Integer::as_u64(self.raw_value()) }
+                            }
                             _ => panic!("Unsupported base data size for defmt_bitfields"),
                         },
                     }
