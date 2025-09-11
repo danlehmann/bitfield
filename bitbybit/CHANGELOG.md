@@ -16,9 +16,9 @@ This version expects arbitrary-int 2.x.
 
 ### Fixed
 
-- Breaking change: bitenum's new_with_raw_value, when used with an arbitrary-int type used to return the next larger
-  whole primitive
-  integer, which is unexpected. This is a breaking change.
+- Breaking change: bitenum's new_with_raw_value, when used with an arbitrary-int type would previously
+  return the next larger whole primitive integer instead of the arbitrary-int, which was
+  inconsistent. This is a breaking change.
 
 ```rs
 // Old type

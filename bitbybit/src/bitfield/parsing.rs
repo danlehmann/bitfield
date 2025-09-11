@@ -81,9 +81,14 @@ fn parse_enumeration(ty: &Type, number_of_bits: usize) -> Result<(CustomType, Ty
                                     } else {
                                         format!("arbitrary_int::u{}", number_of_bits)
                                     };
-                                    syn::parse_str::<Type>(type_string.as_str()).unwrap_or_else(
-                                        |_| panic!("bitfield!: Error parsing unsigned_field_type"),
-                                    )
+                                    let Ok(result) = syn::parse_str::<Type>(type_string.as_str())
+                                    else {
+                                        return Err(Error::new_spanned(
+                                            option_generic_type,
+                                            "bitfield!: Error parsing unsigned_field_type",
+                                        ));
+                                    };
+                                    result
                                 };
 
                                 let result_type_string = format!(
