@@ -37,7 +37,7 @@ struct GICD_TYPER {
 
 How this works:
 
-- #[bitfield(u32)] specifies that this is a bitfield in which u32 is the underlying data type. This means that all the
+- `#[bitfield(u32)]` specifies that this is a bitfield in which u32 is the underlying data type. This means that all the
   bits inside of the bitfield
   have to fit within 32 bits. Built-in Rust types (u8, u16, u32, u64, u128) as well as arbitrary-ints (u17, u48 etc) are
   supported.
@@ -185,6 +185,23 @@ immediates in a way that they have to be reassembled. This can be achieved like 
       #[bits([8..=11, 25..=30, 7, 31], rw)]
       imm_half: u12,
   }
+```
+
+## Field overlap checking
+
+In some situations, it can be useful to check for and deny overlapping bits.
+The macro code generator can be instructed to do this using the `forbid_overlaps` specifier.
+
+For example, the following code will not compile:
+
+```rs
+#[bitfield(u32, forbid_overlaps)]
+struct NoOverlaps {
+    #[bits(4..=11, r)]
+    overlapping_portion: u8,
+    #[bits(0..=7, r)]
+    lower_8_bits: u8,
+}
 ```
 
 ## Debug

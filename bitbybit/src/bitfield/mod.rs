@@ -52,12 +52,18 @@ fn try_parse_arbitrary_int_type(s: &str, allow_signed: bool) -> Option<(usize, b
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ArrayInfo {
+    count: usize,
+    indexed_stride: usize,
+}
+
 #[cfg_attr(feature = "extra-traits", derive(Debug))]
 struct FieldDefinition {
     field_name: Ident,
     ranges: Vec<Range<usize>>,
     unsigned_field_type: Option<Type>,
-    array: Option<(usize, usize)>,
+    array: Option<ArrayInfo>,
     field_type_size: usize,
     getter_type: Option<Type>,
     setter_type: Option<Type>,
@@ -141,6 +147,7 @@ pub enum DefmtVariant {
 struct BitfieldAttributes {
     pub base_type: Option<Ident>,
     pub default_val: Option<DefaultVal>,
+    pub forbid_overlaps: bool,
     pub debug_trait: bool,
     pub introspect: bool,
     pub defmt_trait: Option<DefmtTrait>,
@@ -172,6 +179,10 @@ impl BitfieldAttributes {
                 self.default_val = Some(DefaultVal::Constant(path));
                 return Ok(());
             }
+            return Ok(());
+        }
+        if meta.path.is_ident("forbid_overlaps") {
+            self.forbid_overlaps = true;
             return Ok(());
         }
         if meta.path.is_ident("debug") {
@@ -265,19 +276,25 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             .unwrap_or_else(|_| panic!("bitfield!: Error parsing internal base data type"));
 
     let input = syn::parse_macro_input!(input as DeriveInput);
-    let struct_name = input.ident;
-    let struct_vis = input.vis;
-    let struct_attrs = input.attrs;
+    let struct_name = &input.ident;
+    let struct_vis = &input.vis;
+    let struct_attrs = &input.attrs;
 
-    let fields = match input.data {
-        Data::Struct(struct_data) => struct_data.fields,
+    let fields = match &input.data {
+        Data::Struct(struct_data) => &struct_data.fields,
         _ => panic!("bitfield!: Must be used on struct"),
     };
 
-    let field_definitions = match parsing::parse(&fields, base_data_size) {
+    let field_definitions = match parsing::parse(fields, base_data_size) {
         Ok(definitions) => definitions,
         Err(token_stream) => return token_stream.into_compile_error().into(),
     };
+
+    if bitfield_attrs.forbid_overlaps {
+        if let Err(e) = check_for_overlaps(&field_definitions, &input) {
+            return e.into_compile_error().into();
+        }
+    }
     let accessors = codegen::generate(
         &field_definitions,
         base_data_size,
@@ -351,16 +368,16 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     }
 
     let defmt_trait = codegen::generate_defmt_trait_impl(
-        &struct_name,
+        struct_name,
         &bitfield_attrs,
         &field_definitions,
         base_data_size,
     );
 
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
-        &struct_name,
+        struct_name,
         bitfield_attrs.default_val.is_some(),
-        &struct_vis,
+        struct_vis,
         &internal_base_data_type,
         base_data_type,
         base_data_size,
@@ -435,6 +452,59 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
+const fn mask_for_width_and_offset(width: usize, offset: usize) -> u128 {
+    if width == 128 {
+        return u128::MAX;
+    }
+    if width + offset > 128 {
+        panic!("bitfield!: Internal error: width + offset > 128");
+    }
+    // The wrapping subtraction is important for the case where width is 128.
+    // A shift with 128 would yield a value of 0, and a regular subtraction of 1 could panic.
+    ((1_u128 << width) - 1) << offset
+}
+
+fn check_for_overlaps(
+    field_definitions: &[FieldDefinition],
+    input: &DeriveInput,
+) -> syn::Result<()> {
+    let mut current_bitmask: u128 = 0;
+
+    for field in field_definitions {
+        let mut check_and_update_bitmask = |offset: usize, width: usize| {
+            // Create an all-ones bitmask for the given range, e.g. 0b1110 for range (1..=3).
+            let mask = mask_for_width_and_offset(width, offset);
+            if (current_bitmask & mask) != 0 {
+                return Err(syn::Error::new_spanned(
+                    input,
+                    format!(
+                        "bitfield!: Detected overlap of field `{}` with other field",
+                        field.field_name
+                    ),
+                ));
+            }
+            current_bitmask |= mask;
+            Ok(())
+        };
+        for range in &field.ranges {
+            let width = range.end - range.start;
+            match field.array {
+                Some(info) => {
+                    let mut current_offset = range.start;
+                    for _ in 0..info.count {
+                        check_and_update_bitmask(current_offset, width)?;
+                        current_offset += info.indexed_stride;
+                    }
+                }
+                None => {
+                    check_and_update_bitmask(range.start, width)?;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn with_name(field_name: &Ident) -> Ident {
     // The field might have started with r#. If so, it was likely used for a keyword. This can be dropped here
     let field_name_without_prefix = {
@@ -497,4 +567,46 @@ fn const_name(field_name: &Ident, suffix: &str) -> Ident {
 
     syn::parse_str::<Ident>(&name)
         .unwrap_or_else(|_| panic!("bitfield!: Error creating {name} name"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_underflow() {
+        assert_eq!(mask_for_width_and_offset(128, 0), u128::MAX);
+    }
+
+    #[test]
+    fn test_mask_at_limit() {
+        assert_eq!(mask_for_width_and_offset(127, 1), u128::MAX - 1);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_mask_error() {
+        // This panics.
+        assert_eq!(mask_for_width_and_offset(127, 2), u128::MAX);
+    }
+
+    #[test]
+    fn test_mask_0() {
+        assert_eq!(mask_for_width_and_offset(3, 1), 0b1110);
+    }
+
+    #[test]
+    fn test_mask_1() {
+        assert_eq!(mask_for_width_and_offset(0, 0), 0);
+    }
+
+    #[test]
+    fn test_mask_2() {
+        assert_eq!(mask_for_width_and_offset(1, 0), 1);
+    }
+
+    #[test]
+    fn test_mask_3() {
+        assert_eq!(mask_for_width_and_offset(2, 0), 0b11);
+    }
 }
