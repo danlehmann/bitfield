@@ -360,56 +360,17 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
 
     // Verify bounds for arrays
     if let Some(indexed_count) = indexed_count {
-        if ranges.len() == 1 {
-            // If stride wasn't given, use the field width
-            if indexed_stride.is_none() {
-                indexed_stride = Some(number_of_bits)
-            }
-            if number_of_bits > indexed_stride.unwrap() {
-                return Err(Error::new_spanned(
-                    field.attrs.first(),
-                    format!(
-                        "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
-                        field_name,
-                        number_of_bits,
-                        indexed_stride.unwrap()
-                    ),
-                ));
-            }
-        } else {
-            // With multiple ranges, strides are mandatory
-            if indexed_stride.is_none() {
-                return Err(Error::new_spanned(
-                    field,
-                    format!(
-                        "bitfield!: Field {} is declared as non-contiguous and array, so it needs a stride. Specify using \"stride = x\".",
-                        field_name,
-                    ),
-                ));
-            }
-        }
-
-        let highest_bit_index_in_ranges = ranges.iter().map(|range| range.end).max().unwrap_or(0);
-        let number_of_bits_indexed =
-            (indexed_count - 1) * indexed_stride.unwrap() + highest_bit_index_in_ranges;
-        if number_of_bits_indexed > base_data_size {
-            return Err(Error::new_spanned(
-                field.attrs.first(),
-                format!(
-                    "bitfield!: Array-field {} requires {number_of_bits_indexed} bits for the array, but only has ({})", field_name, base_data_size
-                )
-            ));
-        }
-
-        if indexed_count < 2 {
-            return Err(Error::new_spanned(
-                &field.ty,
-                format!(
-                    "bitfield!: Field {} is declared as array, but with fewer than 2 elements.",
-                    field_name
-                ),
-            ));
-        }
+        verify_bounds_for_array(
+            field,
+            field_name,
+            &ranges,
+            indexed_count,
+            &mut indexed_stride,
+            number_of_bits,
+            base_data_size,
+        )?;
+    } else {
+        verify_bits_in_range(field, field_name, &ranges, base_data_size)?;
     }
 
     let (custom_type, getter_type, setter_type) = if field_type_size_from_data_type.is_none() {
@@ -449,9 +410,90 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             indexed_stride: indexed_stride.unwrap(),
         }),
         field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
-        is_signed: field_type_size_from_data_type.map_or(false, |v| v.1),
+        is_signed: field_type_size_from_data_type.is_some_and(|v| v.1),
         unsigned_field_type,
     })
+}
+
+fn verify_bits_in_range(
+    field: &Field,
+    field_name: &Ident,
+    ranges: &[Range<usize>],
+    base_data_size: usize,
+) -> syn::Result<()> {
+    let highest_bit_index_in_ranges = ranges.iter().map(|range| range.end).max().unwrap_or(0);
+    if highest_bit_index_in_ranges > base_data_size {
+        return Err(Error::new_spanned(
+            field.attrs.first(),
+            format!(
+                "bitfield!: Field {} requires {} bits, but only has ({})",
+                field_name, highest_bit_index_in_ranges, base_data_size
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn verify_bounds_for_array(
+    field: &Field,
+    field_name: &Ident,
+    ranges: &[Range<usize>],
+    indexed_count: usize,
+    indexed_stride: &mut Option<usize>,
+    number_of_bits: usize,
+    base_data_size: usize,
+) -> syn::Result<()> {
+    if ranges.len() == 1 {
+        // If stride wasn't given, use the field width
+        let indexed_stride = *indexed_stride.get_or_insert(number_of_bits);
+        if number_of_bits > indexed_stride {
+            return Err(Error::new_spanned(
+                    field.attrs.first(),
+                    format!(
+                        "bitfield!: Field {} is declared as {} bits, which is larger than the stride {}",
+                        field_name,
+                        number_of_bits,
+                        indexed_stride
+                    ),
+                ));
+        }
+    } else {
+        // With multiple ranges, strides are mandatory
+        if indexed_stride.is_none() {
+            return Err(Error::new_spanned(
+                    field,
+                    format!(
+                        "bitfield!: Field {} is declared as non-contiguous and array, so it needs a stride. Specify using \"stride = x\".",
+                        field_name,
+                    ),
+                ));
+        }
+    }
+
+    let highest_bit_index_in_ranges = ranges.iter().map(|range| range.end).max().unwrap_or(0);
+    let number_of_bits_indexed =
+        (indexed_count - 1) * indexed_stride.unwrap() + highest_bit_index_in_ranges;
+    if number_of_bits_indexed > base_data_size {
+        return Err(Error::new_spanned(
+                field.attrs.first(),
+                format!(
+                    "bitfield!: Array-field {} requires {number_of_bits_indexed} bits for the array, but only has ({})",
+                    field_name,
+                    base_data_size
+                )
+            ));
+    }
+
+    if indexed_count < 2 {
+        return Err(Error::new_spanned(
+            &field.ty,
+            format!(
+                "bitfield!: Field {} is declared as array, but with fewer than 2 elements.",
+                field_name
+            ),
+        ));
+    }
+    Ok(())
 }
 
 /// Parses the arguments of a field. At the beginning and after each comma, Reset is used. After
