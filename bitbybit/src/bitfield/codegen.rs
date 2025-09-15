@@ -38,14 +38,14 @@ pub fn generate(
                 let end = field_definition.ranges[0].end-1;
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: core::ops::RangeInclusive<usize> = #start..=#end;
+                    const #bits_name: core::ops::RangeInclusive<usize> = #start..=#end;
                 }
             } else {
                 let range_starts = field_definition.ranges.iter().map(|r| r.start);
                 let range_ends = field_definition.ranges.iter().map(|r| r.end-1);
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] = [#(#range_starts..=#range_ends),*];
+                    const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] = [#(#range_starts..=#range_ends),*];
                 }
             };
 
@@ -58,9 +58,9 @@ pub fn generate(
                 quote! {
                     #bits
                     #(#doc_comment)*
-                    pub const #count_name: usize = #count;
+                    const #count_name: usize = #count;
                     #(#doc_comment)*
-                    pub const #stride_name: usize = #stride;
+                    const #stride_name: usize = #stride;
                     #(#doc_comment)*
                     #[inline]
                     pub const fn #mask_name(index: usize) -> #internal_base_data_type {

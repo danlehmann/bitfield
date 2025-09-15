@@ -1820,24 +1820,19 @@ fn test_debug_impl() {
 
 #[test]
 fn introspection() {
-    // Put into module to ensure everything's pub
-    mod test {
-        #[bitbybit::bitfield(u32, introspect)]
-        pub struct Bitfield {
-            #[bits(0..=7)]
-            a: u8,
-            #[bits(8..=15)]
-            b: [u8; 2],
-            #[bits([24..=25, 30..=31])]
-            c: u4,
-            #[bit(29)]
-            d: bool,
-            #[bit(30)]
-            r#ref: [bool; 2],
-        }
+    #[bitfield(u32, introspect)]
+    struct Bitfield {
+        #[bits(0..=7)]
+        a: u8,
+        #[bits(8..=15)]
+        b: [u8; 2],
+        #[bits([24..=25, 30..=31])]
+        c: u4,
+        #[bit(29)]
+        d: bool,
+        #[bit(30)]
+        r#ref: [bool; 2],
     }
-
-    use test::Bitfield;
 
     // <NAME>_BITS exposes the "bits" value(s):
     assert_eq!(Bitfield::A_BITS, 0..=7);
