@@ -15,6 +15,7 @@ This version expects arbitrary-int 2.x.
   for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code.
 - Introduced a check to deny `bitfield` configurations where non-array fields could have out of
   range offsets.
+- Skip write-only fields in the `debug` implementation.
 
 ### Fixed
 
