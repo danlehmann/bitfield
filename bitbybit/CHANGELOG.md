@@ -8,6 +8,7 @@ This version expects arbitrary-int 2.x.
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
 - Added `forbid_overlaps` attribute argument which checks and denies overlaps of `bitfield` fields.
+- Array support for `debug` implementation.
 
 ### Fixed
 
@@ -15,6 +16,7 @@ This version expects arbitrary-int 2.x.
   for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code.
 - Introduced a check to deny `bitfield` configurations where non-array fields could have out of
   range offsets.
+- Skip write-only fields in the `debug` implementation.
 
 ### Fixed
 
