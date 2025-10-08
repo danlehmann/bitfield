@@ -210,7 +210,7 @@ pub fn generate(
 /// If there are multiple ranges, this packs them together
 fn getter_packed(
     field_definition: &FieldDefinition,
-    array_shift: &TokenStream,
+    opt_array_shift: Option<TokenStream>,
     one: &LitInt,
 ) -> TokenStream {
     let expressions = field_definition.ranges.iter().scan(0, |target_lowest_bit, range| {
@@ -218,8 +218,12 @@ fn getter_packed(
         let number_of_bits = range.len();
         let shift_left = *target_lowest_bit;
         *target_lowest_bit += number_of_bits;
+        let right_shift = match &opt_array_shift {
+            Some(array_shift) => quote! { (#lowest_bit #array_shift) },
+            None => quote! { #lowest_bit },
+        };
         Some(quote! {
-           (((self.raw_value >> (#lowest_bit #array_shift)) & ((#one << #number_of_bits) - #one)) << #shift_left)
+           ((self.raw_value >> #right_shift) & ((#one << #number_of_bits) - #one)) << #shift_left
         })
     });
     quote! {
@@ -236,10 +240,7 @@ fn extracted_bits(
     total_number_bits: usize,
 ) -> TokenStream {
     let indexed_stride = field_definition.array.map(|info| info.indexed_stride);
-    let array_shift = indexed_stride.map_or_else(
-        || quote! {},
-        |indexed_stride| quote! { + index * #indexed_stride },
-    );
+    let array_shift = indexed_stride.map(|indexed_stride| quote! { + index * #indexed_stride });
 
     // Special case: For bools, we can shift-left the mask and compare that
     if field_definition.field_type_size == BITCOUNT_BOOL {
@@ -262,7 +263,7 @@ fn extracted_bits(
             assert_eq!(field_definition.ranges[0].start, 0);
             quote! { self.raw_value as #primitive_type }
         } else {
-            let packed = getter_packed(field_definition, &array_shift, one);
+            let packed = getter_packed(field_definition, array_shift, one);
             quote! {  #packed as #primitive_type }
         }
     } else {
@@ -281,7 +282,7 @@ fn extracted_bits(
             }
         } else {
             // First, pack the various range together. Then, extract from that value without shifting
-            let packed = getter_packed(field_definition, &array_shift, one);
+            let packed = getter_packed(field_definition, array_shift, one);
             quote! {
                 #custom_type::#extract(#packed, 0)
             }
