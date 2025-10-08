@@ -559,6 +559,12 @@ pub fn generate_debug_trait_impl(
                 return quote! {};
             }
             let field_name = &field.field_name;
+            if let Some(array_info) = field.array {
+                let num_entries = array_info.count;
+                return quote! {
+                    .field(stringify!(#field_name), &core::array::from_fn::<_, #num_entries, _>(|i| self.#field_name(i)))
+                };
+            }
             quote! {
                 .field(stringify!(#field_name), &self.#field_name())
             }

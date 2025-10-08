@@ -8,6 +8,7 @@ This version expects arbitrary-int 2.x.
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
 - Added `forbid_overlaps` attribute argument which checks and denies overlaps of `bitfield` fields.
+- Array support for `debug` implementation.
 
 ### Fixed
 
