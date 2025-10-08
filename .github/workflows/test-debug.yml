@@ -29,6 +29,14 @@ jobs:
       # the .cargo/config.toml file inside the QEMU test folder.
       - run: cd qemu-tests && cargo build --target thumbv7em-none-eabihf
 
+  clippy-output:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo clippy --examples
+
   # Run some programs in QEMU 9
   qemu-test:
     runs-on: ubuntu-24.04
