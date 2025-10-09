@@ -1,0 +1,43 @@
+error[E0599]: no method named `build` found for struct `PartialTest<65280>` in the current scope
+  --> tests/no_compile/missing_fields_in_builder.rs:12:33
+   |
+3  | #[bitfield(u32, default = 0, forbid_overlaps)]
+   | ---------------------------------------------- method `build` not found for this struct
+...
+12 |     Test::builder().with_foo(1).build();
+   |                                 ^^^^^ method not found in `PartialTest<65280>`
+   |
+   = note: the method was found for
+           - `PartialTest<65535>`
+
+error[E0599]: no method named `with_bar` found for struct `PartialTest<0>` in the current scope
+  --> tests/no_compile/missing_fields_in_builder.rs:13:21
+   |
+3  | #[bitfield(u32, default = 0, forbid_overlaps)]
+   | ---------------------------------------------- method `with_bar` not found for this struct
+...
+13 |     Test::builder().with_bar(1).build();
+   |                     ^^^^^^^^ method not found in `PartialTest<0>`
+   |
+   = note: the method was found for
+           - `PartialTest<65280>`
+help: one of the expressions' fields has a method of the same name
+   |
+13 |     Test::builder().0.with_bar(1).build();
+   |                     ++
+
+error[E0599]: no method named `with_bar` found for struct `PartialTest<0>` in the current scope
+  --> tests/no_compile/missing_fields_in_builder.rs:14:21
+   |
+3  | #[bitfield(u32, default = 0, forbid_overlaps)]
+   | ---------------------------------------------- method `with_bar` not found for this struct
+...
+14 |     Test::builder().with_bar(1).set_foo(1).build();
+   |                     ^^^^^^^^ method not found in `PartialTest<0>`
+   |
+   = note: the method was found for
+           - `PartialTest<65280>`
+help: one of the expressions' fields has a method of the same name
+   |
+14 |     Test::builder().0.with_bar(1).set_foo(1).build();
+   |                     ++
