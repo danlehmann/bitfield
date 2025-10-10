@@ -45,7 +45,8 @@ pub fn generate(
                 let range_ends = field_definition.ranges.iter().map(|r| r.end-1);
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] = [#(#range_starts..=#range_ends),*];
+                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] =
+                        [#(#range_starts..=#range_ends),*];
                 }
             };
 
@@ -89,8 +90,8 @@ pub fn generate(
                 match field_definition.custom_type {
                     CustomType::No => {
                         if field_definition.use_regular_int {
-                            // For signed types, we first have to convert to the unsigned type. Then up the base type
-                            // (e.g. i16 would go: field_value as u16 as u64)
+                            // For signed types, we first have to convert to the unsigned type. Then
+                            // up the base type (e.g. i16 would go: field_value as u16 as u64).
                             if let Some(unsigned_field_type) = &field_definition.unsigned_field_type {
                                 quote! { field_value as #unsigned_field_type }
                             } else {
@@ -108,7 +109,8 @@ pub fn generate(
                         }
                     }
                     CustomType::Yes(_) => {
-                        // Once signed bitenum or bitfield-base-data-types are a thing, we'll need to pay special attention to sign extension here
+                        // Once signed bitenum or bitfield-base-data-types are a thing, we'll need
+                        // to pay special attention to sign extension here.
                         if field_definition.use_regular_int {
                             quote! { field_value.raw_value() }
                         } else {
@@ -117,7 +119,13 @@ pub fn generate(
                     }
                 };
 
-            let new_raw_value = setter_new_raw_value(&one, &argument_converted, field_definition, base_data_size, internal_base_data_type);
+            let new_raw_value = setter_new_raw_value(
+                &one,
+                &argument_converted,
+                field_definition,
+                base_data_size,
+                internal_base_data_type,
+            );
 
             let setter_name = setter_name(field_name);
             let with_name = with_name(field_name);
@@ -325,7 +333,8 @@ fn setter_new_raw_value(
             quote! {
                 {
                     let effective_index = #lowest_bit + index * #indexed_stride;
-                    (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #internal_base_data_type) << effective_index)
+                    (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) |
+                        ((#argument_converted as #internal_base_data_type) << effective_index)
                 }
             }
         } else {
@@ -336,7 +345,8 @@ fn setter_new_raw_value(
                 {
                     let temp = #argument_converted as #internal_base_data_type;
                     const MASK: #internal_base_data_type = #clear_mask;
-                    self.raw_value & (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
+                    self.raw_value &
+                        (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
                 }
             }
         }
@@ -344,7 +354,11 @@ fn setter_new_raw_value(
         assert_eq!(field_definition.ranges.len(), 1);
         let lowest_bit = field_definition.ranges[0].start;
         quote! {
-            if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
+            if #argument_converted {
+                self.raw_value | (#one << #lowest_bit)
+            } else {
+                self.raw_value & !(#one << #lowest_bit)
+            }
         }
     } else if field_definition.ranges.len() == 1 {
         let lowest_bit = field_definition.ranges[0].start;
@@ -357,7 +371,9 @@ fn setter_new_raw_value(
         } else {
             // This is the common case: We're replacing a single range with a given value
             quote! {
-                (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #internal_base_data_type) << #lowest_bit)
+                (self.raw_value &
+                    !(((#one << #number_of_bits) - #one) << #lowest_bit)) |
+                        ((#argument_converted as #internal_base_data_type) << #lowest_bit)
             }
         }
     } else {
