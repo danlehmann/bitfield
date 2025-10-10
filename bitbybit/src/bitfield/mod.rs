@@ -363,7 +363,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         struct_name,
         bitfield_attrs.default_val.is_some(),
         struct_vis,
-        &internal_base_data_type,
         base_data_type,
         base_data_size,
         &field_definitions,
@@ -433,7 +432,17 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         #( #new_with_builder_chain )*
     };
-    //println!("Expanded: {}", expanded.to_string());
+    #[cfg(feature = "print_expanded")]
+    {
+        let file = match syn::parse_file(&expanded.to_string()) {
+            Ok(file) => file,
+            Err(err) => {
+                println!("code:\n{}", expanded.to_string());
+                panic!("unable to parse file: {err:#?}");
+            }
+        };
+        println!("Expanded: {}", prettyplease::unparse(&file));
+    }
     TokenStream::from(expanded)
 }
 

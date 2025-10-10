@@ -2,7 +2,7 @@ use crate::bitfield::{
     const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
     CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
@@ -24,7 +24,7 @@ pub fn generate(
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
-    let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
+    let accessors: Vec<TokenStream> = field_definitions.iter().map(|field_definition| {
         let total_number_bits = field_definition.ranges.iter().fold(0, |a, b| a + b.len());
         let field_name = &field_definition.field_name;
         let doc_comment = &field_definition.doc_comment;
@@ -279,10 +279,10 @@ fn extracted_bits(
     } else {
         let prefix = if field_definition.is_signed { "i" } else { "u" };
         let custom_type =
-            TokenStream2::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
+            TokenStream::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
                 .unwrap();
         let extract =
-            TokenStream2::from_str(format!("extract_u{}", base_data_size.internal).as_str())
+            TokenStream::from_str(format!("extract_u{}", base_data_size.internal).as_str())
                 .unwrap();
         if field_definition.ranges.len() == 1 {
             // Very common case: We just want to extract a single range - we can use extract for that
@@ -424,34 +424,67 @@ fn ranges_have_self_overlap(
     false
 }
 
+fn set_type_param(ident: &Ident) -> Ident {
+    type_param(ident, "Set_")
+}
+
+fn type_param(ident: &Ident, prefix: &str) -> Ident {
+    let mut ident = ident.to_string();
+    if ident.starts_with("r#") {
+        ident = ident[2..].to_string();
+    }
+    syn::parse_str::<Ident>(format!("{prefix}{ident}").as_str()).unwrap()
+}
+
 pub fn make_builder(
     struct_name: &Ident,
     has_default: bool,
     struct_vis: &Visibility,
-    internal_base_data_type: &Type,
     base_data_type: &Ident,
     base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
-) -> (TokenStream2, Vec<TokenStream2>) {
+) -> (TokenStream, Vec<TokenStream>) {
     let builder_struct_name =
         syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
 
-    let mut running_mask = 0u128;
-    let mut running_mask_token_tree = syn::parse_str::<TokenTree>("0x0").unwrap();
-    let mut new_with_builder_chain: Vec<TokenStream2> =
+    let mut new_with_builder_chain: Vec<TokenStream> =
         Vec::with_capacity(field_definitions.len() + 2);
 
+    let params = field_definitions
+        .iter()
+        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .collect::<Vec<_>>();
+    let mod_name = syn::parse_str::<Ident>(format!("mod_{}", struct_name).as_str()).unwrap();
+    let set_structs = params
+        .iter()
+        .map(|param| set_type_param(&param))
+        .collect::<Vec<_>>();
+    let unset_structs = params
+        .iter()
+        .map(|param| type_param(&param, "Unset_"))
+        .collect::<Vec<_>>();
     new_with_builder_chain.push(quote! {
-        /// Builder struct for partial initialization of [`#struct_name`].
-        #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
+        #[allow(non_camel_case_types)]
+        mod #mod_name {
+            #( pub struct #set_structs; )*
+            #( pub struct #unset_structs; )*
+        }
     });
 
-    for field_definition in field_definitions {
+    new_with_builder_chain.push(quote! {
+        /// Builder struct for partial inizialization of [`#struct_name`].
+        #struct_vis struct #builder_struct_name<#( #params, )*> {
+            value: #struct_name,
+            _marker: ::core::marker::PhantomData<(#( #params, )*)>,
+        }
+    });
+
+    for (i, field_definition) in field_definitions.iter().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 
-            let (field_mask, value_transform, argument_type) = if let Some(array) =
+            let (_field_mask, value_transform, argument_type) = if let Some(array) =
                 field_definition.array
             {
                 // For arrays, we'll generate this code:
@@ -474,7 +507,7 @@ pub fn make_builder(
 
                     array_setters.push(quote! { .#with_name(#i, value[#i]) });
                 }
-                let value_transform = quote!(self.0 #( #array_setters )*);
+                let value_transform = quote!(self.value #( #array_setters )*);
                 let array_type = quote! { [#setter_type; #array_count] };
 
                 (mask, value_transform, array_type)
@@ -497,64 +530,70 @@ pub fn make_builder(
 
                 (
                     mask,
-                    quote! { self.0.#with_name(value)},
+                    quote! { self.value.#with_name(value)},
                     quote! { #setter_type },
                 )
             };
-            let previous_mask = running_mask;
-            let previous_mask_token_tree = running_mask_token_tree;
+            let pre: Vec<_> = params.iter().take(i).cloned().collect();
+            let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
+            let set_param = set_type_param(field_name);
+            let type_params = quote!(#( #pre, )* #mod_name::#set_param, #( #post, )*);
 
-            if (previous_mask & field_mask) != 0 {
-                // Some fields are writable through multiple fields. This is not supported, so don't provide the constructor
-                return (quote! {}, Vec::new());
-            }
-
-            running_mask = previous_mask | field_mask;
-            running_mask_token_tree =
-                syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
-                impl #builder_struct_name<#previous_mask_token_tree> {
+                #[allow(non_camel_case_types)]
+                impl<#( #pre, )* #field_name, #( #post, )*> #builder_struct_name<#( #params, )*> {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
-                        #builder_struct_name(#value_transform)
+                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#type_params> {
+                        #builder_struct_name {
+                            value: #value_transform,
+                            _marker: ::core::marker::PhantomData,
+                        }
                     }
                 }
             });
         }
     }
 
-    // The type has to either be complete OR it has to have a default value. Otherwise we can't do constructor syntax
-    if (running_mask.count_ones() as usize != base_data_size.exposed) && !has_default {
-        return (quote! {}, Vec::new());
-    }
-
+    let set_params = field_definitions
+        .iter()
+        .map(|def| set_type_param(&def.field_name))
+        .collect::<Vec<_>>();
     new_with_builder_chain.push(quote! {
-        impl #builder_struct_name<#running_mask_token_tree> {
+        impl #builder_struct_name<#( #mod_name::#set_params, )*> {
             /// Builds the bitfield from the values passed into this builder.
             ///
             /// Every field *must* be set on [`#builder_struct_name`] to be able to build a
             /// [`#struct_name`].
             pub const fn build(&self) -> #struct_name {
-                self.0
+                self.value
             }
         }
     });
 
     let default = if has_default {
-        quote! { #builder_struct_name(#struct_name::DEFAULT) }
+        quote! { #builder_struct_name {
+            value: #struct_name::DEFAULT,
+            _marker: core::marker::PhantomData,
+        } }
     } else if base_data_size.exposed == base_data_size.internal {
-        quote! { #builder_struct_name(#struct_name::new_with_raw_value(0)) }
+        quote! { #builder_struct_name {
+            value: #struct_name::new_with_raw_value(0),
+            _marker: core::marker::PhantomData,
+        } }
     } else {
         quote! {
             const ZERO: #base_data_type = #base_data_type::new(0);
-            #builder_struct_name(#struct_name::new_with_raw_value(ZERO))
+            #builder_struct_name {
+                value: #struct_name::new_with_raw_value(ZERO),
+                _marker: core::marker::PhantomData,
+            }
         }
     };
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are
         /// initialized.
-        pub const fn builder() -> #builder_struct_name<0> {
+        pub const fn builder() -> #builder_struct_name<#( #mod_name::#unset_structs, )*> {
             #default
         }
     };
@@ -602,11 +641,11 @@ pub fn generate_defmt_trait_impl(
     bitfield_attrs: &BitfieldAttributes,
     field_definitions: &[FieldDefinition],
     base_data_size: BaseDataSize,
-) -> TokenStream2 {
-    let mut defmt_trait = TokenStream2::new();
+) -> TokenStream {
+    let mut defmt_trait = TokenStream::new();
 
     if let Some(defmt_format) = &bitfield_attrs.defmt_trait {
-        let mut feature_gate = TokenStream2::new();
+        let mut feature_gate = TokenStream::new();
         if let Some(feature_gate_str) = &defmt_format.feature_gate {
             feature_gate.extend(quote! {
                 #[cfg(feature = #feature_gate_str)]
@@ -701,7 +740,7 @@ pub fn generate_defmt_trait_impl(
                         .join(", ");
                     format!("{} {{{{ {} }}}}", struct_name, labels)
                 };
-                let defmt_fields: Vec<TokenStream2> = field_definitions
+                let defmt_fields: Vec<TokenStream> = field_definitions
                     .iter()
                     .map(|field| {
                         // Skip write-only fields.
