@@ -24,7 +24,7 @@ pub fn generate(
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
-    let mut accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
+    let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
         let total_number_bits = field_definition.ranges.iter().fold(0, |a, b| a + b.len());
         let field_name = &field_definition.field_name;
         let doc_comment = &field_definition.doc_comment;
@@ -52,24 +52,6 @@ pub fn generate(
             let mask_name = mask_name(field_name);
             let mask = setter_mask(&one, field_definition);
 
-            let default_value = if let Some(field_value) = field_definition.default_value {
-                let default_name = const_name(field_name, "DEFAULT");
-                let primitive_type = field_definition.primitive_type.clone() ;
-                let converted_field_value = Literal::isize_unsuffixed(field_value) ;
-                if field_definition.use_regular_int {
-                    quote! {
-                    pub const #default_name: #primitive_type = #converted_field_value;
-                }
-                } else {
-                    quote! {
-                    pub const #default_name: #primitive_type = #primitive_type::new(#converted_field_value);
-                }
-                }
-                
-            } else {
-                quote! {}
-            };
-
             if let Some(ArrayInfo { count, indexed_stride: stride }) = field_definition.array {
                 let count_name = const_name(field_name, "COUNT");
                 let stride_name = const_name(field_name, "STRIDE");
@@ -94,7 +76,6 @@ pub fn generate(
                     pub const fn #mask_name() -> #internal_base_data_type {
                         #mask
                     }
-                    #default_value
                 }
             }
         } else {
@@ -140,7 +121,8 @@ pub fn generate(
                 quote! {}
             };
 
-        let setter = if let Some(setter_type) = field_definition.setter_type.as_ref() {
+        let setter = {
+            let setter_type = field_definition.setter_type.clone() ;
             let argument_converted =
                 match field_definition.custom_type {
                     CustomType::No => {
@@ -178,12 +160,22 @@ pub fn generate(
             let setter_name = setter_name(field_name);
             let with_name = with_name(field_name);
 
+            let public_status = if field_definition.setter_is_public {
+                quote! {
+                    pub
+                }
+            } else {
+                quote!{
+
+                }
+            } ;
+            
             if let Some(array) = field_definition.array {
                 let indexed_count = array.count;
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
+                    #public_status const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
                         assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
@@ -191,7 +183,7 @@ pub fn generate(
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
+                    #public_status fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
                         assert!(index < #indexed_count);
                         self.raw_value = #new_raw_value;
                     }
@@ -200,21 +192,20 @@ pub fn generate(
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #with_name(&self, field_value: #setter_type) -> Self {
+                    #public_status const fn #with_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
                         }
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, field_value: #setter_type) {
+                    #public_status fn #setter_name(&mut self, field_value: #setter_type) {
                         self.raw_value = #new_raw_value;
                     }
                 }
             }
-        } else {
-            quote! {}
         };
+            
 
 
 
@@ -225,28 +216,49 @@ pub fn generate(
         }
     }).collect();
 
-    let mut default_function: Vec<_> = {
-        field_definitions.iter().map(|field_definition| {
-            let field_name = &field_definition.field_name ;
-            let func_name = with_name(field_name) ;
-            let default_const = const_name(field_name, "DEFAULT");
-            quote! {
-                .#func_name(Self::#default_const)
-            }
-        }).collect()
-     } ;
-    accessors.push(
-        quote! {
-            pub const TEST: Self = Self::ZERO
-        }
-    ) ;
-    accessors.append(&mut default_function);
-    accessors.push(
-        quote! {
-            ;
-        }
-    ) ;
     accessors
+}
+
+pub fn generate_field_defaults(field_definitions: &[FieldDefinition]) -> TokenStream {
+    let mut default_constructor = Vec::new();
+    let mut default_consts = Vec::new();
+
+    let default_from_fields = super::DefaultVal::UseFieldDefault ;
+    default_constructor.push(quote! {
+        pub const #default_from_fields: Self = Self::ZERO
+    });
+    for field_definition in field_definitions {
+        if let Some(default_value) = field_definition.default_value {
+            let field_name = &field_definition.field_name;
+            let func_name = with_name(field_name);
+            let default_const = const_name(field_name, "DEFAULT");
+
+            let primitive_type = field_definition.primitive_type.clone();
+            let converted_field_value = Literal::isize_unsuffixed(default_value);
+            let const_def = if field_definition.use_regular_int {
+                quote! {
+                    pub const #default_const: #primitive_type = #converted_field_value;
+                }
+            } else {
+                quote! {
+                    pub const #default_const: #primitive_type = #primitive_type::new(#converted_field_value);
+                }
+            };
+
+            default_constructor.push(quote! {
+                .#func_name(Self::#default_const)
+            });
+            default_consts.push(const_def);
+        }
+    }
+    default_constructor.push(quote! {
+        ;
+    });
+
+    quote! {
+        #(#default_consts)*
+        #(#default_constructor)*
+    }
 }
 
 /// If there are multiple ranges, this packs them together
@@ -478,7 +490,8 @@ pub fn make_builder(
     });
 
     for field_definition in field_definitions {
-        if let Some(setter_type) = field_definition.setter_type.as_ref() {
+        if field_definition.setter_is_public {
+            let setter_type = field_definition.setter_type.clone() ;
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 

@@ -1,32 +1,68 @@
-use arbitrary_int::u4;
+use arbitrary_int::*;
 use bitbybit::bitfield;
 
-#[bitfield(u32, debug, introspect)]
-pub struct BitfieldU32 {
-    #[bits(28..=31, rw, default = 0xF)]
-    val3: u4,
-    #[bits(24..=27, rw, default = 0d10)]
-    val2: u4,
-    #[bits(16..=23, rw, default = 1)]
-    val1: u8,
-    #[bits(0..=15, rw, default = 53)]
-    val0: u16,
+#[bitfield(u32, introspect, forbid_overlaps, default = use_field_defaults)]
+pub struct WithDefaultFieldValues {
+    #[bits(0..=2, rw, default = 4)] // <- decimal ok
+    val3: u3,
+    //#[bits(2..=16, rw, default = 0xFFFF)] //<- Will raise an error
+    #[bits(3..=16, rw, default = 0xBEF)] // Accepts 0x and 0h (as base16 indicator)
+    val2: u14,
+    #[bits(17..=23, rw, default = 0d42)] // Accepts 0d (as base10 indicator)
+    val1: u7,
+    #[bits(24..=31, rw, default = -1)] // Can parse negative values
+    val0: i8,
 }
 
+#[bitfield(u32, introspect, default = 0)] // the previous system takes over
+pub struct LegacyDefault {
+    #[bits(0..=2, rw, default = 4)]
+    val3: u3,
+    #[bits(3..=16, rw, default = 0xBEF)]
+    val2: u14,
+    #[bits(17..=23, rw, default = 0d42)]
+    val1: u7,
+    #[bits(24..=31, rw, default = -1)]
+    val0: i8,
+}
+
+#[bitfield(u32, introspect, forbid_overlaps, default = use_field_defaults)]
+pub struct WithoutWriteAcces {
+    #[bits(0..=2, rw, default = 4)]
+    val3: u3,
+    #[bits(3..=16, r, default = 0xBEF)]
+    val2: u14,
+    #[bits(17..=23, w, default = 0d42)]
+    val1: u7,
+    #[bits(24..=31, default = -1)]
+    val0: i8,
+}
+
+
 pub fn main() {
-    let test = 0x00 ;
-    let bitfield = BitfieldU32::new_with_raw_value(0x0);
-    assert_eq!(bitfield.val0(), 0);
-    assert_eq!(bitfield.val1(), 0);
-    assert_eq!(bitfield.val2(), u4::new(0));
-    assert_eq!(bitfield.val3(), u4::new(0));
-    assert_eq!(bitfield.raw_value(), 0);
+    let reg = WithDefaultFieldValues::default();
+    assert_eq!(reg.val3(), u3::new(4));
+    assert_eq!(reg.val2(), u14::new(0xBEF));
+    assert_eq!(reg.val1(), u7::new(42));
+    assert_eq!(reg.val0(), -1);
 
-    let bitfield_with_values = BitfieldU32::new_with_raw_value(0x1234_5678);
+    let reg = WithDefaultFieldValues::new_with_raw_value(0);
+    assert_eq!(reg.val3(), u3::new(0));
+    assert_eq!(reg.val2(), u14::new(0));
+    assert_eq!(reg.val1(), u7::new(0));
+    assert_eq!(reg.val0(), 0);
 
-    assert_eq!(bitfield_with_values.val0(), 0x5678);
-    assert_eq!(bitfield_with_values.val1(), 0x34);
-    assert_eq!(bitfield_with_values.val2(), u4::new(0x2));
-    assert_eq!(bitfield_with_values.val3(), u4::new(0x1));
-    assert_eq!(bitfield_with_values.raw_value(), 0x1234_5678);
+    let reg2 = LegacyDefault::default();
+    assert_ne!(reg2.val3(), LegacyDefault::VAL3_DEFAULT);
+    assert_ne!(reg2.val2(), LegacyDefault::VAL2_DEFAULT);
+    assert_ne!(reg2.val1(), LegacyDefault::VAL1_DEFAULT);
+    assert_ne!(reg2.val0(), LegacyDefault::VAL0_DEFAULT);
+    assert_eq!(reg2.raw_value(), LegacyDefault::ZERO.raw_value());
+
+    let reg = WithoutWriteAcces::default();
+    assert_eq!(reg.val3(), u3::new(4));
+    assert_eq!(reg.val2(), u14::new(0xBEF));
+    //assert_eq!(reg.val1(), u7::new(42)); 
+    //assert_eq!(reg.val0(), -1);
+    assert_eq!(reg.raw_value(), WithoutWriteAcces::DEFAULT_RAW_VALUE);
 }

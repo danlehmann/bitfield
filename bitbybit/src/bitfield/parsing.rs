@@ -406,11 +406,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         } else {
             None
         },
-        setter_type: if provide_setter {
-            Some(setter_type)
-        } else {
-            None
-        },
+        setter_type,
+        setter_is_public: provide_setter,
         use_regular_int,
         primitive_type,
         custom_type,
@@ -568,7 +565,7 @@ enum ArgumentParser {
 
     // Default value for a field
     DefaultStarted,
-    HasDefaultEquals,
+    HasDefaultEquals { is_negative: bool },
     DefaultComplete(isize),
 }
 
@@ -607,9 +604,14 @@ impl ArgumentParser {
             ArgumentParser::HasStrideEquals => Ok(ArgumentParser::StrideComplete(
                 Self::parse_literal_number(lit)?,
             )),
-            ArgumentParser::HasDefaultEquals => Ok(ArgumentParser::DefaultComplete(
-                Self::parse_prefixed_number(lit)?,
-            )),
+            ArgumentParser::HasDefaultEquals { is_negative } => {
+                let val = Self::parse_prefixed_number(lit)?;
+                if *is_negative {
+                    Ok(ArgumentParser::DefaultComplete(-val))
+                } else {
+                    Ok(ArgumentParser::DefaultComplete(val))
+                }
+            }
             _ => Err(Error::new_spanned(
                 &lit,
                 "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
@@ -632,7 +634,13 @@ impl ArgumentParser {
                 Ok(ArgumentParser::HasStrideEquals)
             }
             ArgumentParser::DefaultStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
-                Ok(ArgumentParser::HasDefaultEquals)
+                Ok(ArgumentParser::HasDefaultEquals { is_negative: false })
+            }
+            ArgumentParser::HasDefaultEquals { is_negative: _ } if punct.as_char() == '-' => {
+                Ok(ArgumentParser::HasDefaultEquals { is_negative: true })
+            }
+            ArgumentParser::HasDefaultEquals { is_negative: _ } if punct.as_char() == '+' => {
+                Ok(ArgumentParser::HasDefaultEquals { is_negative: false })
             }
             _ => Err(Error::new_spanned(
                 &punct,
