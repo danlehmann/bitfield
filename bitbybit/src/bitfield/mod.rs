@@ -74,6 +74,7 @@ struct FieldDefinition {
     primitive_type: TokenStream2,
     custom_type: CustomType,
     doc_comment: Vec<Attribute>,
+    default_value: Option<isize> //TODO - check if it's the correct type
 }
 
 // If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
@@ -439,6 +440,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #new_with_constructor
 
             #( #accessors )*
+
+            pub const DEFAULT_TEST: Self = ZERO.
         }
         #default_trait
 

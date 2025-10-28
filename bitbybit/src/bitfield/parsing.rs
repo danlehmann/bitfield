@@ -167,6 +167,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     let mut provide_getter = false;
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
+    let mut default_value: Option<isize> = None;
 
     let mut doc_comment: Vec<Attribute> = Vec::new();
 
@@ -261,6 +262,10 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                                 ));
                             }
                             indexed_stride = Some(stride);
+                        }
+                        ArgumentParser::DefaultComplete(value) => {
+                            //TODO - check if the default value would fit ?
+                            default_value = Some(value) ;
                         }
                         ArgumentParser::Reset => {
                             // An empty argument (happens after arrays as that's a separate ArgumentParser)
@@ -386,6 +391,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             number_of_bits != 1 && is_int_size_regular_type(number_of_bits)
         }
     };
+    let is_signed = field_type_size_from_data_type.is_some_and(|v| v.1);
+
+    if let Some(default_value) = default_value {
+        verify_value_fits_in_type(field, default_value, field_type_size, is_signed)?;
+    }
 
     Ok(FieldDefinition {
         field_name: field_name.clone(),
@@ -410,8 +420,9 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             indexed_stride: indexed_stride.unwrap(),
         }),
         field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
-        is_signed: field_type_size_from_data_type.is_some_and(|v| v.1),
+        is_signed,
         unsigned_field_type,
+        default_value,
     })
 }
 
@@ -496,6 +507,38 @@ fn verify_bounds_for_array(
     Ok(())
 }
 
+fn verify_value_fits_in_type(
+    field: &Field,
+    value: isize,
+    field_type_size: usize,
+    is_signed: bool,
+) -> syn::Result<()> {
+    let (upper_bound, lower_bound) = if is_signed {
+        (
+            2isize.pow(field_type_size as u32 - 1) - 1,
+            -2isize.pow(field_type_size as u32 - 1) + 1,
+        )
+    } else {
+        (2isize.pow(field_type_size as u32) - 1, 0)
+    };
+
+    if value > upper_bound || value < lower_bound {
+        Err(Error::new_spanned(
+            &field,
+            format!(
+                "bitfield!: value {} does not fit in {} {} bits ( [{}:{}] )",
+                value,
+                field_type_size,
+                if is_signed { "signed" } else { "unsigned" },
+                lower_bound,
+                upper_bound,
+            ),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Parses the arguments of a field. At the beginning and after each comma, Reset is used. After
 /// that, the various take_xxx functions are used to switch states.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -522,6 +565,11 @@ enum ArgumentParser {
     Read,
     Write,
     ReadWrite,
+
+    // Default value for a field
+    DefaultStarted,
+    HasDefaultEquals,
+    DefaultComplete(isize),
 }
 
 impl ArgumentParser {
@@ -530,6 +578,21 @@ impl ArgumentParser {
             .to_string()
             .parse()
             .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid number in bitrange."))
+    }
+
+    fn parse_prefixed_number(number: Literal) -> Result<isize> {
+        match number.to_string() {
+            number if number.starts_with("0x") || number.starts_with("0h") => {
+                isize::from_str_radix(&number[2..], 16).map_err(|_| {
+                    Error::new_spanned(&number, "bitfield!: Not a valid base16 number")
+                })
+            }
+            number if number.starts_with("0d") => isize::from_str_radix(&number[2..], 10)
+                .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid base10 number")),
+            number => number
+                .parse::<isize>()
+                .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid base10 number.")),
+        }
     }
 
     pub fn take_literal(&self, lit: Literal) -> Result<ArgumentParser> {
@@ -543,6 +606,9 @@ impl ArgumentParser {
             )),
             ArgumentParser::HasStrideEquals => Ok(ArgumentParser::StrideComplete(
                 Self::parse_literal_number(lit)?,
+            )),
+            ArgumentParser::HasDefaultEquals => Ok(ArgumentParser::DefaultComplete(
+                Self::parse_prefixed_number(lit)?,
             )),
             _ => Err(Error::new_spanned(
                 &lit,
@@ -565,6 +631,9 @@ impl ArgumentParser {
             ArgumentParser::StrideStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
                 Ok(ArgumentParser::HasStrideEquals)
             }
+            ArgumentParser::DefaultStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
+                Ok(ArgumentParser::HasDefaultEquals)
+            }
             _ => Err(Error::new_spanned(
                 &punct,
                 "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
@@ -579,6 +648,7 @@ impl ArgumentParser {
             ArgumentParser::Reset if s == "r" => Ok(ArgumentParser::Read),
             ArgumentParser::Reset if s == "w" => Ok(ArgumentParser::Write),
             ArgumentParser::Reset if s == "stride" => Ok(ArgumentParser::StrideStarted),
+            ArgumentParser::Reset if s == "default" => Ok(ArgumentParser::DefaultStarted),
             _ => Err(Error::new_spanned(
                 &id,
                 format!(

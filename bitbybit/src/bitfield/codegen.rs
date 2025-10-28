@@ -2,7 +2,7 @@ use crate::bitfield::{
     const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
     CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
+use proc_macro2::{Ident, Literal, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::{quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
@@ -24,7 +24,7 @@ pub fn generate(
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
-    let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
+    let mut accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
         let total_number_bits = field_definition.ranges.iter().fold(0, |a, b| a + b.len());
         let field_name = &field_definition.field_name;
         let doc_comment = &field_definition.doc_comment;
@@ -52,6 +52,24 @@ pub fn generate(
             let mask_name = mask_name(field_name);
             let mask = setter_mask(&one, field_definition);
 
+            let default_value = if let Some(field_value) = field_definition.default_value {
+                let default_name = const_name(field_name, "DEFAULT");
+                let primitive_type = field_definition.primitive_type.clone() ;
+                let converted_field_value = Literal::isize_unsuffixed(field_value) ;
+                if field_definition.use_regular_int {
+                    quote! {
+                    pub const #default_name: #primitive_type = #converted_field_value;
+                }
+                } else {
+                    quote! {
+                    pub const #default_name: #primitive_type = #primitive_type::new(#converted_field_value);
+                }
+                }
+                
+            } else {
+                quote! {}
+            };
+
             if let Some(ArrayInfo { count, indexed_stride: stride }) = field_definition.array {
                 let count_name = const_name(field_name, "COUNT");
                 let stride_name = const_name(field_name, "STRIDE");
@@ -76,6 +94,7 @@ pub fn generate(
                     pub const fn #mask_name() -> #internal_base_data_type {
                         #mask
                     }
+                    #default_value
                 }
             }
         } else {
@@ -197,6 +216,8 @@ pub fn generate(
             quote! {}
         };
 
+
+
         quote! {
             #introspect
             #getter
@@ -204,6 +225,27 @@ pub fn generate(
         }
     }).collect();
 
+    let mut default_function: Vec<_> = {
+        field_definitions.iter().map(|field_definition| {
+            let field_name = &field_definition.field_name ;
+            let func_name = with_name(field_name) ;
+            let default_const = const_name(field_name, "DEFAULT");
+            quote! {
+                .#func_name(Self::#default_const)
+            }
+        }).collect()
+     } ;
+    accessors.push(
+        quote! {
+            pub const TEST: Self = Self::ZERO
+        }
+    ) ;
+    accessors.append(&mut default_function);
+    accessors.push(
+        quote! {
+            ;
+        }
+    ) ;
     accessors
 }
 
