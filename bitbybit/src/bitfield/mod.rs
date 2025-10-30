@@ -7,6 +7,7 @@ use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::TokenStreamExt;
 use quote::{quote, ToTokens};
+use syn::Expr;
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
@@ -75,7 +76,7 @@ struct FieldDefinition {
     primitive_type: TokenStream2,
     custom_type: CustomType,
     doc_comment: Vec<Attribute>,
-    default_value: Option<isize>, //TODO - check if it's the correct type
+    default_value: Option<DefaultVal>, //TODO - check if it's the correct type
 }
 
 // If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
@@ -117,10 +118,11 @@ impl BaseDataSize {
     }
 }
 
-#[cfg_attr(feature = "extra-traits", derive(Debug))]
+#[cfg_attr(feature = "extra-traits", derive(Debug, Clone, PartialEq, Eq))]
 pub enum DefaultVal {
     Lit(LitInt),
     Constant(Ident),
+    Expr(Expr),
     UseFieldDefault,
 }
 
@@ -129,6 +131,7 @@ impl ToTokens for DefaultVal {
         match self {
             DefaultVal::Lit(lit) => lit.to_tokens(tokens),
             DefaultVal::Constant(ident) => ident.to_tokens(tokens),
+            DefaultVal::Expr(expr) => expr.to_tokens(tokens),
             DefaultVal::UseFieldDefault => {
                 syn::parse_str::<Ident>("DEFAULTS_FROM_FIELDS")
                     .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
@@ -484,7 +487,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         
         mod #field_defaults_module {
-            use arbitrary_int::* ;
+            use super::* ;
             impl super::#struct_name {
                 #( #accessors )*
 

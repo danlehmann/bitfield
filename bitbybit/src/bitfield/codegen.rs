@@ -228,20 +228,30 @@ pub fn generate_field_defaults(field_definitions: &[FieldDefinition]) -> TokenSt
         pub const #default_from_fields: Self = Self::ZERO
     });
     for field_definition in field_definitions {
-        if let Some(default_value) = field_definition.default_value {
+        if let Some(default_value) = &field_definition.default_value {
             let field_name = &field_definition.field_name;
             let func_name = with_name(field_name);
             let default_const = const_name(field_name, "DEFAULT");
 
-            let primitive_type = field_definition.primitive_type.clone();
-            let converted_field_value = Literal::isize_unsuffixed(default_value);
-            let const_def = if field_definition.use_regular_int {
+            let field_type = field_definition.setter_type.clone();
+            let converted_field_value = default_value;
+
+            // 3 cases: either a custom-type, or a basic Rust number type, or an arbitrary-int type
+            let const_def = if let CustomType::Yes(_) = field_definition.custom_type {
                 quote! {
-                    pub const #default_const: #primitive_type = #converted_field_value;
+                    // Custom type
+                    pub const #default_const: #field_type = #converted_field_value;
+                }
+            }
+            else if field_definition.use_regular_int {
+                // Basic Rust number type
+                quote! {
+                    pub const #default_const: #field_type = #converted_field_value;
                 }
             } else {
+                // Arbitrary-int are created with ::new()
                 quote! {
-                    pub const #default_const: #primitive_type = #primitive_type::new(#converted_field_value);
+                    pub const #default_const: #field_type = #field_type::new(#converted_field_value);
                 }
             };
 

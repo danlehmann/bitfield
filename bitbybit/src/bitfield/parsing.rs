@@ -6,7 +6,7 @@ use proc_macro2::{Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree}
 use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use syn::{
-    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument,
+    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument, Lit,
     MetaList, PathArguments, Result, Type,
 };
 
@@ -167,7 +167,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     let mut provide_getter = false;
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
-    let mut default_value: Option<isize> = None;
+    let mut default_value = None;
 
     let mut doc_comment: Vec<Attribute> = Vec::new();
 
@@ -263,9 +263,18 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                             }
                             indexed_stride = Some(stride);
                         }
-                        ArgumentParser::DefaultComplete(value) => {
-                            //TODO - check if the default value would fit ?
-                            default_value = Some(value) ;
+                        ArgumentParser::DefaultParsing(value) => {
+                            let expression: Result<syn::Expr> = syn::parse_str(&value);
+                            if let Ok(expression) = expression {
+                                default_value = Some(super::DefaultVal::Expr(expression));
+                            } else {
+                                Err(Error::new_spanned(
+                                &attr.meta,
+                                format!(
+                "bitfield!: Invalid syntax. This can't be parsed into a valid expression: {}", value
+                                )))? ;
+                            }
+
                         }
                         ArgumentParser::Reset => {
                             // An empty argument (happens after arrays as that's a separate ArgumentParser)
@@ -273,7 +282,10 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                         _ =>
                             Err(Error::new_spanned(
                                 &range_span,
-                                "bitfield!: Invalid syntax. Supported: bits(5..=6, access, stride = x), where x is an integer and access can be r, w or rw",
+                                format!(
+"bitfield!: Invalid syntax. Supported: bits(5..=6, access, stride = x), where x is an integer and access can be r, w or rw (debug: {:?})", range_parser
+                                )
+                                ,
                             ))?,
 
                     };
@@ -393,9 +405,9 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     };
     let is_signed = field_type_size_from_data_type.is_some_and(|v| v.1);
 
-    if let Some(default_value) = default_value {
-        verify_value_fits_in_type(field, default_value, field_type_size, is_signed)?;
-    }
+    //if let Some(default_value) = default_value {
+    //    //verify_value_fits_in_type(field, default_value, field_type_size, is_signed)?;
+    //}
 
     Ok(FieldDefinition {
         field_name: field_name.clone(),
@@ -538,7 +550,7 @@ fn verify_value_fits_in_type(
 
 /// Parses the arguments of a field. At the beginning and after each comma, Reset is used. After
 /// that, the various take_xxx functions are used to switch states.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 enum ArgumentParser {
     // An unknown argument - could go into any of the categories below
     Reset,
@@ -565,8 +577,7 @@ enum ArgumentParser {
 
     // Default value for a field
     DefaultStarted,
-    HasDefaultEquals { is_negative: bool },
-    DefaultComplete(isize),
+    DefaultParsing(String),
 }
 
 impl ArgumentParser {
@@ -575,21 +586,6 @@ impl ArgumentParser {
             .to_string()
             .parse()
             .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid number in bitrange."))
-    }
-
-    fn parse_prefixed_number(number: Literal) -> Result<isize> {
-        match number.to_string() {
-            number if number.starts_with("0x") || number.starts_with("0h") => {
-                isize::from_str_radix(&number[2..], 16).map_err(|_| {
-                    Error::new_spanned(&number, "bitfield!: Not a valid base16 number")
-                })
-            }
-            number if number.starts_with("0d") => isize::from_str_radix(&number[2..], 10)
-                .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid base10 number")),
-            number => number
-                .parse::<isize>()
-                .map_err(|_| Error::new_spanned(&number, "bitfield!: Not a valid base10 number.")),
-        }
     }
 
     pub fn take_literal(&self, lit: Literal) -> Result<ArgumentParser> {
@@ -604,13 +600,11 @@ impl ArgumentParser {
             ArgumentParser::HasStrideEquals => Ok(ArgumentParser::StrideComplete(
                 Self::parse_literal_number(lit)?,
             )),
-            ArgumentParser::HasDefaultEquals { is_negative } => {
-                let val = Self::parse_prefixed_number(lit)?;
-                if *is_negative {
-                    Ok(ArgumentParser::DefaultComplete(-val))
-                } else {
-                    Ok(ArgumentParser::DefaultComplete(val))
-                }
+            ArgumentParser::DefaultStarted => Ok(ArgumentParser::DefaultParsing(lit.to_string())),
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push_str(&lit.to_string());
+                Ok(ArgumentParser::DefaultParsing(str))
             }
             _ => Err(Error::new_spanned(
                 &lit,
@@ -634,13 +628,12 @@ impl ArgumentParser {
                 Ok(ArgumentParser::HasStrideEquals)
             }
             ArgumentParser::DefaultStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
-                Ok(ArgumentParser::HasDefaultEquals { is_negative: false })
+                Ok(ArgumentParser::DefaultParsing("".to_string()))
             }
-            ArgumentParser::HasDefaultEquals { is_negative: _ } if punct.as_char() == '-' => {
-                Ok(ArgumentParser::HasDefaultEquals { is_negative: true })
-            }
-            ArgumentParser::HasDefaultEquals { is_negative: _ } if punct.as_char() == '+' => {
-                Ok(ArgumentParser::HasDefaultEquals { is_negative: false })
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push(punct.as_char());
+                Ok(ArgumentParser::DefaultParsing(str))
             }
             _ => Err(Error::new_spanned(
                 &punct,
@@ -657,10 +650,15 @@ impl ArgumentParser {
             ArgumentParser::Reset if s == "w" => Ok(ArgumentParser::Write),
             ArgumentParser::Reset if s == "stride" => Ok(ArgumentParser::StrideStarted),
             ArgumentParser::Reset if s == "default" => Ok(ArgumentParser::DefaultStarted),
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push_str(&s);
+                Ok(ArgumentParser::DefaultParsing(str))
+            }
             _ => Err(Error::new_spanned(
                 &id,
                 format!(
-                    "bitfield!: Invalid ident '{}'. Expected r, rw, w or stride",
+                    "bitfield!: Invalid ident '{}'. Expected r, rw, w, stride or default",
                     s
                 ),
             )),
@@ -683,7 +681,7 @@ impl ArgumentParser {
             Self::Reset
         };
         let mut token_id = 0;
-        let mut argument_parser = reset;
+        let mut argument_parser = reset.clone();
         for meta in token_stream {
             match meta {
                 TokenTree::Group(group) => {
@@ -707,7 +705,7 @@ impl ArgumentParser {
                             is_in_array,
                             outer_token_id.unwrap_or(token_id),
                         )?;
-                        argument_parser = reset;
+                        argument_parser = reset.clone(); //because reset isn't copy anymore
                     }
                     _ => {
                         argument_parser = argument_parser.take_punct(punct)?;
