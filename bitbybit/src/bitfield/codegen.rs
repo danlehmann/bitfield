@@ -432,7 +432,7 @@ pub fn make_builder(
         Vec::with_capacity(field_definitions.len() + 2);
 
     new_with_builder_chain.push(quote! {
-        /// Builder struct for partial inizialization of [`#struct_name`].
+        /// Builder struct for partial initialization of [`#struct_name`].
         #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
     });
 
