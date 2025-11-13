@@ -432,7 +432,7 @@ pub fn make_builder(
         Vec::with_capacity(field_definitions.len() + 2);
 
     new_with_builder_chain.push(quote! {
-        /// Partial builder struct
+        /// Builder struct for partial initialization of [`#struct_name`].
         #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
     });
 
@@ -521,7 +521,10 @@ pub fn make_builder(
 
     new_with_builder_chain.push(quote! {
         impl #builder_struct_name<#running_mask_token_tree> {
-            /// Builds the bitfield from the values passed into this builder
+            /// Builds the bitfield from the values passed into this builder.
+            ///
+            /// Every field *must* be set on [`#builder_struct_name`] to be able to build a
+            /// [`#struct_name`].
             pub const fn build(&self) -> #struct_name {
                 self.0
             }
@@ -539,7 +542,8 @@ pub fn make_builder(
         }
     };
     let result_new_with_constructor = quote! {
-        /// Creates a builder for this bitfield which ensures that all writable fields are initialized
+        /// Creates a builder for this bitfield which ensures that all writable fields are
+        /// initialized.
         pub const fn builder() -> #builder_struct_name<0> {
             #default
         }
