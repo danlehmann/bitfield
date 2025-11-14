@@ -5,6 +5,7 @@ fn all_tests() {
     // tests that pass
     t.pass("tests/basic.rs");
     t.pass("tests/with_fields.rs");
+    t.pass("tests/default_values.rs");
 
     t.compile_fail("tests/no_compile/exhaustive_bitenum.rs");
     t.compile_fail("tests/no_compile/non_exhaustive_bitenum.rs");

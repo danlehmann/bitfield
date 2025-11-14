@@ -2,7 +2,7 @@ use crate::bitfield::{
     const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
     CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
+use proc_macro2::{Ident, Literal, TokenStream as TokenStream2, TokenStream, TokenTree};
 use quote::{quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
@@ -121,7 +121,8 @@ pub fn generate(
                 quote! {}
             };
 
-        let setter = if let Some(setter_type) = field_definition.setter_type.as_ref() {
+        let setter = {
+            let setter_type = field_definition.setter_type.clone() ;
             let argument_converted =
                 match field_definition.custom_type {
                     CustomType::No => {
@@ -159,12 +160,22 @@ pub fn generate(
             let setter_name = setter_name(field_name);
             let with_name = with_name(field_name);
 
+            let public_status = if field_definition.setter_is_public {
+                quote! {
+                    pub
+                }
+            } else {
+                quote!{
+
+                }
+            } ;
+            
             if let Some(array) = field_definition.array {
                 let indexed_count = array.count;
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
+                    #public_status const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
                         assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
@@ -172,7 +183,7 @@ pub fn generate(
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
+                    #public_status fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
                         assert!(index < #indexed_count);
                         self.raw_value = #new_raw_value;
                     }
@@ -181,21 +192,22 @@ pub fn generate(
                 quote! {
                     #(#doc_comment)*
                     #[inline]
-                    pub const fn #with_name(&self, field_value: #setter_type) -> Self {
+                    #public_status const fn #with_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
                         }
                     }
                     #(#doc_comment)*
                     #[inline]
-                    pub fn #setter_name(&mut self, field_value: #setter_type) {
+                    #public_status fn #setter_name(&mut self, field_value: #setter_type) {
                         self.raw_value = #new_raw_value;
                     }
                 }
             }
-        } else {
-            quote! {}
         };
+            
+
+
 
         quote! {
             #introspect
@@ -205,6 +217,58 @@ pub fn generate(
     }).collect();
 
     accessors
+}
+
+pub fn generate_field_defaults(field_definitions: &[FieldDefinition]) -> TokenStream {
+    let mut default_constructor = Vec::new();
+    let mut default_consts = Vec::new();
+
+    let default_from_fields = super::DefaultVal::UseFieldDefault ;
+    default_constructor.push(quote! {
+        pub const #default_from_fields: Self = Self::ZERO
+    });
+    for field_definition in field_definitions {
+        if let Some(default_value) = &field_definition.default_value {
+            let field_name = &field_definition.field_name;
+            let func_name = with_name(field_name);
+            let default_const = const_name(field_name, "DEFAULT");
+
+            let field_type = field_definition.setter_type.clone();
+            let converted_field_value = default_value;
+
+            // 3 cases: either a custom-type, or a basic Rust number type, or an arbitrary-int type
+            let const_def = if let CustomType::Yes(_) = field_definition.custom_type {
+                quote! {
+                    // Custom type
+                    pub const #default_const: #field_type = #converted_field_value;
+                }
+            }
+            else if field_definition.use_regular_int {
+                // Basic Rust number type
+                quote! {
+                    pub const #default_const: #field_type = #converted_field_value;
+                }
+            } else {
+                // Arbitrary-int are created with ::new()
+                quote! {
+                    pub const #default_const: #field_type = #field_type::new(#converted_field_value);
+                }
+            };
+
+            default_constructor.push(quote! {
+                .#func_name(Self::#default_const)
+            });
+            default_consts.push(const_def);
+        }
+    }
+    default_constructor.push(quote! {
+        ;
+    });
+
+    quote! {
+        #(#default_consts)*
+        #(#default_constructor)*
+    }
 }
 
 /// If there are multiple ranges, this packs them together
@@ -437,7 +501,8 @@ pub fn make_builder(
     });
 
     for field_definition in field_definitions {
-        if let Some(setter_type) = field_definition.setter_type.as_ref() {
+        if field_definition.setter_is_public {
+            let setter_type = field_definition.setter_type.clone() ;
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 

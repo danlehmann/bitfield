@@ -6,7 +6,7 @@ use proc_macro2::{Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree}
 use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use syn::{
-    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument,
+    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument, Lit,
     MetaList, PathArguments, Result, Type,
 };
 
@@ -167,6 +167,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     let mut provide_getter = false;
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
+    let mut default_value = None;
 
     let mut doc_comment: Vec<Attribute> = Vec::new();
 
@@ -262,13 +263,29 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                             }
                             indexed_stride = Some(stride);
                         }
+                        ArgumentParser::DefaultParsing(value) => {
+                            let expression: Result<syn::Expr> = syn::parse_str(&value);
+                            if let Ok(expression) = expression {
+                                default_value = Some(super::DefaultVal::Expr(expression));
+                            } else {
+                                Err(Error::new_spanned(
+                                &attr.meta,
+                                format!(
+                "bitfield!: Invalid syntax. This can't be parsed into a valid expression: {}", value
+                                )))? ;
+                            }
+
+                        }
                         ArgumentParser::Reset => {
                             // An empty argument (happens after arrays as that's a separate ArgumentParser)
                         }
                         _ =>
                             Err(Error::new_spanned(
                                 &range_span,
-                                "bitfield!: Invalid syntax. Supported: bits(5..=6, access, stride = x), where x is an integer and access can be r, w or rw",
+                                format!(
+"bitfield!: Invalid syntax. Supported: bits(5..=6, access, stride = x), where x is an integer and access can be r, w or rw (debug: {:?})", range_parser
+                                )
+                                ,
                             ))?,
 
                     };
@@ -386,6 +403,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             number_of_bits != 1 && is_int_size_regular_type(number_of_bits)
         }
     };
+    let is_signed = field_type_size_from_data_type.is_some_and(|v| v.1);
+
+    //if let Some(default_value) = default_value {
+    //    //verify_value_fits_in_type(field, default_value, field_type_size, is_signed)?;
+    //}
 
     Ok(FieldDefinition {
         field_name: field_name.clone(),
@@ -396,11 +418,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         } else {
             None
         },
-        setter_type: if provide_setter {
-            Some(setter_type)
-        } else {
-            None
-        },
+        setter_type,
+        setter_is_public: provide_setter,
         use_regular_int,
         primitive_type,
         custom_type,
@@ -410,8 +429,9 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             indexed_stride: indexed_stride.unwrap(),
         }),
         field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
-        is_signed: field_type_size_from_data_type.is_some_and(|v| v.1),
+        is_signed,
         unsigned_field_type,
+        default_value,
     })
 }
 
@@ -496,9 +516,41 @@ fn verify_bounds_for_array(
     Ok(())
 }
 
+fn verify_value_fits_in_type(
+    field: &Field,
+    value: isize,
+    field_type_size: usize,
+    is_signed: bool,
+) -> syn::Result<()> {
+    let (upper_bound, lower_bound) = if is_signed {
+        (
+            2isize.pow(field_type_size as u32 - 1) - 1,
+            -2isize.pow(field_type_size as u32 - 1) + 1,
+        )
+    } else {
+        (2isize.pow(field_type_size as u32) - 1, 0)
+    };
+
+    if value > upper_bound || value < lower_bound {
+        Err(Error::new_spanned(
+            &field,
+            format!(
+                "bitfield!: value {} does not fit in {} {} bits ( [{}:{}] )",
+                value,
+                field_type_size,
+                if is_signed { "signed" } else { "unsigned" },
+                lower_bound,
+                upper_bound,
+            ),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Parses the arguments of a field. At the beginning and after each comma, Reset is used. After
 /// that, the various take_xxx functions are used to switch states.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 enum ArgumentParser {
     // An unknown argument - could go into any of the categories below
     Reset,
@@ -522,6 +574,10 @@ enum ArgumentParser {
     Read,
     Write,
     ReadWrite,
+
+    // Default value for a field
+    DefaultStarted,
+    DefaultParsing(String),
 }
 
 impl ArgumentParser {
@@ -544,6 +600,12 @@ impl ArgumentParser {
             ArgumentParser::HasStrideEquals => Ok(ArgumentParser::StrideComplete(
                 Self::parse_literal_number(lit)?,
             )),
+            ArgumentParser::DefaultStarted => Ok(ArgumentParser::DefaultParsing(lit.to_string())),
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push_str(&lit.to_string());
+                Ok(ArgumentParser::DefaultParsing(str))
+            }
             _ => Err(Error::new_spanned(
                 &lit,
                 "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
@@ -565,6 +627,14 @@ impl ArgumentParser {
             ArgumentParser::StrideStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
                 Ok(ArgumentParser::HasStrideEquals)
             }
+            ArgumentParser::DefaultStarted if punct.as_char() == '=' || punct.as_char() == ':' => {
+                Ok(ArgumentParser::DefaultParsing("".to_string()))
+            }
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push(punct.as_char());
+                Ok(ArgumentParser::DefaultParsing(str))
+            }
             _ => Err(Error::new_spanned(
                 &punct,
                 "bitfield!: Invalid bit-range. Expected x..=y, for example 6..=10.",
@@ -579,10 +649,16 @@ impl ArgumentParser {
             ArgumentParser::Reset if s == "r" => Ok(ArgumentParser::Read),
             ArgumentParser::Reset if s == "w" => Ok(ArgumentParser::Write),
             ArgumentParser::Reset if s == "stride" => Ok(ArgumentParser::StrideStarted),
+            ArgumentParser::Reset if s == "default" => Ok(ArgumentParser::DefaultStarted),
+            ArgumentParser::DefaultParsing(str) => {
+                let mut str = str.to_string();
+                str.push_str(&s);
+                Ok(ArgumentParser::DefaultParsing(str))
+            }
             _ => Err(Error::new_spanned(
                 &id,
                 format!(
-                    "bitfield!: Invalid ident '{}'. Expected r, rw, w or stride",
+                    "bitfield!: Invalid ident '{}'. Expected r, rw, w, stride or default",
                     s
                 ),
             )),
@@ -605,7 +681,7 @@ impl ArgumentParser {
             Self::Reset
         };
         let mut token_id = 0;
-        let mut argument_parser = reset;
+        let mut argument_parser = reset.clone();
         for meta in token_stream {
             match meta {
                 TokenTree::Group(group) => {
@@ -629,7 +705,7 @@ impl ArgumentParser {
                             is_in_array,
                             outer_token_id.unwrap_or(token_id),
                         )?;
-                        argument_parser = reset;
+                        argument_parser = reset.clone(); //because reset isn't copy anymore
                     }
                     _ => {
                         argument_parser = argument_parser.take_punct(punct)?;

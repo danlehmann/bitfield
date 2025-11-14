@@ -6,6 +6,7 @@ use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
+use syn::Expr;
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
@@ -65,7 +66,8 @@ struct FieldDefinition {
     array: Option<ArrayInfo>,
     field_type_size: usize,
     getter_type: Option<Type>,
-    setter_type: Option<Type>,
+    setter_type: Type,
+    setter_is_public: bool,
     field_type_size_from_data_type: Option<usize>,
     is_signed: bool,
     /// If non-null: (count, stride)
@@ -73,6 +75,7 @@ struct FieldDefinition {
     primitive_type: TokenStream2,
     custom_type: CustomType,
     doc_comment: Vec<Attribute>,
+    default_value: Option<DefaultVal>, //TODO - check if it's the correct type
 }
 
 // If a convert_type is given, that will be the final getter/setter type. If not, it is the base type
@@ -114,10 +117,12 @@ impl BaseDataSize {
     }
 }
 
-#[cfg_attr(feature = "extra-traits", derive(Debug))]
+#[cfg_attr(feature = "extra-traits", derive(Debug, Clone, PartialEq, Eq))]
 pub enum DefaultVal {
     Lit(LitInt),
     Constant(Ident),
+    Expr(Expr),
+    UseFieldDefault,
 }
 
 impl ToTokens for DefaultVal {
@@ -125,6 +130,11 @@ impl ToTokens for DefaultVal {
         match self {
             DefaultVal::Lit(lit) => lit.to_tokens(tokens),
             DefaultVal::Constant(ident) => ident.to_tokens(tokens),
+            DefaultVal::Expr(expr) => expr.to_tokens(tokens),
+            DefaultVal::UseFieldDefault => {
+                syn::parse_str::<Ident>("DEFAULTS_FROM_FIELDS")
+                    .unwrap_or_else(|_| panic!("bitfield!: Error creating setter name"))
+            }.to_tokens(tokens),
         }
     }
 }
@@ -175,7 +185,12 @@ impl BitfieldAttributes {
             }
             let path: Result<Ident, syn::Error> = stream.parse();
             if let Ok(path) = path {
-                self.default_val = Some(DefaultVal::Constant(path));
+                if path == "use_field_defaults" {
+                    self.default_val = Some(DefaultVal::UseFieldDefault);
+                } else {
+                    self.default_val = Some(DefaultVal::Constant(path));
+                }
+
                 return Ok(());
             }
             return Ok(());
@@ -304,29 +319,54 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let (default_constructor, default_trait) = if let Some(default_value) =
         &bitfield_attrs.default_val
     {
-        let default_value = default_value.to_token_stream();
-        let constructor = {
-            let comment = format!("An instance that uses the default value {}", default_value);
-            let deprecated_warning = format!(
-                "Use {}::Default (or {}::DEFAULT in const context) instead",
-                struct_name, struct_name
-            );
+        let constructor = match default_value {
+            DefaultVal::UseFieldDefault => {
+                let default_value = default_value.to_token_stream();
+                let comment = format!("An instance that uses the default value {}", default_value);
+                let deprecated_warning = format!(
+                    "Use {}::Default (or {}::DEFAULT in const context) instead",
+                    struct_name, struct_name
+                );
 
-            let default_raw_value = if base_data_size.exposed == base_data_size.internal {
-                quote! { const DEFAULT_RAW_VALUE: #base_data_type = #default_value; }
-            } else {
-                quote! { const DEFAULT_RAW_VALUE: #base_data_type = #base_data_type::new(#default_value); }
-            };
-            quote! {
-                #default_raw_value
+                quote! {
+                    #[doc = #comment]
+                    pub const DEFAULT: Self = Self::#default_value;
 
-                #[doc = #comment]
-                pub const DEFAULT: Self = Self::new_with_raw_value(Self::DEFAULT_RAW_VALUE);
+                    /// Creates a new instance of this struct using the default value
+                    #[deprecated(note = #deprecated_warning)]
+                    pub const fn new() -> Self {
+                        Self::DEFAULT
+                    }
 
-                /// Creates a new instance of this struct using the default value
-                #[deprecated(note = #deprecated_warning)]
-                pub const fn new() -> Self {
-                    Self::DEFAULT
+                    #[doc = #comment]
+                    const DEFAULT_RAW_VALUE: #base_data_type = Self::#default_value.raw_value();
+                }
+            }
+            _ => {
+                let default_value = default_value.to_token_stream();
+
+                let comment = format!("An instance that uses the default value {}", default_value);
+                let deprecated_warning = format!(
+                    "Use {}::Default (or {}::DEFAULT in const context) instead",
+                    struct_name, struct_name
+                );
+
+                let default_raw_value = if base_data_size.exposed == base_data_size.internal {
+                    quote! { const DEFAULT_RAW_VALUE: #base_data_type = #default_value; }
+                } else {
+                    quote! { const DEFAULT_RAW_VALUE: #base_data_type = #base_data_type::new(#default_value); }
+                };
+                quote! {
+                    #default_raw_value
+
+                    #[doc = #comment]
+                    pub const DEFAULT: Self = Self::new_with_raw_value(Self::DEFAULT_RAW_VALUE);
+
+                    /// Creates a new instance of this struct using the default value
+                    #[deprecated(note = #deprecated_warning)]
+                    pub const fn new() -> Self {
+                        Self::DEFAULT
+                    }
                 }
             }
         };
@@ -397,6 +437,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         zero
     );
 
+    //TODO - put this behing a feature gate
+    let field_defaults = codegen::generate_field_defaults(&field_definitions);
+    let field_defaults_module = syn::parse_str::<Type>(format!("{}Implementation", struct_name).as_str())
+            .unwrap_or_else(|_| panic!("bitfield!: Error parsing internal base data type"));
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -423,8 +468,18 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
             #new_with_constructor
 
-            #( #accessors )*
         }
+
+        
+        mod #field_defaults_module {
+            use super::* ;
+            impl super::#struct_name {
+                #( #accessors )*
+
+                #field_defaults
+            }
+        }
+
         #default_trait
 
         #debug_trait
