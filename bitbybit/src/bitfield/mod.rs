@@ -5,7 +5,6 @@ use proc_macro::Span;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::TokenStreamExt;
 use quote::{quote, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
@@ -347,32 +346,18 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let mut debug_trait = TokenStream2::new();
     if bitfield_attrs.debug_trait {
-        let debug_fields: Vec<TokenStream2> = field_definitions
-            .iter()
-            .map(|field| {
-                let field_name = &field.field_name;
-                quote! {
-                    .field(stringify!(#field_name), &self.#field_name())
-                }
-            })
-            .collect();
-        debug_trait.append_all(quote! {
-            impl ::core::fmt::Debug for #struct_name {
-                fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                    f.debug_struct(stringify!(#struct_name))
-                        #(#debug_fields)*
-                        .finish()
-                }
-            }
-        });
+        debug_trait = codegen::generate_debug_trait_impl(struct_name, &field_definitions);
     }
 
-    let defmt_trait = codegen::generate_defmt_trait_impl(
-        struct_name,
-        &bitfield_attrs,
-        &field_definitions,
-        base_data_size,
-    );
+    let mut defmt_trait = TokenStream2::new();
+    if bitfield_attrs.defmt_trait.is_some() {
+        defmt_trait = codegen::generate_defmt_trait_impl(
+            struct_name,
+            &bitfield_attrs,
+            &field_definitions,
+            base_data_size,
+        );
+    }
 
     let (new_with_constructor, new_with_builder_chain) = codegen::make_builder(
         struct_name,
