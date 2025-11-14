@@ -551,6 +551,38 @@ pub fn make_builder(
     (result_new_with_constructor, new_with_builder_chain)
 }
 
+pub fn generate_debug_trait_impl(
+    struct_name: &Ident,
+    field_definitions: &[FieldDefinition],
+) -> TokenStream2 {
+    let mut debug_trait = TokenStream2::new();
+    let debug_fields: Vec<TokenStream2> = field_definitions
+        .iter()
+        .map(|field| {
+            let field_name = &field.field_name;
+            if let Some(array_info) = field.array {
+                let num_entries = array_info.count;
+                return quote! {
+                    .field(stringify!(#field_name), &core::array::from_fn::<_, #num_entries, _>(|i| self.#field_name(i)))
+                };
+            }
+            quote! {
+                .field(stringify!(#field_name), &self.#field_name())
+            }
+        })
+        .collect();
+    debug_trait.append_all(quote! {
+        impl ::core::fmt::Debug for #struct_name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                f.debug_struct(stringify!(#struct_name))
+                    #(#debug_fields)*
+                    .finish()
+            }
+        }
+    });
+    debug_trait
+}
+
 pub fn generate_defmt_trait_impl(
     struct_name: &Ident,
     bitfield_attrs: &BitfieldAttributes,

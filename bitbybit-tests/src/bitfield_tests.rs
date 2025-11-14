@@ -1819,6 +1819,18 @@ fn test_debug_impl() {
 }
 
 #[test]
+fn test_debug_array_support() {
+    #[bitbybit::bitfield(u8, debug)]
+    struct ArrayField {
+        #[bits(0..=1, rw)]
+        fields: [u2; 4],
+    }
+    let test = ArrayField::new_with_raw_value(0b00011011);
+    let display_str = format!("{:?}", test);
+    assert_eq!(display_str, "ArrayField { fields: [3, 2, 1, 0] }");
+}
+
+#[test]
 fn introspection() {
     // Put into module to ensure everything's pub
     mod test {
