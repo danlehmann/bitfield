@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use arbitrary_int::{u2, u4, u5, Number};
+use arbitrary_int::{u2, u4, u5};
 use defmt_semihosting as _;
 use qemu_tests as _;
 
@@ -42,6 +42,10 @@ struct TestBitfields {
     #[bit(10, rw)]
     boolean: bool,
 
+    // Write-only fields are allowed. Fot bitfields, they are also printed.
+    #[bit(9, w)]
+    control_bit: bool,
+
     #[bits(5..=6, rw)]
     enumeration: TestEnum,
 }
@@ -53,6 +57,10 @@ struct TestFields {
 
     #[bit(10, rw)]
     boolean: bool,
+
+    // Write-only fields are allowed. Fot fields, they are skipped.
+    #[bit(9, w)]
+    control_bit: bool,
 
     #[bits(5..=6, rw)]
     enumeration: TestEnum,
@@ -84,12 +92,14 @@ fn main() -> ! {
     let bitfield_register = TestBitfields::builder()
         .with_number(u5::new(16))
         .with_boolean(true)
+        .with_control_bit(true)
         .with_enumeration(TestEnum::A)
         .build();
 
     let fields_register = TestFields::builder()
         .with_number(u5::new(12))
         .with_boolean(true)
+        .with_control_bit(true)
         .with_enumeration(TestEnum::C)
         .build();
 
