@@ -164,7 +164,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
 
     let mut ranges: Vec<Range<usize>> = Vec::new();
     let mut ranges_token: Option<u32> = None;
-    let mut provide_getter = false;
+    let mut provide_pub_getter = false;
     let mut provide_setter = false;
     let mut indexed_stride: Option<usize> = None;
 
@@ -244,11 +244,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
                             });
                         }
                         ArgumentParser::ReadWrite => {
-                            provide_getter = true;
+                            provide_pub_getter = true;
                             provide_setter = true;
                         }
                         ArgumentParser::Read => {
-                            provide_getter = true;
+                            provide_pub_getter = true;
                         }
                         ArgumentParser::Write => {
                             provide_setter = true;
@@ -391,11 +391,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         field_name: field_name.clone(),
         ranges,
         field_type_size,
-        getter_type: if provide_getter {
-            Some(getter_type)
-        } else {
-            None
-        },
+        getter_type,
+        provide_pub_getter,
         setter_type: if provide_setter {
             Some(setter_type)
         } else {

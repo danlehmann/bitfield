@@ -1831,9 +1831,30 @@ fn test_debug_array_support() {
 }
 
 #[test]
+fn test_debug_write_only_field() {
+    #[bitfield(u16, debug, default = 0x0)]
+    struct Test {
+        #[bit(15, w)]
+        control_bit: bool,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::builder()
+        .with_control_bit(true)
+        .with_lower(200)
+        .build();
+    let display_str = format!("{:?}", test);
+    // Write-only field is also printed.
+    assert_eq!(display_str, "Test { control_bit: true, lower: 200 }");
+}
+
+#[test]
 fn introspection() {
     // Put into module to ensure everything's pub
     mod test {
+        use arbitrary_int::u4;
+
         #[bitbybit::bitfield(u32, introspect)]
         pub struct Bitfield {
             #[bits(0..=7)]

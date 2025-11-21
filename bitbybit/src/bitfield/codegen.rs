@@ -3,7 +3,7 @@ use crate::bitfield::{
     CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
-use quote::{quote, TokenStreamExt as _};
+use quote::{format_ident, quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::{LitInt, Type, Visibility};
@@ -82,44 +82,7 @@ pub fn generate(
             quote! {}
         };
 
-        let getter =
-            if let Some(getter_type) = field_definition.getter_type.as_ref() {
-                // Main work: Shift and mask the bits into extracted_bits
-                let extracted_bits = extracted_bits(&one, field_definition, base_data_size, total_number_bits);
-
-                // We might need a CustomType (e.g. bitenum). Do that conversion
-                let converted = match &field_definition.custom_type {
-                    CustomType::No => extracted_bits,
-                    CustomType::Yes(convert_type) => {
-                        quote! {
-                            let extracted_bits = #extracted_bits;
-                            #convert_type::new_with_raw_value(extracted_bits)
-                        }
-                    }
-                };
-
-                if let Some(array) = field_definition.array {
-                    let indexed_count = array.count;
-                    quote! {
-                        #(#doc_comment)*
-                        #[inline]
-                        pub const fn #field_name(&self, index: usize) -> #getter_type {
-                            assert!(index < #indexed_count);
-                            #converted
-                        }
-                    }
-                } else {
-                    quote! {
-                        #(#doc_comment)*
-                        #[inline]
-                        pub const fn #field_name(&self) -> #getter_type {
-                            #converted
-                        }
-                    }
-                }
-            } else {
-                quote! {}
-            };
+        let getter = getters(&one, field_definition, base_data_size, total_number_bits);
 
         let setter = if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let argument_converted =
@@ -205,6 +168,84 @@ pub fn generate(
     }).collect();
 
     accessors
+}
+
+fn getters(
+    one: &LitInt,
+    field_definition: &FieldDefinition,
+    base_data_size: BaseDataSize,
+    total_number_bits: usize,
+) -> TokenStream2 {
+    let doc_comment = &field_definition.doc_comment;
+    let field_name = &field_definition.field_name;
+    let getter_type = &field_definition.getter_type;
+    let hidden_func_name = format_ident!("__{}", field_name);
+    let mut getters = TokenStream2::new();
+
+    // Main work: Shift and mask the bits into extracted_bits
+    let extracted_bits = extracted_bits(one, field_definition, base_data_size, total_number_bits);
+
+    // We might need a CustomType (e.g. bitenum). Do that conversion
+    let converted = match &field_definition.custom_type {
+        CustomType::No => extracted_bits,
+        CustomType::Yes(convert_type) => {
+            quote! {
+                let extracted_bits = #extracted_bits;
+                #convert_type::new_with_raw_value(extracted_bits)
+            }
+        }
+    };
+
+    let function_body = if let Some(array) = field_definition.array {
+        let indexed_count = array.count;
+        quote! {
+            assert!(index < #indexed_count);
+            #converted
+        }
+    } else {
+        quote! {
+            #converted
+        }
+    };
+    getters.extend(if field_definition.array.is_some() {
+        quote! {
+            #[doc(hidden)]
+            #[inline]
+            const fn #hidden_func_name(&self, index: usize) -> #getter_type {
+                #function_body
+            }
+        }
+    } else {
+        quote! {
+            #[doc(hidden)]
+            #[inline]
+            const fn #hidden_func_name(&self) -> #getter_type {
+                #function_body
+            }
+        }
+    });
+    if !field_definition.provide_pub_getter {
+        return getters;
+    }
+
+    getters.extend(if field_definition.array.is_some() {
+        quote! {
+            #(#doc_comment)*
+            #[inline]
+            pub const fn #field_name(&self, index: usize) -> #getter_type {
+                self.#hidden_func_name(index)
+            }
+        }
+    } else {
+        quote! {
+            #(#doc_comment)*
+            #[inline]
+            pub const fn #field_name(&self) -> #getter_type {
+                self.#hidden_func_name()
+            }
+        }
+    });
+    getters
 }
 
 /// If there are multiple ranges, this packs them together
@@ -566,8 +607,16 @@ pub fn generate_debug_trait_impl(
                     .field(stringify!(#field_name), &core::array::from_fn::<_, #num_entries, _>(|i| self.#field_name(i)))
                 };
             }
-            quote! {
-                .field(stringify!(#field_name), &self.#field_name())
+            if field.provide_pub_getter {
+                quote! {
+                    .field(stringify!(#field_name), &self.#field_name())
+                }
+            } else {
+                // The hidden getters also get generated for write-only fields.
+                let hidden_func_name = format_ident!("__{}", field_name);
+                quote! {
+                    .field(stringify!(#field_name), &self.#hidden_func_name())
+                }
             }
         })
         .collect();
@@ -687,8 +736,15 @@ pub fn generate_defmt_trait_impl(
                 let defmt_fields: Vec<TokenStream2> = field_definitions
                     .iter()
                     .map(|field| {
-                        let field_name = &field.field_name;
-                        quote! { self.#field_name(), }
+                        if field.provide_pub_getter {
+                            // If the field is readable, we can use the public getter
+                            let field_name = &field.field_name;
+                            quote! { self.#field_name(), }
+                        } else {
+                            // If the field is not readable, we have to use the hidden getter
+                            let hidden_func_name = format_ident!("__{}", field.field_name);
+                            quote! { self.#hidden_func_name(), }
+                        }
                     })
                     .collect();
                 defmt_trait.append_all(quote! {

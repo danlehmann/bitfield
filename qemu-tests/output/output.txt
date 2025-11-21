@@ -2,9 +2,9 @@ ELF_BINARY=target/thumbv7em-none-eabihf/debug/qemu-tests
 Running on '-cpu cortex-m4 -machine mps2-an386'...
 ------------------------------------------------------------------------
 bitbybit defmt test
-[INFO ] Bitfields: TestBitfields { number: 16, boolean: 1, enumeration: 0 } (src/main.rs:138)
-[INFO ] Fields: TestFields { number: 12, boolean: true, enumeration: C } (src/main.rs:139)
-[INFO ] MultiRangeBitfield: MultiRangeBitfield { field_in_between: 10, split_field: 10 (0..=3), 12 (8..=11) } (src/main.rs:140)
-[INFO ] NestedField: TestNestedField { field_3: SubBitfield { boolean_1: true, number_0: 0, boolean_0: false }, field_2: SubBitfield { boolean_1: false, number_0: 2, boolean_0: true }, field_1: SubBitfield { boolean_1: true, number_0: 3, boolean_0: true }, field_0: SubBitfield { boolean_1: false, number_0: 0, boolean_0: false } } (src/main.rs:141)
-[INFO ] FieldWithArbIntBase: FieldWithArbitraryIntBaseType { boolean_1: 1, number_0: 1, boolean_0: 0 } (src/main.rs:142)
+[INFO ] Bitfields: TestBitfields { number: 16, boolean: 1, control_bit: 1, enumeration: 0 } (src/main.rs:148)
+[INFO ] Fields: TestFields { number: 12, boolean: true, control_bit: true, enumeration: C } (src/main.rs:149)
+[INFO ] MultiRangeBitfield: MultiRangeBitfield { field_in_between: 10, split_field: 10 (0..=3), 12 (8..=11) } (src/main.rs:150)
+[INFO ] NestedField: TestNestedField { field_3: SubBitfield { boolean_1: true, number_0: 0, boolean_0: false }, field_2: SubBitfield { boolean_1: false, number_0: 2, boolean_0: true }, field_1: SubBitfield { boolean_1: true, number_0: 3, boolean_0: true }, field_0: SubBitfield { boolean_1: false, number_0: 0, boolean_0: false } } (src/main.rs:151)
+[INFO ] FieldWithArbIntBase: FieldWithArbitraryIntBaseType { boolean_1: 1, number_0: 1, boolean_0: 0 } (src/main.rs:152)
 ------------------------------------------------------------------------

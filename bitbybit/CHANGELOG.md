@@ -12,13 +12,11 @@ This version expects arbitrary-int 2.x.
 
 ### Fixed
 
+- `debug` and `defmt` implementations now also allow and print write-only fields.
 - Use fully qualified trait syntax in `defmt_bitfields` macro implementation, avoiding the need
   for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code.
 - Introduced a check to deny `bitfield` configurations where non-array fields could have out of
   range offsets.
-
-### Fixed
-
 - Breaking change: bitenum's new_with_raw_value, when used with an arbitrary-int type would previously
   return the next larger whole primitive integer instead of the arbitrary-int, which was
   inconsistent. This is a breaking change.
