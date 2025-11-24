@@ -42,7 +42,7 @@ struct TestBitfields {
     #[bit(10, rw)]
     boolean: bool,
 
-    // Write-only fields are allowed. Fot bitfields, they are also printed.
+    // Write-only fields are allowed. For bitfields, they are also printed.
     #[bit(9, w)]
     control_bit: bool,
 
@@ -58,7 +58,7 @@ struct TestFields {
     #[bit(10, rw)]
     boolean: bool,
 
-    // Write-only fields are allowed. Fot fields, they are skipped.
+    // Write-only fields are allowed. For fields, they are skipped.
     #[bit(9, w)]
     control_bit: bool,
 
