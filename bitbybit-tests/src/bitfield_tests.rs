@@ -1819,6 +1819,25 @@ fn test_debug_impl() {
 }
 
 #[test]
+fn test_debug_write_only_field() {
+    #[bitfield(u16, debug, default = 0x0)]
+    struct Test {
+        #[bit(15, w)]
+        control_bit: bool,
+
+        #[bits(0..=7, rw)]
+        lower: u8,
+    }
+    let test = Test::builder()
+        .with_control_bit(true)
+        .with_lower(200)
+        .build();
+    let display_str = format!("{:?}", test);
+    // Write-only field is skipped.
+    assert_eq!(display_str, "Test { lower: 200 }");
+}
+
+#[test]
 fn test_debug_array_support() {
     #[bitbybit::bitfield(u8, debug)]
     struct ArrayField {

@@ -82,44 +82,7 @@ pub fn generate(
             quote! {}
         };
 
-        let getter =
-            if let Some(getter_type) = field_definition.getter_type.as_ref() {
-                // Main work: Shift and mask the bits into extracted_bits
-                let extracted_bits = extracted_bits(&one, field_definition, base_data_size, total_number_bits);
-
-                // We might need a CustomType (e.g. bitenum). Do that conversion
-                let converted = match &field_definition.custom_type {
-                    CustomType::No => extracted_bits,
-                    CustomType::Yes(convert_type) => {
-                        quote! {
-                            let extracted_bits = #extracted_bits;
-                            #convert_type::new_with_raw_value(extracted_bits)
-                        }
-                    }
-                };
-
-                if let Some(array) = field_definition.array {
-                    let indexed_count = array.count;
-                    quote! {
-                        #(#doc_comment)*
-                        #[inline]
-                        pub const fn #field_name(&self, index: usize) -> #getter_type {
-                            assert!(index < #indexed_count);
-                            #converted
-                        }
-                    }
-                } else {
-                    quote! {
-                        #(#doc_comment)*
-                        #[inline]
-                        pub const fn #field_name(&self) -> #getter_type {
-                            #converted
-                        }
-                    }
-                }
-            } else {
-                quote! {}
-            };
+        let getter = generate_getters(&one, field_definition, base_data_size, total_number_bits);
 
         let setter = if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let argument_converted =
@@ -205,6 +168,53 @@ pub fn generate(
     }).collect();
 
     accessors
+}
+
+fn generate_getters(
+    one: &LitInt,
+    field_definition: &FieldDefinition,
+    base_data_size: BaseDataSize,
+    total_number_bits: usize,
+) -> TokenStream2 {
+    if field_definition.getter_type.is_none() {
+        return quote! {};
+    }
+    let getter_type = field_definition.getter_type.as_ref().unwrap();
+    // Main work: Shift and mask the bits into extracted_bits
+    let extracted_bits = extracted_bits(one, field_definition, base_data_size, total_number_bits);
+
+    // We might need a CustomType (e.g. bitenum). Do that conversion
+    let converted = match &field_definition.custom_type {
+        CustomType::No => extracted_bits,
+        CustomType::Yes(convert_type) => {
+            quote! {
+                let extracted_bits = #extracted_bits;
+                #convert_type::new_with_raw_value(extracted_bits)
+            }
+        }
+    };
+    let doc_comment = &field_definition.doc_comment;
+    let field_name = &field_definition.field_name;
+
+    if let Some(array) = field_definition.array {
+        let indexed_count = array.count;
+        quote! {
+            #(#doc_comment)*
+            #[inline]
+            pub const fn #field_name(&self, index: usize) -> #getter_type {
+                assert!(index < #indexed_count);
+                #converted
+            }
+        }
+    } else {
+        quote! {
+            #(#doc_comment)*
+            #[inline]
+            pub const fn #field_name(&self) -> #getter_type {
+                #converted
+            }
+        }
+    }
 }
 
 /// If there are multiple ranges, this packs them together
@@ -560,6 +570,10 @@ pub fn generate_debug_trait_impl(
         .iter()
         .map(|field| {
             let field_name = &field.field_name;
+            // Skip write-only fields.
+            if field.getter_type.is_none() {
+                return quote! {};
+            }
             if let Some(array_info) = field.array {
                 let num_entries = array_info.count;
                 return quote! {
@@ -679,7 +693,10 @@ pub fn generate_defmt_trait_impl(
                 let format_string = {
                     let labels = field_definitions
                         .iter()
-                        .map(|field| format!("{}: {{}}", field.field_name))
+                        .filter_map(|field| {
+                            field.getter_type.as_ref()?;
+                            Some(format!("{}: {{}}", field.field_name))
+                        })
                         .collect::<Vec<_>>()
                         .join(", ");
                     format!("{} {{{{ {} }}}}", struct_name, labels)
@@ -687,6 +704,10 @@ pub fn generate_defmt_trait_impl(
                 let defmt_fields: Vec<TokenStream2> = field_definitions
                     .iter()
                     .map(|field| {
+                        // Skip write-only fields.
+                        if field.getter_type.is_none() {
+                            return quote! {};
+                        }
                         let field_name = &field.field_name;
                         quote! { self.#field_name(), }
                     })
