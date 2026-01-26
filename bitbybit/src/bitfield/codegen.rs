@@ -183,7 +183,7 @@ fn generate_getters(
     field_definition: &FieldDefinition,
     base_data_size: BaseDataSize,
     total_number_bits: usize,
-) -> TokenStream2 {
+) -> TokenStream {
     if field_definition.getter_type.is_none() {
         return quote! {};
     }
@@ -620,9 +620,9 @@ pub fn make_builder(
 pub fn generate_debug_trait_impl(
     struct_name: &Ident,
     field_definitions: &[FieldDefinition],
-) -> TokenStream2 {
-    let mut debug_trait = TokenStream2::new();
-    let debug_fields: Vec<TokenStream2> = field_definitions
+) -> TokenStream {
+    let mut debug_trait = TokenStream::new();
+    let debug_fields: Vec<TokenStream> = field_definitions
         .iter()
         .map(|field| {
             let field_name = &field.field_name;
