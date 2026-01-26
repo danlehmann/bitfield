@@ -9,7 +9,7 @@ publish = false
 
 [dependencies]
 bitbybit = { path = "../bitbybit" }
-arbitrary-int = "2.0"
+arbitrary-int = "2.1.0"
 defmt = "1"
 
 [features]

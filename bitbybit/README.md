@@ -305,7 +305,7 @@ Arbitrary bit widths like u5, u67 or i81 do not exist in Rust at the moment. The
 required:
 
 ```toml
-arbitrary-int = "2.0"
+arbitrary-int = "2.1.0"
 ```
 
 ## Usage
