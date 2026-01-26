@@ -553,12 +553,13 @@ pub fn make_builder(
             let pre: Vec<_> = params.iter().take(i).cloned().collect();
             let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
             let set_param = set_type_param(field_name);
+            let unset_param = type_param(field_name, "Unset_");
             let type_params = quote!(#( #pre, )* #mod_name::#set_param, #( #post, )*);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 #[allow(non_camel_case_types)]
-                impl<#( #pre, )* #field_name, #( #post, )*> #builder_struct_name<#( #params, )*> {
+                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( #pre, )* #mod_name::#unset_param, #( #post, )*> {
                     #(#doc_comment)*
                     pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#type_params> {
                         #builder_struct_name {

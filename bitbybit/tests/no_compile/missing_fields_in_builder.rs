@@ -11,5 +11,6 @@ struct Test {
 fn main() {
     Test::builder().with_foo(1).build();
     Test::builder().with_bar(1).build();
-    Test::builder().with_bar(1).set_foo(1).build();
+    Test::builder().with_bar(1).with_foo(1).build();
+    Test::builder().with_bar(1).with_foo(1).with_bar(2).build();
 }
