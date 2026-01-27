@@ -438,17 +438,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         #( #new_with_builder_chain )*
     };
-    #[cfg(feature = "print_expanded")]
-    {
-        let file = match syn::parse_file(&expanded.to_string()) {
-            Ok(file) => file,
-            Err(err) => {
-                println!("code:\n{}", expanded.to_string());
-                panic!("unable to parse file: {err:#?}");
-            }
-        };
-        println!("Expanded: {}", prettyplease::unparse(&file));
-    }
     TokenStream::from(expanded)
 }
 
