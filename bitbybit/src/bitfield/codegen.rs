@@ -440,18 +440,6 @@ fn ranges_have_self_overlap(
     false
 }
 
-fn set_type_param(ident: &Ident) -> Ident {
-    type_param(ident, "Set_")
-}
-
-fn type_param(ident: &Ident, prefix: &str) -> Ident {
-    let mut ident = ident.to_string();
-    if ident.starts_with("r#") {
-        ident = ident[2..].to_string();
-    }
-    syn::parse_str::<Ident>(format!("{prefix}{ident}").as_str()).unwrap()
-}
-
 pub fn make_builder(
     struct_name: &Ident,
     has_default: bool,
@@ -469,29 +457,17 @@ pub fn make_builder(
     let params = field_definitions
         .iter()
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|name| quote!{ const #name: bool })
         .collect::<Vec<_>>();
-    let mod_name = syn::parse_str::<Ident>(format!("mod_{}", struct_name).as_str()).unwrap();
-    let set_structs = params
+    let param_names = field_definitions
         .iter()
-        .map(|param| set_type_param(&param))
+        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
         .collect::<Vec<_>>();
-    let unset_structs = params
-        .iter()
-        .map(|param| type_param(&param, "Unset_"))
-        .collect::<Vec<_>>();
-    new_with_builder_chain.push(quote! {
-        #[allow(non_camel_case_types)]
-        mod #mod_name {
-            #( pub struct #set_structs; )*
-            #( pub struct #unset_structs; )*
-        }
-    });
 
     new_with_builder_chain.push(quote! {
         /// Builder struct for partial initialization of [`#struct_name`].
         #struct_vis struct #builder_struct_name<#( #params, )*> {
             value: #struct_name,
-            _marker: ::core::marker::PhantomData<(#( #params, )*)>,
         }
     });
 
@@ -552,19 +528,18 @@ pub fn make_builder(
             };
             let pre: Vec<_> = params.iter().take(i).cloned().collect();
             let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
-            let set_param = set_type_param(field_name);
-            let unset_param = type_param(field_name, "Unset_");
-            let type_params = quote!(#( #pre, )* #mod_name::#set_param, #( #post, )*);
+            let pre_names: Vec<_> = param_names.iter().take(i).cloned().collect();
+            let post_names: Vec<_> = param_names.iter().skip(i + 1).cloned().collect();
+            let resulting_params = quote!(#( #pre_names, )* true, #( #post_names, )*);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 #[allow(non_camel_case_types)]
-                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( #pre, )* #mod_name::#unset_param, #( #post, )*> {
+                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( #pre_names, )* false, #( #post_names, )*> {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#type_params> {
+                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#resulting_params> {
                         #builder_struct_name {
                             value: #value_transform,
-                            _marker: ::core::marker::PhantomData,
                         }
                     }
                 }
@@ -572,12 +547,16 @@ pub fn make_builder(
         }
     }
 
+    let unset_params = field_definitions
+        .iter()
+        .map(|_| quote! { false })
+        .collect::<Vec<_>>();
     let set_params = field_definitions
         .iter()
-        .map(|def| set_type_param(&def.field_name))
+        .map(|_| quote! { true })
         .collect::<Vec<_>>();
     new_with_builder_chain.push(quote! {
-        impl #builder_struct_name<#( #mod_name::#set_params, )*> {
+        impl #builder_struct_name<#( #set_params, )*> {
             /// Builds the bitfield from the values passed into this builder.
             ///
             /// Every field *must* be set on [`#builder_struct_name`] to be able to build a
@@ -591,26 +570,23 @@ pub fn make_builder(
     let default = if has_default {
         quote! { #builder_struct_name {
             value: #struct_name::DEFAULT,
-            _marker: core::marker::PhantomData,
         } }
     } else if base_data_size.exposed == base_data_size.internal {
         quote! { #builder_struct_name {
             value: #struct_name::new_with_raw_value(0),
-            _marker: core::marker::PhantomData,
         } }
     } else {
         quote! {
             const ZERO: #base_data_type = #base_data_type::new(0);
             #builder_struct_name {
                 value: #struct_name::new_with_raw_value(ZERO),
-                _marker: core::marker::PhantomData,
             }
         }
     };
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are
         /// initialized.
-        pub const fn builder() -> #builder_struct_name<#( #mod_name::#unset_structs, )*> {
+        pub const fn builder() -> #builder_struct_name<#( #unset_params, )*> {
             #default
         }
     };
