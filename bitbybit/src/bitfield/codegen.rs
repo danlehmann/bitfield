@@ -488,7 +488,7 @@ pub fn make_builder(
     });
 
     new_with_builder_chain.push(quote! {
-        /// Builder struct for partial inizialization of [`#struct_name`].
+        /// Builder struct for partial initialization of [`#struct_name`].
         #struct_vis struct #builder_struct_name<#( #params, )*> {
             value: #struct_name,
             _marker: ::core::marker::PhantomData<(#( #params, )*)>,
