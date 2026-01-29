@@ -17,4 +17,6 @@ fn all_tests() {
     t.compile_fail("tests/no_compile/overlapping_bitfield_arrays_with_stride.rs");
 
     t.compile_fail("tests/no_compile/invalid_bit_pos/*.rs");
+
+    t.compile_fail("tests/no_compile/missing_fields_in_builder.rs");
 }

@@ -2,7 +2,7 @@ use crate::bitfield::{
     const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
     CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, TokenStream as TokenStream2, TokenStream, TokenTree};
+use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
 use std::ops::Range;
 use std::str::FromStr;
@@ -24,7 +24,7 @@ pub fn generate(
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
-    let accessors: Vec<TokenStream2> = field_definitions.iter().map(|field_definition| {
+    let accessors: Vec<TokenStream> = field_definitions.iter().map(|field_definition| {
         let total_number_bits = field_definition.ranges.iter().fold(0, |a, b| a + b.len());
         let field_name = &field_definition.field_name;
         let doc_comment = &field_definition.doc_comment;
@@ -45,7 +45,8 @@ pub fn generate(
                 let range_ends = field_definition.ranges.iter().map(|r| r.end-1);
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] = [#(#range_starts..=#range_ends),*];
+                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] =
+                        [#(#range_starts..=#range_ends),*];
                 }
             };
 
@@ -89,8 +90,8 @@ pub fn generate(
                 match field_definition.custom_type {
                     CustomType::No => {
                         if field_definition.use_regular_int {
-                            // For signed types, we first have to convert to the unsigned type. Then up the base type
-                            // (e.g. i16 would go: field_value as u16 as u64)
+                            // For signed types, we first have to convert to the unsigned type. Then
+                            // up the base type (e.g. i16 would go: field_value as u16 as u64).
                             if let Some(unsigned_field_type) = &field_definition.unsigned_field_type {
                                 quote! { field_value as #unsigned_field_type }
                             } else {
@@ -108,7 +109,8 @@ pub fn generate(
                         }
                     }
                     CustomType::Yes(_) => {
-                        // Once signed bitenum or bitfield-base-data-types are a thing, we'll need to pay special attention to sign extension here
+                        // Once signed bitenum or bitfield-base-data-types are a thing, we'll need
+                        // to pay special attention to sign extension here.
                         if field_definition.use_regular_int {
                             quote! { field_value.raw_value() }
                         } else {
@@ -117,7 +119,13 @@ pub fn generate(
                     }
                 };
 
-            let new_raw_value = setter_new_raw_value(&one, &argument_converted, field_definition, base_data_size, internal_base_data_type);
+            let new_raw_value = setter_new_raw_value(
+                &one,
+                &argument_converted,
+                field_definition,
+                base_data_size,
+                internal_base_data_type,
+            );
 
             let setter_name = setter_name(field_name);
             let with_name = with_name(field_name);
@@ -175,7 +183,7 @@ fn generate_getters(
     field_definition: &FieldDefinition,
     base_data_size: BaseDataSize,
     total_number_bits: usize,
-) -> TokenStream2 {
+) -> TokenStream {
     if field_definition.getter_type.is_none() {
         return quote! {};
     }
@@ -279,10 +287,10 @@ fn extracted_bits(
     } else {
         let prefix = if field_definition.is_signed { "i" } else { "u" };
         let custom_type =
-            TokenStream2::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
+            TokenStream::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
                 .unwrap();
         let extract =
-            TokenStream2::from_str(format!("extract_u{}", base_data_size.internal).as_str())
+            TokenStream::from_str(format!("extract_u{}", base_data_size.internal).as_str())
                 .unwrap();
         if field_definition.ranges.len() == 1 {
             // Very common case: We just want to extract a single range - we can use extract for that
@@ -325,7 +333,8 @@ fn setter_new_raw_value(
             quote! {
                 {
                     let effective_index = #lowest_bit + index * #indexed_stride;
-                    (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) | ((#argument_converted as #internal_base_data_type) << effective_index)
+                    (self.raw_value & !(((#one << #number_of_bits) - #one) << effective_index)) |
+                        ((#argument_converted as #internal_base_data_type) << effective_index)
                 }
             }
         } else {
@@ -336,7 +345,8 @@ fn setter_new_raw_value(
                 {
                     let temp = #argument_converted as #internal_base_data_type;
                     const MASK: #internal_base_data_type = #clear_mask;
-                    self.raw_value & (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
+                    self.raw_value &
+                        (!(MASK << (index * #indexed_stride))) | (#new_bits << (index * #indexed_stride))
                 }
             }
         }
@@ -344,7 +354,11 @@ fn setter_new_raw_value(
         assert_eq!(field_definition.ranges.len(), 1);
         let lowest_bit = field_definition.ranges[0].start;
         quote! {
-            if #argument_converted { self.raw_value | (#one << #lowest_bit) } else { self.raw_value & !(#one << #lowest_bit) }
+            if #argument_converted {
+                self.raw_value | (#one << #lowest_bit)
+            } else {
+                self.raw_value & !(#one << #lowest_bit)
+            }
         }
     } else if field_definition.ranges.len() == 1 {
         let lowest_bit = field_definition.ranges[0].start;
@@ -357,7 +371,9 @@ fn setter_new_raw_value(
         } else {
             // This is the common case: We're replacing a single range with a given value
             quote! {
-                (self.raw_value & !(((#one << #number_of_bits) - #one) << #lowest_bit)) | ((#argument_converted as #internal_base_data_type) << #lowest_bit)
+                (self.raw_value &
+                    !(((#one << #number_of_bits) - #one) << #lowest_bit)) |
+                        ((#argument_converted as #internal_base_data_type) << #lowest_bit)
             }
         }
     } else {
@@ -428,30 +444,39 @@ pub fn make_builder(
     struct_name: &Ident,
     has_default: bool,
     struct_vis: &Visibility,
-    internal_base_data_type: &Type,
     base_data_type: &Ident,
     base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
-) -> (TokenStream2, Vec<TokenStream2>) {
+) -> (TokenStream, Vec<TokenStream>) {
     let builder_struct_name =
         syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
 
-    let mut running_mask = 0u128;
-    let mut running_mask_token_tree = syn::parse_str::<TokenTree>("0x0").unwrap();
-    let mut new_with_builder_chain: Vec<TokenStream2> =
+    let mut new_with_builder_chain: Vec<TokenStream> =
         Vec::with_capacity(field_definitions.len() + 2);
+
+    let params = field_definitions
+        .iter()
+        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|name| quote!{ const #name: bool })
+        .collect::<Vec<_>>();
+    let param_names = field_definitions
+        .iter()
+        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .collect::<Vec<_>>();
 
     new_with_builder_chain.push(quote! {
         /// Builder struct for partial initialization of [`#struct_name`].
-        #struct_vis struct #builder_struct_name<const MASK: #internal_base_data_type>(#struct_name);
+        #struct_vis struct #builder_struct_name<#( #params, )*> {
+            value: #struct_name,
+        }
     });
 
-    for field_definition in field_definitions {
+    for (i, field_definition) in field_definitions.iter().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 
-            let (field_mask, value_transform, argument_type) = if let Some(array) =
+            let (value_transform, argument_type) = if let Some(array) =
                 field_definition.array
             {
                 // For arrays, we'll generate this code:
@@ -465,96 +490,81 @@ pub fn make_builder(
                 if ranges_have_self_overlap(&field_definition.ranges, array_stride, array_count) {
                     return (quote! {}, Vec::new());
                 }
-                let mut mask = 0;
                 let mut array_setters = Vec::with_capacity(array_count);
                 for i in 0..array_count {
-                    mask |= field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | (((1u128 << range.len()) - 1) << (range.start + i * array_stride))
-                    });
-
                     array_setters.push(quote! { .#with_name(#i, value[#i]) });
                 }
-                let value_transform = quote!(self.0 #( #array_setters )*);
+                let value_transform = quote!(self.value #( #array_setters )*);
                 let array_type = quote! { [#setter_type; #array_count] };
 
-                (mask, value_transform, array_type)
+                (value_transform, array_type)
             } else {
-                let mask = if field_definition.ranges.len() == 1 {
-                    if field_definition.ranges[0].len() == 128 {
-                        u128::MAX
-                    } else {
-                        ((1u128 << field_definition.ranges[0].len()) - 1)
-                            << (field_definition.ranges[0].start)
-                    }
-                } else {
-                    if ranges_have_self_overlap(&field_definition.ranges, 0, 0) {
-                        return (quote! {}, Vec::new());
-                    }
-                    field_definition.ranges.iter().fold(0u128, |a, range| {
-                        a | (((1u128 << range.len()) - 1) << (range.start))
-                    })
-                };
-
                 (
-                    mask,
-                    quote! { self.0.#with_name(value)},
+                    quote! { self.value.#with_name(value)},
                     quote! { #setter_type },
                 )
             };
-            let previous_mask = running_mask;
-            let previous_mask_token_tree = running_mask_token_tree;
+            let pre: Vec<_> = params.iter().take(i).cloned().collect();
+            let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
+            let pre_names: Vec<_> = param_names.iter().take(i).cloned().collect();
+            let post_names: Vec<_> = param_names.iter().skip(i + 1).cloned().collect();
+            let resulting_params = quote!(#( #pre_names, )* true, #( #post_names, )*);
 
-            if (previous_mask & field_mask) != 0 {
-                // Some fields are writable through multiple fields. This is not supported, so don't provide the constructor
-                return (quote! {}, Vec::new());
-            }
-
-            running_mask = previous_mask | field_mask;
-            running_mask_token_tree =
-                syn::parse_str::<TokenTree>(format!("{:#x}", running_mask).as_str()).unwrap();
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
-                impl #builder_struct_name<#previous_mask_token_tree> {
+                #[allow(non_camel_case_types)]
+                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( #pre_names, )* false, #( #post_names, )*> {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#running_mask_token_tree> {
-                        #builder_struct_name(#value_transform)
+                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#resulting_params> {
+                        #builder_struct_name {
+                            value: #value_transform,
+                        }
                     }
                 }
             });
         }
     }
 
-    // The type has to either be complete OR it has to have a default value. Otherwise we can't do constructor syntax
-    if (running_mask.count_ones() as usize != base_data_size.exposed) && !has_default {
-        return (quote! {}, Vec::new());
-    }
-
+    let unset_params = field_definitions
+        .iter()
+        .map(|_| quote! { false })
+        .collect::<Vec<_>>();
+    let set_params = field_definitions
+        .iter()
+        .map(|_| quote! { true })
+        .collect::<Vec<_>>();
     new_with_builder_chain.push(quote! {
-        impl #builder_struct_name<#running_mask_token_tree> {
+        impl #builder_struct_name<#( #set_params, )*> {
             /// Builds the bitfield from the values passed into this builder.
             ///
             /// Every field *must* be set on [`#builder_struct_name`] to be able to build a
             /// [`#struct_name`].
             pub const fn build(&self) -> #struct_name {
-                self.0
+                self.value
             }
         }
     });
 
     let default = if has_default {
-        quote! { #builder_struct_name(#struct_name::DEFAULT) }
+        quote! { #builder_struct_name {
+            value: #struct_name::DEFAULT,
+        } }
     } else if base_data_size.exposed == base_data_size.internal {
-        quote! { #builder_struct_name(#struct_name::new_with_raw_value(0)) }
+        quote! { #builder_struct_name {
+            value: #struct_name::new_with_raw_value(0),
+        } }
     } else {
         quote! {
             const ZERO: #base_data_type = #base_data_type::new(0);
-            #builder_struct_name(#struct_name::new_with_raw_value(ZERO))
+            #builder_struct_name {
+                value: #struct_name::new_with_raw_value(ZERO),
+            }
         }
     };
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are
         /// initialized.
-        pub const fn builder() -> #builder_struct_name<0> {
+        pub const fn builder() -> #builder_struct_name<#( #unset_params, )*> {
             #default
         }
     };
@@ -564,9 +574,9 @@ pub fn make_builder(
 pub fn generate_debug_trait_impl(
     struct_name: &Ident,
     field_definitions: &[FieldDefinition],
-) -> TokenStream2 {
-    let mut debug_trait = TokenStream2::new();
-    let debug_fields: Vec<TokenStream2> = field_definitions
+) -> TokenStream {
+    let mut debug_trait = TokenStream::new();
+    let debug_fields: Vec<TokenStream> = field_definitions
         .iter()
         .map(|field| {
             let field_name = &field.field_name;
@@ -602,11 +612,11 @@ pub fn generate_defmt_trait_impl(
     bitfield_attrs: &BitfieldAttributes,
     field_definitions: &[FieldDefinition],
     base_data_size: BaseDataSize,
-) -> TokenStream2 {
-    let mut defmt_trait = TokenStream2::new();
+) -> TokenStream {
+    let mut defmt_trait = TokenStream::new();
 
     if let Some(defmt_format) = &bitfield_attrs.defmt_trait {
-        let mut feature_gate = TokenStream2::new();
+        let mut feature_gate = TokenStream::new();
         if let Some(feature_gate_str) = &defmt_format.feature_gate {
             feature_gate.extend(quote! {
                 #[cfg(feature = #feature_gate_str)]
@@ -701,7 +711,7 @@ pub fn generate_defmt_trait_impl(
                         .join(", ");
                     format!("{} {{{{ {} }}}}", struct_name, labels)
                 };
-                let defmt_fields: Vec<TokenStream2> = field_definitions
+                let defmt_fields: Vec<TokenStream> = field_definitions
                     .iter()
                     .map(|field| {
                         // Skip write-only fields.

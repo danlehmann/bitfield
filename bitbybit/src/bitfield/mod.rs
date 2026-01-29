@@ -363,7 +363,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         struct_name,
         bitfield_attrs.default_val.is_some(),
         struct_vis,
-        &internal_base_data_type,
         base_data_type,
         base_data_size,
         &field_definitions,
@@ -412,14 +411,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #default_constructor
             /// Returns the underlying raw value of this bitfield
             #[inline]
-            pub const fn raw_value(&self) -> #base_data_type { #raw_value_wrap }
+            pub const fn raw_value(&self) -> #base_data_type {
+                #raw_value_wrap
+            }
 
             /// Creates a new instance of this bitfield with the given raw value.
             ///
             /// No checks are performed on the value, so it is possible to set bits that don't have any
             /// accessors specified.
             #[inline]
-            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name { #struct_name { raw_value: #raw_value_unwrap } }
+            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
+                #struct_name {
+                    raw_value: #raw_value_unwrap
+                }
+            }
 
             #new_with_constructor
 
@@ -433,7 +438,6 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
         #( #new_with_builder_chain )*
     };
-    //println!("Expanded: {}", expanded.to_string());
     TokenStream::from(expanded)
 }
 
