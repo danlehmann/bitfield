@@ -454,13 +454,16 @@ pub fn make_builder(
     let mut new_with_builder_chain: Vec<TokenStream> =
         Vec::with_capacity(field_definitions.len() + 2);
 
-    let params = field_definitions
+    let definitions = field_definitions
         .iter()
+        .filter(|def| def.setter_type.is_some());
+    let params = definitions
+        .clone()
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
         .map(|name| quote!{ const #name: bool })
         .collect::<Vec<_>>();
-    let param_names = field_definitions
-        .iter()
+    let param_names = definitions
+        .clone()
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
         .collect::<Vec<_>>();
 
@@ -471,7 +474,7 @@ pub fn make_builder(
         }
     });
 
-    for (i, field_definition) in field_definitions.iter().enumerate() {
+    for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
@@ -525,14 +528,16 @@ pub fn make_builder(
         }
     }
 
-    let unset_params = field_definitions
-        .iter()
+    let unset_params = definitions
+        .clone()
         .map(|_| quote! { false })
         .collect::<Vec<_>>();
-    let set_params = field_definitions
-        .iter()
+    let set_params = definitions
+        .clone()
         .map(|_| quote! { true })
         .collect::<Vec<_>>();
+
+    // All fields must be specified for `.build()` to be callable.
     new_with_builder_chain.push(quote! {
         impl #builder_struct_name<#( #set_params, )*> {
             /// Builds the bitfield from the values passed into this builder.
