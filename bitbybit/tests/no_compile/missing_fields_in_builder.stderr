@@ -32,7 +32,7 @@ error[E0599]: no method named `with_bar` found for struct `PartialTest<true, tru
    |                                             ^^^^^^^^ method not found in `PartialTest<true, true>`
    |
    = note: the method was found for
-           - `PartialTest<foo, false>`
+           - `PartialTest<foo_bitfield, false>`
 help: one of the expressions' fields has a method of the same name
    |
 15 |     Test::builder().with_bar(1).with_foo(1).value.with_bar(2).build();

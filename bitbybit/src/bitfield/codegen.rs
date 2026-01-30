@@ -459,12 +459,12 @@ pub fn make_builder(
         .filter(|def| def.setter_type.is_some());
     let params = definitions
         .clone()
-        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|def| syn::parse_str::<Ident>(format!("{}_bitfield", def.field_name).as_str()).unwrap())
         .map(|name| quote!{ const #name: bool })
         .collect::<Vec<_>>();
     let param_names = definitions
         .clone()
-        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|def| syn::parse_str::<Ident>(format!("{}_bitfield", def.field_name).as_str()).unwrap())
         .collect::<Vec<_>>();
 
     new_with_builder_chain.push(quote! {
