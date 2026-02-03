@@ -473,6 +473,8 @@ pub fn make_builder(
         }
     });
 
+    let mut set_params: HashSet<Vec<bool>> = HashSet::default();
+    let mut any_overlaps = false;
     for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
@@ -510,20 +512,24 @@ pub fn make_builder(
             let mut params = vec![];
             let mut names= vec![];
             let mut result = vec![];
+            let mut builder_params = vec![];
             for (j, def) in definitions.clone().enumerate() {
                 if j == i {
                     names.push(quote!(false));
                     result.push(quote!(true));
+                    builder_params.push(true);
                 } else {
                     let mut overlaps = false;
                     'outer: for range_a in &def.ranges {
                         for range_b in &field_definition.ranges {
                             if range_a.start < range_b.end && range_b.start < range_a.end {
                                 overlaps = true;
+                                any_overlaps = true;
                                 break 'outer;
                             }
                         }
                     }
+                    builder_params.push(!overlaps);
                     if overlaps {
                         names.push(quote!(false));
                         result.push(quote!(false));
@@ -535,6 +541,7 @@ pub fn make_builder(
                     }
                 }
             }
+            set_params.insert(builder_params);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
@@ -555,29 +562,6 @@ pub fn make_builder(
         .clone()
         .map(|_| quote! { false })
         .collect::<Vec<_>>();
-    let mut set_params: HashSet<Vec<bool>> = HashSet::default();
-    let mut any_overlaps = false;
-    for (i, field_definition) in definitions.clone().enumerate() {
-        let mut params = vec![];
-        for (j, def) in definitions.clone().enumerate() {
-            if j == i {
-                params.push(true);
-            } else {
-                let mut overlaps = false;
-                'outer: for range_a in &def.ranges {
-                    for range_b in &field_definition.ranges {
-                        if range_a.start < range_b.end && range_b.start < range_a.end {
-                            overlaps = true;
-                            any_overlaps = true;
-                            break 'outer;
-                        }
-                    }
-                }
-                params.push(!overlaps);
-            }
-        }
-        set_params.insert(params);
-    }
 
     let builder_struct_name_str = builder_struct_name.to_string();
     for set_params in set_params {
