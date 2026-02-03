@@ -467,8 +467,11 @@ pub fn make_builder(
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
         .collect::<Vec<_>>();
 
+    let struct_name_str = struct_name.to_string();
     new_with_builder_chain.push(quote! {
-        /// Builder struct for partial initialization of [`#struct_name`].
+        /// Builder struct for partial initialization of [`
+        #[doc = #struct_name_str]
+        /// `].
         #struct_vis struct #builder_struct_name<#( #params, )*> {
             value: #struct_name,
         }
@@ -537,13 +540,17 @@ pub fn make_builder(
         .map(|_| quote! { true })
         .collect::<Vec<_>>();
 
+    let builder_struct_name_str = builder_struct_name.to_string();
     // All fields must be specified for `.build()` to be callable.
     new_with_builder_chain.push(quote! {
         impl #builder_struct_name<#( #set_params, )*> {
             /// Builds the bitfield from the values passed into this builder.
             ///
-            /// Every field *must* be set on [`#builder_struct_name`] to be able to build a
-            /// [`#struct_name`].
+            /// Every field *must* be set on [`
+            #[doc = #builder_struct_name_str]
+            /// `] to be able to build a [`
+            #[doc = #struct_name_str]
+            /// `].
             pub const fn build(&self) -> #struct_name {
                 self.value
             }
