@@ -2040,3 +2040,23 @@ fn test_defmt_impl_bitfield_feature_gated() {
 }
 
 pub fn defmt_impl_check<T: defmt::Format>(_: &T) {}
+
+mod submodule {}
+
+#[test]
+fn property_name_of_module() {
+    // A property name can be equal to the name of a submodule or a crate
+    #[bitfield(u32, default = 0x0)]
+    pub struct Pinx {
+        #[bits(11..= 12, rw)]
+        submodule: u2,
+
+        #[bits(13..= 14, rw)]
+        defmt: u2,
+    }
+
+    let _ = Pinx::builder()
+        .with_submodule(u2::new(2))
+        .with_defmt(u2::new(0))
+        .build();
+}

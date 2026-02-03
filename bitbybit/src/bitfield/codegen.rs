@@ -535,8 +535,8 @@ pub fn make_builder(
                     } else {
                         let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap();
                         params.push(quote!{ const #name: bool });
-                        names.push(quote!(#name));
-                        result.push(quote!(#name));
+                        names.push(quote!({ #name }));
+                        result.push(quote!({ #name }));
                     }
                 }
             }
