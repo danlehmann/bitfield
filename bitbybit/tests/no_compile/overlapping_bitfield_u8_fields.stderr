@@ -1,10 +1,68 @@
 error: bitfield!: Detected overlap of field `lower_bits` with other field
- --> tests/no_compile/overlapping_bitfield_u8_fields.rs:4:1
-  |
-4 | / struct Test {
-5 | |     #[bits(7..=14, rw)]
-6 | |     overlapping_bits: u8,
-7 | |     #[bits(0..=7, rw)]
-8 | |     lower_bits: u8,
-9 | | }
-  | |_^
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:5:1
+   |
+ 5 | / struct Test {
+ 6 | |     #[bits(7..=14, rw)]
+ 7 | |     overlapping_bits: u8,
+ 8 | |     #[bits(0..=7, rw)]
+ 9 | |     lower_bits: u8,
+10 | | }
+   | |_^
+
+error[E0599]: no method named `with_middle_bits` found for struct `PartialTestAllowed<false, false, true>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:27:47
+   |
+11 | #[bitfield(u16)]
+   | ---------------- method `with_middle_bits` not found for this struct
+...
+27 |     TestAllowed::builder().with_lower_bits(0).with_middle_bits(0).with_bit_upper(u4::new(0)).build();
+   |                                               ^^^^^^^^^^^^^^^^ method not found in `PartialTestAllowed<false, false, true>`
+   |
+   = note: the method was found for
+           - `PartialTestAllowed<bit_upper, false, false>`
+help: one of the expressions' fields has a method of the same name
+   |
+27 |     TestAllowed::builder().with_lower_bits(0).value.with_middle_bits(0).with_bit_upper(u4::new(0)).build();
+   |                                               ++++++
+
+error[E0599]: no method named `with_lower_bits` found for struct `PartialTestAllowed<false, true, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:28:48
+   |
+11 | #[bitfield(u16)]
+   | ---------------- method `with_lower_bits` not found for this struct
+...
+28 |     TestAllowed::builder().with_middle_bits(0).with_lower_bits(0).with_bit_upper(u4::new(0)).build();
+   |                                                ^^^^^^^^^^^^^^^ method not found in `PartialTestAllowed<false, true, false>`
+   |
+   = note: the method was found for
+           - `PartialTestAllowed<bit_upper, false, false>`
+help: one of the expressions' fields has a method of the same name
+   |
+28 |     TestAllowed::builder().with_middle_bits(0).value.with_lower_bits(0).with_bit_upper(u4::new(0)).build();
+   |                                                ++++++
+
+error[E0599]: no method named `build` found for struct `PartialTestAllowed<true, false, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:30:55
+   |
+11 | #[bitfield(u16)]
+   | ---------------- method `build` not found for this struct
+...
+30 |     TestAllowed::builder().with_bit_upper(u4::new(0)).build();
+   |                                                       ^^^^^ method not found in `PartialTestAllowed<true, false, false>`
+   |
+   = note: the method was found for
+           - `PartialTestAllowed<true, false, true>`
+           - `PartialTestAllowed<true, true, false>`
+
+error[E0599]: no method named `build` found for struct `PartialTestAllowed<false, true, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:31:48
+   |
+11 | #[bitfield(u16)]
+   | ---------------- method `build` not found for this struct
+...
+31 |     TestAllowed::builder().with_middle_bits(0).build();
+   |                                                ^^^^^ method not found in `PartialTestAllowed<false, true, false>`
+   |
+   = note: the method was found for
+           - `PartialTestAllowed<true, false, true>`
+           - `PartialTestAllowed<true, true, false>`
