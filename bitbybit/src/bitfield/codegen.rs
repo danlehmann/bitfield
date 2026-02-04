@@ -558,7 +558,6 @@ pub fn make_builder(
     }
 
     let unset_params = definitions
-        .clone()
         .map(|_| quote! { false })
         .collect::<Vec<_>>();
 
