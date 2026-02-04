@@ -511,12 +511,12 @@ pub fn make_builder(
             let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
             let pre_names: Vec<_> = param_names.iter().take(i).cloned().collect();
             let post_names: Vec<_> = param_names.iter().skip(i + 1).cloned().collect();
-            let resulting_params = quote!(#( #pre_names, )* true, #( #post_names, )*);
+            let resulting_params = quote!(#( { #pre_names }, )* true, #( { #post_names }, )*);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 #[allow(non_camel_case_types)]
-                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( #pre_names, )* false, #( #post_names, )*> {
+                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( { #pre_names }, )* false, #( { #post_names }, )*> {
                     #(#doc_comment)*
                     pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#resulting_params> {
                         #builder_struct_name {
