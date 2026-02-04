@@ -1,6 +1,6 @@
 use crate::bitfield::{
     const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
-    CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
+    CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL, mask_for_width_and_offset,
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
@@ -475,6 +475,7 @@ pub fn make_builder(
 
     let mut set_params: HashSet<Vec<bool>> = HashSet::default();
     let mut any_overlaps = false;
+    let masks: Vec<_> = definitions.clone().map(|def| def.ranges.iter().fold(0, |acc, el| acc | mask_for_width_and_offset(el.end - el.start, el.start))).collect();
     for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
@@ -513,26 +514,18 @@ pub fn make_builder(
             let mut names= vec![];
             let mut result = vec![];
             let mut builder_params = vec![];
-            for (j, def) in definitions.clone().enumerate() {
+            for ((j, def), mask) in definitions.clone().enumerate().zip(masks.iter()) {
                 if j == i {
                     names.push(quote!(false));
                     result.push(quote!(true));
                     builder_params.push(true);
                 } else {
-                    let mut overlaps = false;
-                    'outer: for range_a in &def.ranges {
-                        for range_b in &field_definition.ranges {
-                            if range_a.start < range_b.end && range_b.start < range_a.end {
-                                overlaps = true;
-                                any_overlaps = true;
-                                break 'outer;
-                            }
-                        }
-                    }
+                    let overlaps = masks[i] & mask != 0;
                     builder_params.push(!overlaps);
                     if overlaps {
                         names.push(quote!(false));
                         result.push(quote!(false));
+                        any_overlaps = true;
                     } else {
                         let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap();
                         params.push(quote!{ const #name: bool });
