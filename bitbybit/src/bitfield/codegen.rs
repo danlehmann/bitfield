@@ -475,12 +475,6 @@ pub fn make_builder(
 
     let mut set_params: HashSet<Vec<bool>> = HashSet::default();
     let mut any_overlaps = false;
-    // The bitmask for a fully constructed value of this type.
-    let all_set = definitions.clone().fold(0, |acc, def| {
-        acc | def.ranges.iter().fold(0, |acc, el| {
-            acc | mask_for_width_and_offset(el.end - el.start, el.start)
-        })
-    });
     let masks: Vec<_> = definitions
         .clone()
         .map(|def| {
@@ -566,7 +560,6 @@ pub fn make_builder(
     let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
-    let mut any_build = false;
     for set_params in set_params {
         if any_overlaps && set_params.iter().all(|p| *p) {
             // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
@@ -579,12 +572,11 @@ pub fn make_builder(
                 mask |= masks[i];
             }
         }
-        if !has_default && mask | !all_set != u128::MAX {
+        if !has_default && (mask | (u128::MAX << base_data_size.internal)) != u128::MAX {
             // Even though all of these arguments do not overlap with each other, they do not set
             // all of the bits of the underlying type, so don't allow calling the builder.
             continue;
         }
-        any_build = true;
         let set_params: Vec<_> = set_params
             .iter()
             .map(|set| if *set { quote!(true) } else { quote!(false) })
@@ -604,15 +596,6 @@ pub fn make_builder(
                 }
             }
         });
-    }
-    if !any_build && all_set != 0 {
-        new_with_builder_chain.push(
-            syn::Error::new(
-                struct_name.span(),
-                "no valid subset of fields capable of constructing the value",
-            )
-            .into_compile_error(),
-        );
     }
 
     let default = if has_default {
