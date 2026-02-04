@@ -566,6 +566,7 @@ pub fn make_builder(
     let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
+    let mut any_build = false;
     for set_params in set_params {
         if any_overlaps && set_params.iter().all(|p| *p) {
             // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
@@ -583,6 +584,7 @@ pub fn make_builder(
             // all of the bits of the underlying type, so don't allow calling the builder.
             continue;
         }
+        any_build = true;
         let set_params: Vec<_> = set_params
             .iter()
             .map(|set| if *set { quote!(true) } else { quote!(false) })
@@ -602,6 +604,15 @@ pub fn make_builder(
                 }
             }
         });
+    }
+    if !any_build && all_set != 0 {
+        new_with_builder_chain.push(
+            syn::Error::new(
+                struct_name.span(),
+                "no valid subset of fields capable of constructing the value",
+            )
+            .into_compile_error(),
+        );
     }
 
     let default = if has_default {

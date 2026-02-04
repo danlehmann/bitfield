@@ -9,6 +9,12 @@ error: bitfield!: Detected overlap of field `lower_bits` with other field
 10 | | }
    | |_^
 
+error: no valid subset of fields capable of constructing the value
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:13:8
+   |
+13 | struct TestUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^
+
 error[E0599]: no method named `build` found for struct `PartialTestAllowed<true, true, false, false, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:39:65
    |
