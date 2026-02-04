@@ -1944,20 +1944,26 @@ fn test_allowed_overlaps_okay_u16() {
     #[bitfield(u16)]
     struct Test {
         #[bits(12..=15, rw)]
-        bit_upper: u4,
+        upper: u4,
+        #[bits(0..=11, rw)]
+        lower: u12,
+        #[bits(10..=15, rw)]
+        c: u6,
         #[bits(2..=9, rw)]
-        middle_bits: u8,
-        #[bits(0..=7, rw)]
-        lower_bits: u8,
+        b: u8,
+        #[bits(0..=1, rw)]
+        a: u2,
     }
+
     Test::new_with_raw_value(0x1F1F);
     Test::builder()
-        .with_bit_upper(u4::new(0))
-        .with_lower_bits(0)
+        .with_upper(u4::new(0))
+        .with_lower(u12::new(0))
         .build();
     Test::builder()
-        .with_middle_bits(0)
-        .with_bit_upper(u4::new(0))
+        .with_a(u2::new(0))
+        .with_b(0)
+        .with_c(u6::new(0))
         .build();
 }
 

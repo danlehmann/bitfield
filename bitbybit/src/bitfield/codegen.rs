@@ -475,6 +475,12 @@ pub fn make_builder(
 
     let mut set_params: HashSet<Vec<bool>> = HashSet::default();
     let mut any_overlaps = false;
+    // The bitmask for a fully constructed value of this type.
+    let all_set = definitions.clone().fold(0, |acc, def| {
+        acc | def.ranges.iter().fold(0, |acc, el| {
+            acc | mask_for_width_and_offset(el.end - el.start, el.start)
+        })
+    });
     let masks: Vec<_> = definitions
         .clone()
         .map(|def| {
@@ -557,15 +563,24 @@ pub fn make_builder(
         }
     }
 
-    let unset_params = definitions
-        .map(|_| quote! { false })
-        .collect::<Vec<_>>();
+    let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
     for set_params in set_params {
         if any_overlaps && set_params.iter().all(|p| *p) {
             // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
             // constructed. This is only to avoid including it in the list of valid types in E0599.
+            continue;
+        }
+        let mut mask = 0;
+        for (i, &param) in set_params.iter().enumerate() {
+            if param {
+                mask |= masks[i];
+            }
+        }
+        if !has_default && mask | !all_set != u128::MAX {
+            // Even though all of these arguments do not overlap with each other, they do not set
+            // all of the bits of the underlying type, so don't allow calling the builder.
             continue;
         }
         let set_params: Vec<_> = set_params
