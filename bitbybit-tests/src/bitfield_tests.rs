@@ -1951,8 +1951,14 @@ fn test_allowed_overlaps_okay_u16() {
         lower_bits: u8,
     }
     Test::new_with_raw_value(0x1F1F);
-    Test::builder().with_bit_upper(u4::new(0)).with_lower_bits(0).build();
-    Test::builder().with_middle_bits(0).with_bit_upper(u4::new(0)).build();
+    Test::builder()
+        .with_bit_upper(u4::new(0))
+        .with_lower_bits(0)
+        .build();
+    Test::builder()
+        .with_middle_bits(0)
+        .with_bit_upper(u4::new(0))
+        .build();
 }
 
 #[test]

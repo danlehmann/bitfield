@@ -1,11 +1,11 @@
 use crate::bitfield::{
-    const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
-    CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL, mask_for_width_and_offset,
+    const_name, mask_for_width_and_offset, mask_name, setter_name, with_name, ArrayInfo,
+    BaseDataSize, BitfieldAttributes, CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
-use std::{collections::HashSet, ops::Range};
 use std::str::FromStr;
+use std::{collections::HashSet, ops::Range};
 use syn::{LitInt, Type, Visibility};
 
 /// Performs the codegen for the bitfield.
@@ -460,7 +460,7 @@ pub fn make_builder(
     let params = definitions
         .clone()
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
-        .map(|name| quote!{ const #name: bool })
+        .map(|name| quote! { const #name: bool })
         .collect::<Vec<_>>();
 
     let struct_name_str = struct_name.to_string();
@@ -475,15 +475,20 @@ pub fn make_builder(
 
     let mut set_params: HashSet<Vec<bool>> = HashSet::default();
     let mut any_overlaps = false;
-    let masks: Vec<_> = definitions.clone().map(|def| def.ranges.iter().fold(0, |acc, el| acc | mask_for_width_and_offset(el.end - el.start, el.start))).collect();
+    let masks: Vec<_> = definitions
+        .clone()
+        .map(|def| {
+            def.ranges.iter().fold(0, |acc, el| {
+                acc | mask_for_width_and_offset(el.end - el.start, el.start)
+            })
+        })
+        .collect();
     for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 
-            let (value_transform, argument_type) = if let Some(array) =
-                field_definition.array
-            {
+            let (value_transform, argument_type) = if let Some(array) = field_definition.array {
                 // For arrays, we'll generate this code:
                 // self.0
                 //   .with_a(0, value[0])
@@ -511,7 +516,7 @@ pub fn make_builder(
             };
 
             let mut params = vec![];
-            let mut names= vec![];
+            let mut names = vec![];
             let mut result = vec![];
             let mut builder_params = vec![];
             for ((j, def), mask) in definitions.clone().enumerate().zip(masks.iter()) {
@@ -527,8 +532,9 @@ pub fn make_builder(
                         result.push(quote!(false));
                         any_overlaps = true;
                     } else {
-                        let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap();
-                        params.push(quote!{ const #name: bool });
+                        let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str())
+                            .unwrap();
+                        params.push(quote! { const #name: bool });
                         names.push(quote!({ #name }));
                         result.push(quote!({ #name }));
                     }
@@ -563,11 +569,10 @@ pub fn make_builder(
             // constructed. This is only to avoid including it in the list of valid types in E0599.
             continue;
         }
-        let set_params: Vec<_> = set_params.iter().map(|set| if *set {
-            quote!(true)
-        } else {
-            quote!(false)
-        }).collect();
+        let set_params: Vec<_> = set_params
+            .iter()
+            .map(|set| if *set { quote!(true) } else { quote!(false) })
+            .collect();
         // All non-overlapping fields must be specified for `.build()` to be callable.
         new_with_builder_chain.push(quote! {
             impl #builder_struct_name<#( #set_params, )*> {
