@@ -1,5 +1,20 @@
 # Changelog
 
+## bitbybit 3.0.0
+
+Updated arbitrary-int to 2.1.0.
+
+### Added
+
+- Builder `with_*` setter methods can now be called in any order.
+- Builder is now available even when different fields have overlapping ranges, as long as there is
+  a valid subset of fields that can be independently set to cover the whole range.
+
+### Fixed
+
+- Generated items now have docstrings mentioning the types they correspond to.
+- Write-only fields in debug and defmt implementations are allowed.
+
 ## bitbybit 2.0.0
 
 This version expects arbitrary-int 2.x.
