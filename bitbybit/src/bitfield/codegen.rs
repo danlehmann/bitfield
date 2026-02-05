@@ -1,11 +1,11 @@
 use crate::bitfield::{
-    const_name, mask_name, setter_name, with_name, ArrayInfo, BaseDataSize, BitfieldAttributes,
-    CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
+    const_name, mask_for_width_and_offset, mask_name, setter_name, with_name, ArrayInfo,
+    BaseDataSize, BitfieldAttributes, CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
-use std::ops::Range;
 use std::str::FromStr;
+use std::{collections::HashSet, ops::Range};
 use syn::{LitInt, Type, Visibility};
 
 /// Performs the codegen for the bitfield.
@@ -460,11 +460,7 @@ pub fn make_builder(
     let params = definitions
         .clone()
         .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
-        .map(|name| quote!{ const #name: bool })
-        .collect::<Vec<_>>();
-    let param_names = definitions
-        .clone()
-        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|name| quote! { const #name: bool })
         .collect::<Vec<_>>();
 
     let struct_name_str = struct_name.to_string();
@@ -477,14 +473,35 @@ pub fn make_builder(
         }
     });
 
+    let mut set_params: HashSet<Vec<bool>> = HashSet::default();
+    let mut any_overlaps = false;
+    let masks: Vec<_> = definitions
+        .clone()
+        .map(|def| {
+            if let Some(array) = def.array {
+                (0..array.count)
+                    .map(|i| {
+                        def.ranges.iter().fold(0, |acc, el| {
+                            acc | mask_for_width_and_offset(
+                                el.end - el.start,
+                                el.start + i * array.indexed_stride,
+                            )
+                        })
+                    })
+                    .fold(0, |acc, el| acc | el)
+            } else {
+                def.ranges.iter().fold(0, |acc, el| {
+                    acc | mask_for_width_and_offset(el.end - el.start, el.start)
+                })
+            }
+        })
+        .collect();
     for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
             let with_name = with_name(field_name);
 
-            let (value_transform, argument_type) = if let Some(array) =
-                field_definition.array
-            {
+            let (value_transform, argument_type) = if let Some(array) = field_definition.array {
                 // For arrays, we'll generate this code:
                 // self.0
                 //   .with_a(0, value[0])
@@ -510,18 +527,40 @@ pub fn make_builder(
                     quote! { #setter_type },
                 )
             };
-            let pre: Vec<_> = params.iter().take(i).cloned().collect();
-            let post: Vec<_> = params.iter().skip(i + 1).cloned().collect();
-            let pre_names: Vec<_> = param_names.iter().take(i).cloned().collect();
-            let post_names: Vec<_> = param_names.iter().skip(i + 1).cloned().collect();
-            let resulting_params = quote!(#( { #pre_names }, )* true, #( { #post_names }, )*);
+
+            let mut params = vec![];
+            let mut names = vec![];
+            let mut result = vec![];
+            let mut builder_params = vec![];
+            for ((j, def), mask) in definitions.clone().enumerate().zip(masks.iter()) {
+                if j == i {
+                    names.push(quote!(false));
+                    result.push(quote!(true));
+                    builder_params.push(true);
+                } else {
+                    let overlaps = masks[i] & mask != 0;
+                    builder_params.push(!overlaps);
+                    if overlaps {
+                        names.push(quote!(false));
+                        result.push(quote!(false));
+                        any_overlaps = true;
+                    } else {
+                        let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str())
+                            .unwrap();
+                        params.push(quote! { const #name: bool });
+                        names.push(quote!({ #name }));
+                        result.push(quote!({ #name }));
+                    }
+                }
+            }
+            set_params.insert(builder_params);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 #[allow(non_camel_case_types)]
-                impl<#( #pre, )* #( #post, )*> #builder_struct_name<#( { #pre_names }, )* false, #( { #post_names }, )*> {
+                impl<#( #params, )*> #builder_struct_name<#( #names, )*> {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#resulting_params> {
+                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#( #result, )*> {
                         #builder_struct_name {
                             value: #value_transform,
                         }
@@ -531,31 +570,57 @@ pub fn make_builder(
         }
     }
 
-    let unset_params = definitions
-        .clone()
-        .map(|_| quote! { false })
-        .collect::<Vec<_>>();
-    let set_params = definitions
-        .clone()
-        .map(|_| quote! { true })
-        .collect::<Vec<_>>();
+    let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
-    // All fields must be specified for `.build()` to be callable.
-    new_with_builder_chain.push(quote! {
-        impl #builder_struct_name<#( #set_params, )*> {
-            /// Builds the bitfield from the values passed into this builder.
-            ///
-            /// Every field *must* be set on [`
-            #[doc = #builder_struct_name_str]
-            /// `] to be able to build a [`
-            #[doc = #struct_name_str]
-            /// `].
-            pub const fn build(&self) -> #struct_name {
-                self.value
+    for set_params in set_params {
+        if any_overlaps && set_params.iter().all(|p| *p) {
+            // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
+            // constructed. This is only to avoid including it in the list of valid types in E0599.
+            continue;
+        }
+        let mut mask = 0;
+        for (i, &param) in set_params.iter().enumerate() {
+            if param {
+                mask |= masks[i];
             }
         }
-    });
+        if !has_default
+            && (mask
+                | u128::MAX
+                    .overflowing_shl(base_data_size.internal.try_into().unwrap())
+                    .0)
+                != u128::MAX
+        {
+            // Even though all of these arguments do not overlap with each other, they do not set
+            // all of the bits of the underlying type, so don't allow calling the builder.
+            // If there's a default, then we can assume that the values outside of the field ranges
+            // are initialized, so a builder is also allowed, like on a
+            // `#[bitfield(u128, default = 0)]` where the fields don't cover the whole `u128` range.
+            // In that case, we *still* enforce that some combination of all non-overlapping fields
+            // must be set before calling `.build()`. Instead, use `Type::DEFAULT` directly.
+            continue;
+        }
+        let set_params: Vec<_> = set_params
+            .iter()
+            .map(|set| if *set { quote!(true) } else { quote!(false) })
+            .collect();
+        // All non-overlapping fields must be specified for `.build()` to be callable.
+        new_with_builder_chain.push(quote! {
+            impl #builder_struct_name<#( #set_params, )*> {
+                /// Builds the bitfield from the values passed into this builder.
+                ///
+                /// Every field *must* be set on [`
+                #[doc = #builder_struct_name_str]
+                /// `] to be able to build a [`
+                #[doc = #struct_name_str]
+                /// `].
+                pub const fn build(&self) -> #struct_name {
+                    self.value
+                }
+            }
+        });
+    }
 
     let default = if has_default {
         quote! { #builder_struct_name {

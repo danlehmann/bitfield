@@ -354,13 +354,21 @@ fn signed_masking32and64() {
 
 #[test]
 fn signed_masking128() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128)]
     struct Test {
         #[bits(0..=127, rw)]
         signed0: i128,
     }
 
+    #[bitfield(u128, default = 0)]
+    struct TestDefaulted {
+        #[bits(0..=127, rw)]
+        signed0: i128,
+    }
+
     let t = Test::builder().with_signed0(-3500012).build();
+    assert_eq!(t.signed0(), -3500012);
+    let t = TestDefaulted::builder().with_signed0(-3500012).build();
     assert_eq!(t.signed0(), -3500012);
 }
 
@@ -1940,6 +1948,34 @@ fn test_forbidden_overlaps_okay_u8() {
 }
 
 #[test]
+fn test_allowed_overlaps_okay_u16() {
+    #[bitfield(u16)]
+    struct Test {
+        #[bits(12..=15, rw)]
+        upper: u4,
+        #[bits(0..=11, rw)]
+        lower: u12,
+        #[bits(10..=15, rw)]
+        c: u6,
+        #[bits(2..=9, rw)]
+        b: u8,
+        #[bits(0..=1, rw)]
+        a: u2,
+    }
+
+    Test::new_with_raw_value(0x1F1F);
+    Test::builder()
+        .with_upper(u4::new(0))
+        .with_lower(u12::new(0))
+        .build();
+    Test::builder()
+        .with_a(u2::new(0))
+        .with_b(0)
+        .with_c(u6::new(0))
+        .build();
+}
+
+#[test]
 fn test_forbidden_overlaps_okay_u16() {
     #[bitfield(u16, forbid_overlaps)]
     struct Test {
@@ -2042,5 +2078,43 @@ fn property_name_of_module() {
     let _ = Pinx::builder()
         .with_submodule(u2::new(2))
         .with_defmt(u2::new(0))
+        .build();
+}
+
+#[test]
+fn overlapping_fields_with_default() {
+    #[bitfield(u32, default = 0)]
+    pub struct Test {
+        #[bits(0..=15, rw)]
+        a: u16,
+
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    let _ = Test::builder()
+        .with_a(0)
+        .build();
+    let _ = Test::builder()
+        .with_b(0)
+        .build();
+}
+
+#[test]
+fn overlapping_fields_fully_covering_range() {
+    #[bitfield(u16)]
+    pub struct Test {
+        #[bits(0..=15, rw)]
+        a: u16,
+
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    let _ = Test::builder()
+        .with_a(0)
+        .build();
+    let _ = Test::builder()
+        .with_b(0)
         .build();
 }
