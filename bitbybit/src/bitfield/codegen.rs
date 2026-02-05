@@ -478,9 +478,22 @@ pub fn make_builder(
     let masks: Vec<_> = definitions
         .clone()
         .map(|def| {
-            def.ranges.iter().fold(0, |acc, el| {
-                acc | mask_for_width_and_offset(el.end - el.start, el.start)
-            })
+            if let Some(array) = def.array {
+                (0..array.count)
+                    .map(|i| {
+                        def.ranges.iter().fold(0, |acc, el| {
+                            acc | mask_for_width_and_offset(
+                                el.end - el.start,
+                                el.start + i * array.indexed_stride,
+                            )
+                        })
+                    })
+                    .fold(0, |acc, el| acc | el)
+            } else {
+                def.ranges.iter().fold(0, |acc, el| {
+                    acc | mask_for_width_and_offset(el.end - el.start, el.start)
+                })
+            }
         })
         .collect();
     for (i, field_definition) in definitions.clone().enumerate() {
