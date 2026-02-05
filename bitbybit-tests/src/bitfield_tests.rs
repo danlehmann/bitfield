@@ -2080,3 +2080,41 @@ fn property_name_of_module() {
         .with_defmt(u2::new(0))
         .build();
 }
+
+#[test]
+fn overlapping_fields_with_default() {
+    #[bitfield(u32, default = 0)]
+    pub struct Test {
+        #[bits(0..=15, rw)]
+        a: u16,
+
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    let _ = Test::builder()
+        .with_a(0)
+        .build();
+    let _ = Test::builder()
+        .with_b(0)
+        .build();
+}
+
+#[test]
+fn overlapping_fields_fully_covering_range() {
+    #[bitfield(u16)]
+    pub struct Test {
+        #[bits(0..=15, rw)]
+        a: u16,
+
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    let _ = Test::builder()
+        .with_a(0)
+        .build();
+    let _ = Test::builder()
+        .with_b(0)
+        .build();
+}
