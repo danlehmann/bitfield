@@ -166,13 +166,13 @@ const T: Test = Test::builder()
 Using `builder()` it is impossible to forget setting any fields. This is checked at compile time: If any field is not
 set, `build()` can not be called.
 
-At the moment, it is required to set all fields in the same order as they are specified. As Rust's const generics become
-more powerful, this restriction might be lifted.
+Fields can be set in any order.
 
 For the `builder()` to be available, the following has to be true:
 
 - The bitfield has to be completely filled with writable fields (no gaps) OR there has to be a default value specified,
-- No writable fields overlap.
+- No writable fields overlap. If any to, there has to exist a subset of non-overlapping fields that cover the whole
+  bitfield.
 
 ## Non-contiguous bitranges
 
