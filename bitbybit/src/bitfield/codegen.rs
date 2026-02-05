@@ -597,8 +597,8 @@ pub fn make_builder(
             // If there's a default, then we can assume that the values outside of the field ranges
             // are initialized, so a builder is also allowed, like on a
             // `#[bitfield(u128, default = 0)]` where the fields don't cover the whole `u128` range.
-            // In that case, we *still* enforce that all the fields must be set before calling
-            // `.build()`.
+            // In that case, we *still* enforce that some combination of all non-overlapping fields
+            // must be set before calling `.build()`. Instead, use `Type::DEFAULT` directly.
             continue;
         }
         let set_params: Vec<_> = set_params
