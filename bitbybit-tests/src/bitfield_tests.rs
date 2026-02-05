@@ -2118,3 +2118,29 @@ fn overlapping_fields_fully_covering_range() {
         .with_b(0)
         .build();
 }
+
+#[test]
+fn arbitrary_int_base() {
+    #[bitfield(u20, default = 0)]
+    pub struct Test {
+        #[bits(0..=9, rw)]
+        a: u10,
+
+        #[bits(10..=19, rw)]
+        b: u10,
+    }
+
+    // Ensure that the builder can be called when all the fields are set, even if the resulting
+    // value doesn't cover the internal representation of the bitfield. In this case, `u20` is
+    // represented by `u32`, the top 12 bits are blanked out. This ensures that the internal state
+    // machine doesn't accidentally compare whether the fields are set by comparing against the
+    // `u32`, instead of the `u20`.
+    let x = Test::builder()
+        .with_a(u10::new(1))
+        .with_b(u10::new(1))
+        .build();
+    // Ensure the resulting values are what is expected.
+    assert_eq!(x.a(), u10::new(1));
+    assert_eq!(x.b(), u10::new(1));
+    assert_eq!(x.raw_value, 1025);
+}

@@ -588,7 +588,7 @@ pub fn make_builder(
         if !has_default
             && (mask
                 | u128::MAX
-                    .overflowing_shl(base_data_size.internal.try_into().unwrap())
+                    .overflowing_shl(base_data_size.exposed.try_into().unwrap())
                     .0)
                 != u128::MAX
         {
