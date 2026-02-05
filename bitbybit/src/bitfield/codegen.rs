@@ -585,9 +585,20 @@ pub fn make_builder(
                 mask |= masks[i];
             }
         }
-        if !has_default && (mask | (u128::MAX << base_data_size.internal)) != u128::MAX {
+        if !has_default
+            && (mask
+                | u128::MAX
+                    .overflowing_shl(base_data_size.internal.try_into().unwrap())
+                    .0)
+                != u128::MAX
+        {
             // Even though all of these arguments do not overlap with each other, they do not set
             // all of the bits of the underlying type, so don't allow calling the builder.
+            // If there's a default, then we can assume that the values outside of the field ranges
+            // are initialized, so a builder is also allowed, like on a
+            // `#[bitfield(u128, default = 0)]` where the fields don't cover the whole `u128` range.
+            // In that case, we *still* enforce that all the fields must be set before calling
+            // `.build()`.
             continue;
         }
         let set_params: Vec<_> = set_params

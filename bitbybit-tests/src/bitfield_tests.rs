@@ -354,13 +354,21 @@ fn signed_masking32and64() {
 
 #[test]
 fn signed_masking128() {
-    #[bitfield(u128, default = 0)]
+    #[bitfield(u128)]
     struct Test {
         #[bits(0..=127, rw)]
         signed0: i128,
     }
 
+    #[bitfield(u128, default = 0)]
+    struct TestDefaulted {
+        #[bits(0..=127, rw)]
+        signed0: i128,
+    }
+
     let t = Test::builder().with_signed0(-3500012).build();
+    assert_eq!(t.signed0(), -3500012);
+    let t = TestDefaulted::builder().with_signed0(-3500012).build();
     assert_eq!(t.signed0(), -3500012);
 }
 
