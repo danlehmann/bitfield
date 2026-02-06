@@ -7,22 +7,22 @@ This version expects arbitrary-int 2.x.
 ### Added
 
 - Support for signed arbitrary-int integers as field types, e.g. `i3`, `i24`, etc.
-- Added `forbid_overlaps` attribute argument which checks and denies overlaps of `bitfield` fields. (@robamu)
-- Array support for `debug` implementation. (@robamu)
+- Added `forbid_overlaps` attribute argument which checks and denies overlaps of `bitfield` fields. @robamu
+- Array support for `debug` implementation. @robamu
 - Builder `with_*` setter methods can now be called in any order. This is a breaking change if you
   rely on the builder's type signature not changing. The builder now has one boolean const parameter
-  per field in the bitfield, instead of a single numeric const parameter. (@estebank)
+  per field in the bitfield, instead of a single numeric const parameter. @estebank
 - Builder is now available even when different fields have overlapping ranges, as long as there is
-  a valid subset of fields that can be independently set to cover the whole range. (@estebank)
+  a valid subset of fields that can be independently set to cover the whole range. @estebank
 
 ### Fixed
 
 - `debug` and `defmt` implementations now also allow write-only fields. However, they are skipped
-  with the exception of `defmt` bitfields. (@robamu)
+  with the exception of `defmt` bitfields. @robamu
 - Use fully qualified trait syntax in `defmt_bitfields` macro implementation, avoiding the need
-  for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code. (@robamu)
+  for users to import the `arbitrary_int::traits::Integer` trait for auto-generated code. @robamu
 - Introduced a check to deny `bitfield` configurations where non-array fields could have out of
-  range offsets. (@robamu)
+  range offsets. @robamu
 - Breaking change: bitenum's new_with_raw_value, when used with an arbitrary-int type would previously
   return the next larger whole primitive integer instead of the arbitrary-int, which was
   inconsistent. This is a breaking change.
@@ -35,8 +35,8 @@ let foo: Result<MyEnum, u8> = MyEnum::new_with_raw_value(u2::new(0b10));
 let foo: Result<MyEnum, u2> = MyEnum::new_with_raw_value(u2::new(0b10));
 ```
 
-- Generated functions in the builder now have a filled out docstring. (@estebank)
-- Write-only fields in debug and defmt implementations are allowed. (@robamu)
+- Generated functions in the builder now have a filled out docstring. @estebank
+- Write-only fields in debug and defmt implementations are allowed. @robamu
 
 ## bitbybit 1.4.0
 
