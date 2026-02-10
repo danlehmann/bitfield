@@ -9,21 +9,7 @@ error: bitfield!: Detected overlap of field `bit` with other field
 9 | | }
   | |_^
 
-error[E0599]: no method named `build` found for struct `PartialTestNonExhaustiveOverlap<a, b>` in the current scope
-  --> tests/no_compile/overlapping_bitfield_bits.rs:34:10
-   |
-11 |   #[bitfield(u32)]
-   |   ---------------- method `build` not found for this struct
-...
-32 |       let _ = TestNonExhaustiveOverlap::builder()
-   |  _____________-
-33 | |         .with_a(0)
-34 | |         .build();
-   | |         -^^^^^ method not found in `PartialTestNonExhaustiveOverlap<true, false>`
-   | |_________|
-   |
-
-error[E0599]: no method named `build` found for struct `PartialTestNonExhaustiveOverlap<a, b>` in the current scope
+error[E0599]: no method named `build` found for struct `PartialTestNonExhaustiveOverlap<true, false, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_bits.rs:37:10
    |
 11 |   #[bitfield(u32)]
@@ -31,43 +17,69 @@ error[E0599]: no method named `build` found for struct `PartialTestNonExhaustive
 ...
 35 |       let _ = TestNonExhaustiveOverlap::builder()
    |  _____________-
-36 | |         .with_b(0)
+36 | |         .with_a(0)
 37 | |         .build();
-   | |         -^^^^^ method not found in `PartialTestNonExhaustiveOverlap<false, true>`
-   | |_________|
-   |
-
-error[E0599]: no method named `with_b` found for struct `PartialTestNonExhaustiveOverlap<true, false>` in the current scope
-  --> tests/no_compile/overlapping_bitfield_bits.rs:41:10
-   |
-11 |   #[bitfield(u32)]
-   |   ---------------- method `with_b` not found for this struct
-...
-39 |       let _ = TestNonExhaustiveOverlap::builder()
-   |  _____________-
-40 | |         .with_a(0)
-41 | |         .with_b(0)
-   | |         -^^^^^^ method not found in `PartialTestNonExhaustiveOverlap<true, false>`
+   | |         -^^^^^ method not found in `PartialTestNonExhaustiveOverlap<true, false, false>`
    | |_________|
    |
    |
    = note: the method was found for
-           - `PartialTestNonExhaustiveOverlap<false, false>`
-help: one of the expressions' fields has a method of the same name
-   |
-41 |         .value.with_b(0)
-   |          ++++++
+           - `PartialTestNonExhaustiveOverlap<false, true, true>`
+           - `PartialTestNonExhaustiveOverlap<true, false, true>`
 
-error[E0599]: no method named `with_b` found for struct `PartialTestExhaustiveOverlap<true, false>` in the current scope
-  --> tests/no_compile/overlapping_bitfield_bits.rs:45:10
+error[E0599]: no method named `build` found for struct `PartialTestNonExhaustiveOverlap<false, true, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_bits.rs:40:10
    |
-20 |   #[bitfield(u16)]
+11 |   #[bitfield(u32)]
+   |   ---------------- method `build` not found for this struct
+...
+38 |       let _ = TestNonExhaustiveOverlap::builder()
+   |  _____________-
+39 | |         .with_b(0)
+40 | |         .build();
+   | |         -^^^^^ method not found in `PartialTestNonExhaustiveOverlap<false, true, false>`
+   | |_________|
+   |
+   |
+   = note: the method was found for
+           - `PartialTestNonExhaustiveOverlap<false, true, true>`
+           - `PartialTestNonExhaustiveOverlap<true, false, true>`
+
+error[E0599]: no method named `with_b` found for struct `PartialTestNonExhaustiveOverlap<true, false, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_bits.rs:44:10
+   |
+11 |   #[bitfield(u32)]
    |   ---------------- method `with_b` not found for this struct
 ...
-43 |       let _ = TestExhaustiveOverlap::builder()
+42 |       let _ = TestNonExhaustiveOverlap::builder()
+   |               -----------------------------------
+   |               |
+   |  _____________method `with_b` is available on `&PartialTestNonExhaustiveOverlap<false, false, false>`
+   | |
+43 | |         .with_a(0)
+44 | |         .with_b(0)
+   | |_________-^^^^^^
+   |
+help: one of the expressions' fields has a method of the same name
+   |
+44 |         .value.with_b(0)
+   |          ++++++
+help: there is a method `with_c` with a similar name
+   |
+44 -         .with_b(0)
+44 +         .with_c(0)
+   |
+
+error[E0599]: no method named `with_b` found for struct `PartialTestExhaustiveOverlap<true, false>` in the current scope
+  --> tests/no_compile/overlapping_bitfield_bits.rs:48:10
+   |
+23 |   #[bitfield(u16)]
+   |   ---------------- method `with_b` not found for this struct
+...
+46 |       let _ = TestExhaustiveOverlap::builder()
    |  _____________-
-44 | |         .with_a(0)
-45 | |         .with_b(0)
+47 | |         .with_a(0)
+48 | |         .with_b(0)
    | |         -^^^^^^ method not found in `PartialTestExhaustiveOverlap<true, false>`
    | |_________|
    |
@@ -76,18 +88,18 @@ error[E0599]: no method named `with_b` found for struct `PartialTestExhaustiveOv
            - `PartialTestExhaustiveOverlap<false, false>`
 help: one of the expressions' fields has a method of the same name
    |
-45 |         .value.with_b(0)
+48 |         .value.with_b(0)
    |          ++++++
 
 error[E0599]: no method named `build` found for struct `PartialTestExhaustiveOverlap<false, false>` in the current scope
-  --> tests/no_compile/overlapping_bitfield_bits.rs:49:10
+  --> tests/no_compile/overlapping_bitfield_bits.rs:52:10
    |
-20 |   #[bitfield(u16)]
+23 |   #[bitfield(u16)]
    |   ---------------- method `build` not found for this struct
 ...
-48 |       let _ = TestExhaustiveOverlap::builder()
+51 |       let _ = TestExhaustiveOverlap::builder()
    |  _____________-
-49 | |         .build();
+52 | |         .build();
    | |         -^^^^^ method not found in `PartialTestExhaustiveOverlap<false, false>`
    | |_________|
    |

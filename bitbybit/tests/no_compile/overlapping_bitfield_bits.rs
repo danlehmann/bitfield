@@ -15,6 +15,9 @@ pub struct TestNonExhaustiveOverlap {
 
     #[bits(0..=15, rw)]
     b: u16,
+
+    #[bits(16..=31, rw)]
+    c: u16,
 }
 
 #[bitfield(u16)]
