@@ -579,28 +579,6 @@ pub fn make_builder(
             // constructed. This is only to avoid including it in the list of valid types in E0599.
             continue;
         }
-        let mut mask = 0;
-        for (i, &param) in set_params.iter().enumerate() {
-            if param {
-                mask |= masks[i];
-            }
-        }
-        if !has_default
-            && (mask
-                | u128::MAX
-                    .overflowing_shl(base_data_size.exposed.try_into().unwrap())
-                    .0)
-                != u128::MAX
-        {
-            // Even though all of these arguments do not overlap with each other, they do not set
-            // all of the bits of the underlying type, so don't allow calling the builder.
-            // If there's a default, then we can assume that the values outside of the field ranges
-            // are initialized, so a builder is also allowed, like on a
-            // `#[bitfield(u128, default = 0)]` where the fields don't cover the whole `u128` range.
-            // In that case, we *still* enforce that some combination of all non-overlapping fields
-            // must be set before calling `.build()`. Instead, use `Type::DEFAULT` directly.
-            continue;
-        }
         let set_params: Vec<_> = set_params
             .iter()
             .map(|set| if *set { quote!(true) } else { quote!(false) })

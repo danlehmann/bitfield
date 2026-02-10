@@ -2144,3 +2144,14 @@ fn arbitrary_int_base() {
     assert_eq!(x.b(), u10::new(1));
     assert_eq!(x.raw_value, 1025);
 }
+
+#[test]
+fn fields_dont_cover_whole_range_allowed() {
+    #[bitfield(u9)]
+    struct Test {
+        #[bits(0..=7, rw)]
+        bits: u8,
+    }
+
+    Test::builder().with_bits(1).build();
+}
