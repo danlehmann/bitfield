@@ -2092,12 +2092,8 @@ fn overlapping_fields_with_default() {
         b: u16,
     }
 
-    let _ = Test::builder()
-        .with_a(0)
-        .build();
-    let _ = Test::builder()
-        .with_b(0)
-        .build();
+    let _ = Test::builder().with_a(0).build();
+    let _ = Test::builder().with_b(0).build();
 }
 
 #[test]
@@ -2111,12 +2107,8 @@ fn overlapping_fields_fully_covering_range() {
         b: u16,
     }
 
-    let _ = Test::builder()
-        .with_a(0)
-        .build();
-    let _ = Test::builder()
-        .with_b(0)
-        .build();
+    let _ = Test::builder().with_a(0).build();
+    let _ = Test::builder().with_b(0).build();
 }
 
 #[test]
