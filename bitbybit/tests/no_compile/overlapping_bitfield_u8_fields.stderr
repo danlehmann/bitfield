@@ -19,11 +19,10 @@ error[E0599]: no function or associated item named `builder` found for struct `T
    |                                   ^^^^^^^ function or associated item not found in `TestSometimesUnconstructable`
    |
 note: if you're trying to build a new `TestSometimesUnconstructable`, consider using `TestSometimesUnconstructable::new_with_raw_value` which returns `TestSometimesUnconstructable`
-  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:12:1
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:13:8
    |
-12 | #[bitfield(u16)]
-   | ^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+13 | struct TestSometimesUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0599]: no method named `with_a` found for struct `PartialTestAllowed<true, true, false, false, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:48:75
@@ -51,11 +50,10 @@ error[E0599]: no function or associated item named `builder` found for struct `T
    |                                   ^^^^^^^ function or associated item not found in `TestSometimesUnconstructable`
    |
 note: if you're trying to build a new `TestSometimesUnconstructable`, consider using `TestSometimesUnconstructable::new_with_raw_value` which returns `TestSometimesUnconstructable`
-  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:12:1
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:13:8
    |
-12 | #[bitfield(u16)]
-   | ^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+13 | struct TestSometimesUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0599]: no method named `build` found for struct `PartialTestAllowed<true, false, false, false, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:51:51
@@ -97,11 +95,10 @@ error[E0599]: no function or associated item named `builder` found for struct `T
    |                                   ^^^^^^^ function or associated item not found in `TestSometimesUnconstructable`
    |
 note: if you're trying to build a new `TestSometimesUnconstructable`, consider using `TestSometimesUnconstructable::new_with_raw_value` which returns `TestSometimesUnconstructable`
-  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:12:1
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:13:8
    |
-12 | #[bitfield(u16)]
-   | ^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+13 | struct TestSometimesUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0599]: no function or associated item named `builder` found for struct `TestSometimesUnconstructable` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:55:35
@@ -113,11 +110,10 @@ error[E0599]: no function or associated item named `builder` found for struct `T
    |                                   ^^^^^^^ function or associated item not found in `TestSometimesUnconstructable`
    |
 note: if you're trying to build a new `TestSometimesUnconstructable`, consider using `TestSometimesUnconstructable::new_with_raw_value` which returns `TestSometimesUnconstructable`
-  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:12:1
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:13:8
    |
-12 | #[bitfield(u16)]
-   | ^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+13 | struct TestSometimesUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error[E0599]: no function or associated item named `builder` found for struct `TestUnconstructable` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:56:26
@@ -129,8 +125,7 @@ error[E0599]: no function or associated item named `builder` found for struct `T
    |                          ^^^^^^^ function or associated item not found in `TestUnconstructable`
    |
 note: if you're trying to build a new `TestUnconstructable`, consider using `TestUnconstructable::new_with_raw_value` which returns `TestUnconstructable`
-  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:21:1
+  --> tests/no_compile/overlapping_bitfield_u8_fields.rs:22:8
    |
-21 | #[bitfield(u16)]
-   | ^^^^^^^^^^^^^^^^
-   = note: this error originates in the attribute macro `bitfield` (in Nightly builds, run with -Z macro-backtrace for more info)
+22 | struct TestUnconstructable {
+   |        ^^^^^^^^^^^^^^^^^^^
