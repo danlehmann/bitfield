@@ -5,7 +5,7 @@ use proc_macro::Span;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{quote, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
@@ -396,6 +396,20 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         zero
     );
 
+    // We split this out so that when rustc mentions that `new_with_raw_value` might be the intended
+    // constructor when not encountering `build`, the span points at the type and not the attribute.
+    let new_with_raw_value = quote_spanned!(struct_name.span() =>
+        /// Creates a new instance of this bitfield with the given raw value.
+        ///
+        /// No checks are performed on the value, so it is possible to set bits that don't have any
+        /// accessors specified.
+        #[inline]
+        pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
+            #struct_name {
+                raw_value: #raw_value_unwrap
+            }
+        }
+    );
     let expanded = quote! {
         #[derive(Copy, Clone)]
         #[repr(C)]
@@ -415,16 +429,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
                 #raw_value_wrap
             }
 
-            /// Creates a new instance of this bitfield with the given raw value.
-            ///
-            /// No checks are performed on the value, so it is possible to set bits that don't have any
-            /// accessors specified.
-            #[inline]
-            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
-                #struct_name {
-                    raw_value: #raw_value_unwrap
-                }
-            }
+            #new_with_raw_value
 
             #new_with_constructor
 
