@@ -423,6 +423,26 @@ fn default_value_const() {
 }
 
 #[test]
+fn builder_available_in_const_context() {
+    #[bitfield(u16)]
+    #[derive(Debug)]
+    pub struct Test {
+        #[bits(0..=15, rw)]
+        a: u16,
+    }
+
+    assert_eq!(const { Test::builder().with_a(123).build().raw_value() }, 123);
+    const {
+        let raw = Test::builder().with_a(123).build().raw_value();
+        if  raw != 123 {
+            panic!("builder didn't build the right value `123`");
+        }
+    }
+    const TEST: Test = Test::builder().with_a(123).build();
+    assert_eq!(TEST.raw_value(), 123);
+}
+
+#[test]
 fn more_struct_attributes() {
     // Test that other attributes can be appended
     #[bitfield(u32)]
