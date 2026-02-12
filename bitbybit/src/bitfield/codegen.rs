@@ -573,7 +573,7 @@ pub fn make_builder(
     let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
-    let mut has_build = false;
+    let mut is_buildable = false;
     for set_params in set_params {
         if any_overlaps && set_params.iter().all(|p| *p) {
             // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
@@ -602,7 +602,7 @@ pub fn make_builder(
             // must be set before calling `.build()`. Instead, use `Type::DEFAULT` directly.
             continue;
         }
-        has_build = true;
+        is_buildable = true;
         let set_params: Vec<_> = set_params
             .iter()
             .map(|set| if *set { quote!(true) } else { quote!(false) })
@@ -623,7 +623,7 @@ pub fn make_builder(
             }
         });
     }
-    if !has_build {
+    if !is_buildable {
         // Do not provide a `builder` if the setter methods don't cover the entire type.
         return (quote!(), vec![]);
     }

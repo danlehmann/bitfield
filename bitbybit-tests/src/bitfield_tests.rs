@@ -2092,8 +2092,8 @@ fn overlapping_fields_with_default() {
         b: u16,
     }
 
-    let _ = Test::builder().with_a(0).build();
-    let _ = Test::builder().with_b(0).build();
+    assert_eq!(Test::builder().with_a(123).build().raw_value(), 123);
+    assert_eq!(Test::builder().with_b(123).build().raw_value(), 123);
 }
 
 #[test]

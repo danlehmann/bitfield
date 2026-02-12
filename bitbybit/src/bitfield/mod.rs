@@ -399,16 +399,16 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     // We split this out so that when rustc mentions that `new_with_raw_value` might be the intended
     // constructor when not encountering `build`, the span points at the type and not the attribute.
     let new_with_raw_value = quote_spanned!(struct_name.span() =>
-            /// Creates a new instance of this bitfield with the given raw value.
-            ///
-            /// No checks are performed on the value, so it is possible to set bits that don't have any
-            /// accessors specified.
-            #[inline]
-            pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
-                #struct_name {
-                    raw_value: #raw_value_unwrap
-                }
+        /// Creates a new instance of this bitfield with the given raw value.
+        ///
+        /// No checks are performed on the value, so it is possible to set bits that don't have any
+        /// accessors specified.
+        #[inline]
+        pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
+            #struct_name {
+                raw_value: #raw_value_unwrap
             }
+        }
     );
     let expanded = quote! {
         #[derive(Copy, Clone)]
