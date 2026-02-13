@@ -37,6 +37,8 @@ let foo: Result<MyEnum, u2> = MyEnum::new_with_raw_value(u2::new(0b10));
 
 - Generated functions in the builder now have a filled out docstring. (@estebank)
 - Write-only fields in debug and defmt implementations are allowed. (@robamu)
+- No longer allows out-of-bounds bit access when the underlying data type is an arbitrary-int
+  (e.g. a `bitfield(u24)` no longer allows accessing bit 26). (@estebank)
 
 ## bitbybit 1.4.0
 
