@@ -14,7 +14,7 @@ pub fn parse(fields: &Fields, base_data_size: BaseDataSize) -> Result<Vec<FieldD
     let mut field_definitions = Vec::with_capacity(fields.len());
 
     for field in fields {
-        match parse_field(base_data_size.internal, field) {
+        match parse_field(base_data_size.exposed, field) {
             Ok(def) => field_definitions.push(def),
             Err(ts) => return Err(ts),
         }
