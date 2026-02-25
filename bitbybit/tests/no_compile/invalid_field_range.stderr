@@ -14,7 +14,7 @@ error[E0599]: no method named `with_c` found for struct `PartialTest<true, true,
    |                                                           ^^^^^^ method not found in `PartialTest<true, true, false>`
    |
    = note: the method was found for
-           - `PartialTest<false, b, false>`
+           - `PartialTest<false, __B, false>`
 help: one of the expressions' fields has a method of the same name
    |
 30 |     Test::builder().with_a(u4::new(1)).with_b(u4::new(1)).value.with_c(true).build();

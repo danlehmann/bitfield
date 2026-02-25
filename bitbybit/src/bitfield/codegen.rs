@@ -459,7 +459,14 @@ pub fn make_builder(
         .filter(|def| def.setter_type.is_some());
     let params = definitions
         .clone()
-        .map(|def| syn::parse_str::<Ident>(format!("{}", def.field_name).as_str()).unwrap())
+        .map(|def| {
+            // Special handling for reserved identifiers prefix.
+            let mut field_name = def.field_name.to_string();
+            if field_name.starts_with("r#") {
+                field_name = field_name.strip_prefix("r#").unwrap().to_string();
+            }
+            syn::parse_str::<Ident>(&format!("__{}", field_name.to_uppercase())).unwrap()
+        })
         .map(|name| quote! { const #name: bool })
         .collect::<Vec<_>>();
 
@@ -545,11 +552,17 @@ pub fn make_builder(
                         result.push(quote!(false));
                         any_overlaps = true;
                     } else {
-                        let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str())
-                            .unwrap();
-                        params.push(quote! { const #name: bool });
-                        names.push(quote!({ #name }));
-                        result.push(quote!({ #name }));
+                        // Special handling for reserved identifiers prefix.
+                        let mut field_name = def.field_name.to_string();
+                        if field_name.starts_with("r#") {
+                            field_name = field_name.strip_prefix("r#").unwrap().to_string();
+                        }
+                        let const_generics =
+                            syn::parse_str::<Ident>(&format!("__{}", field_name.to_uppercase()))
+                                .unwrap();
+                        params.push(quote! { const #const_generics: bool });
+                        names.push(quote!({ #const_generics }));
+                        result.push(quote!({ #const_generics }));
                     }
                 }
             }
@@ -557,7 +570,6 @@ pub fn make_builder(
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
-                #[allow(non_camel_case_types)]
                 impl<#( #params, )*> #builder_struct_name<#( #names, )*> {
                     #(#doc_comment)*
                     pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#( #result, )*> {
