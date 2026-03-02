@@ -431,10 +431,13 @@ fn builder_available_in_const_context() {
         a: u16,
     }
 
-    assert_eq!(const { Test::builder().with_a(123).build().raw_value() }, 123);
+    assert_eq!(
+        const { Test::builder().with_a(123).build().raw_value() },
+        123
+    );
     const {
         let raw = Test::builder().with_a(123).build().raw_value();
-        if  raw != 123 {
+        if raw != 123 {
             panic!("builder didn't build the right value `123`");
         }
     }
@@ -1229,6 +1232,55 @@ fn new_with_construction2() {
         .with_val128(0xFEDC_BA98_7654_3210_0123_4567_89AB_CDEF)
         .build();
     assert_eq!(0xFEDC_BA98_7654_3210_0123_4567_89AB_CDEF, t.val128());
+}
+
+#[test]
+fn builder_with_overlapping_fields() {
+    /// Floating Point Status Register
+    #[bitfield(u32, default = 0)]
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct FPSR {
+        #[bit(24, rw)]
+        flush_denorm_to_zero: bool,
+
+        #[bits(12..=16, rw)]
+        maskable_cause_bits: u5,
+
+        #[bit(16, rw)]
+        cause_invalid_operation: bool,
+        #[bit(15, rw)]
+        cause_division_by_zero: bool,
+        #[bit(14, rw)]
+        cause_overflow: bool,
+        #[bit(13, rw)]
+        cause_underflow: bool,
+        #[bit(12, rw)]
+        cause_inexact_operation: bool,
+
+        #[bits(7..=11, rw)]
+        enable_bits: u5,
+
+        #[bit(11, rw)]
+        enable_invalid_operation: bool,
+        #[bit(10, rw)]
+        enable_division_by_zero: bool,
+        #[bit(9, rw)]
+        enable_overflow: bool,
+        #[bit(8, rw)]
+        enable_underflow: bool,
+        #[bit(7, rw)]
+        enable_inexact_operation: bool,
+    }
+
+    FPSR::builder()
+        .with_flush_denorm_to_zero(true)
+        .with_enable_inexact_operation(false)
+        .with_enable_underflow(false)
+        .with_enable_overflow(false)
+        .with_enable_division_by_zero(false)
+        .with_enable_invalid_operation(false)
+        .with_maskable_cause_bits(u5::ZERO)
+        .build();
 }
 
 #[test]
