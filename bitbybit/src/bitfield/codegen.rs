@@ -4,8 +4,8 @@ use crate::bitfield::{
 };
 use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
+use std::ops::Range;
 use std::str::FromStr;
-use std::{collections::HashSet, ops::Range};
 use syn::{LitInt, Type, Visibility};
 
 /// Performs the codegen for the bitfield.
@@ -473,8 +473,6 @@ pub fn make_builder(
         }
     });
 
-    let mut set_params: HashSet<Vec<bool>> = HashSet::default();
-    let mut any_overlaps = false;
     let masks: Vec<_> = definitions
         .clone()
         .map(|def| {
@@ -543,7 +541,6 @@ pub fn make_builder(
                     if overlaps {
                         names.push(quote!(false));
                         result.push(quote!(false));
-                        any_overlaps = true;
                     } else {
                         let name = syn::parse_str::<Ident>(format!("{}", def.field_name).as_str())
                             .unwrap();
@@ -553,7 +550,6 @@ pub fn make_builder(
                     }
                 }
             }
-            set_params.insert(builder_params);
 
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
@@ -570,24 +566,47 @@ pub fn make_builder(
         }
     }
 
+    let fully_initialized = masks.iter().fold(0, |acc, val| acc | val);
+    let mut set_params = vec![];
+    fn param_combinations(agg: Vec<bool>, len: usize, sum: &mut Vec<Vec<bool>>) {
+        if agg.len() == len {
+            sum.push(agg);
+            return;
+        }
+        for val in [true, false] {
+            let mut agg = agg.clone();
+            agg.push(val);
+            param_combinations(agg, len, sum);
+        }
+    }
+    param_combinations(vec![], masks.len(), &mut set_params);
+    set_params.retain(|vals| {
+        let present = vals
+            .iter()
+            .zip(masks.iter())
+            .filter(|(present, _)| **present)
+            .map(|(_, mask)| *mask)
+            .collect::<Vec<_>>();
+        for (i, mask) in present.iter().enumerate() {
+            if !present
+                .iter()
+                .enumerate()
+                .all(|(j, m)| j == i || mask & m == 0)
+            {
+                return false;
+            }
+        }
+        let acc = present.iter().fold(0, |acc, mask| acc | mask);
+        acc == fully_initialized
+    });
+
     let unset_params = definitions.map(|_| quote! { false }).collect::<Vec<_>>();
 
     let builder_struct_name_str = builder_struct_name.to_string();
     let mut is_buildable = false;
     for set_params in set_params {
-        if any_overlaps && set_params.iter().all(|p| *p) {
-            // Do not create an uncallable `PartialFoo<true, true, true>::build()` as it can't be
-            // constructed. This is only to avoid including it in the list of valid types in E0599.
-            continue;
-        }
-        let mut mask = 0;
-        for (i, &param) in set_params.iter().enumerate() {
-            if param {
-                mask |= masks[i];
-            }
-        }
         if !has_default
-            && (mask
+            && (fully_initialized
                 | u128::MAX
                     .overflowing_shl(base_data_size.exposed.try_into().unwrap())
                     .0)

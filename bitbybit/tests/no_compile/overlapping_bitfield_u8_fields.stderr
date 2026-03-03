@@ -66,9 +66,7 @@ error[E0599]: no method named `build` found for struct `PartialTestAllowed<true,
    |
    = note: the method was found for
            - `PartialTestAllowed<false, false, true, true, true>`
-           - `PartialTestAllowed<true, false, true, true, true>`
            - `PartialTestAllowed<true, true, false, false, false>`
-           - `PartialTestAllowed<true, true, false, true, true>`
 
 error[E0599]: no method named `build` found for struct `PartialTestAllowed<false, false, false, true, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:52:38
@@ -81,9 +79,7 @@ error[E0599]: no method named `build` found for struct `PartialTestAllowed<false
    |
    = note: the method was found for
            - `PartialTestAllowed<false, false, true, true, true>`
-           - `PartialTestAllowed<true, false, true, true, true>`
            - `PartialTestAllowed<true, true, false, false, false>`
-           - `PartialTestAllowed<true, true, false, true, true>`
 
 error[E0599]: no function or associated item named `builder` found for struct `TestSometimesUnconstructable` in the current scope
   --> tests/no_compile/overlapping_bitfield_u8_fields.rs:54:35
