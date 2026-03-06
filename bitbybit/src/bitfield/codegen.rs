@@ -494,6 +494,9 @@ pub fn make_builder(
             }
         })
         .collect();
+
+    let fully_initialized = masks.iter().fold(0, |acc, val| acc | val);
+
     for (i, field_definition) in definitions.clone().enumerate() {
         if let Some(setter_type) = field_definition.setter_type.as_ref() {
             let field_name = &field_definition.field_name;
@@ -566,20 +569,27 @@ pub fn make_builder(
         }
     }
 
-    let fully_initialized = masks.iter().fold(0, |acc, val| acc | val);
-    let mut set_params = vec![];
-    fn param_combinations(agg: Vec<bool>, len: usize, sum: &mut Vec<Vec<bool>>) {
+    let mut set_params = Vec::with_capacity(masks.len());
+    fn param_combinations(agg: Vec<bool>, len: usize, sum: &mut Vec<Vec<bool>>, masks: &[u128], fully_initialized: u128) {
         if agg.len() == len {
-            sum.push(agg);
+            if masks.iter().enumerate().zip(agg.iter()).filter_map(|(mask, present)| {
+                if *present {
+                    Some(mask)
+                } else {
+                    None
+                }
+            }).fold(0, |acc, mask| acc ^ mask.1) == fully_initialized {
+                sum.push(agg);
+            }
             return;
         }
         for val in [true, false] {
             let mut agg = agg.clone();
             agg.push(val);
-            param_combinations(agg, len, sum);
+            param_combinations(agg, len, sum, masks, fully_initialized);
         }
     }
-    param_combinations(vec![], masks.len(), &mut set_params);
+    param_combinations(Vec::with_capacity(masks.len()), masks.len(), &mut set_params, &masks, fully_initialized);
     set_params.retain(|vals| {
         let present = vals
             .iter()
