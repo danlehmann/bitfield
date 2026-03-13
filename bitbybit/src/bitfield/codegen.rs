@@ -469,7 +469,8 @@ pub fn make_builder(
         #[doc = #struct_name_str]
         /// `].
         #struct_vis struct #builder_struct_name<#( #params, )*> {
-            value: #struct_name,
+            // Mangled name to avoid clashing with user field names.
+            __value: #struct_name,
         }
     });
 
@@ -515,15 +516,15 @@ pub fn make_builder(
                 }
                 let mut array_setters = Vec::with_capacity(array_count);
                 for i in 0..array_count {
-                    array_setters.push(quote! { .#with_name(#i, value[#i]) });
+                    array_setters.push(quote! { .#with_name(#i, _value[#i]) });
                 }
-                let value_transform = quote!(self.value #( #array_setters )*);
+                let value_transform = quote!(self.__value #( #array_setters )*);
                 let array_type = quote! { [#setter_type; #array_count] };
 
                 (value_transform, array_type)
             } else {
                 (
-                    quote! { self.value.#with_name(value)},
+                    quote! { self.__value.#with_name(_value)},
                     quote! { #setter_type },
                 )
             };
@@ -560,9 +561,9 @@ pub fn make_builder(
                 #[allow(non_camel_case_types)]
                 impl<#( #params, )*> #builder_struct_name<#( #names, )*> {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, value: #argument_type) -> #builder_struct_name<#( #result, )*> {
+                    pub const fn #with_name(&self, _value: #argument_type) -> #builder_struct_name<#( #result, )*> {
                         #builder_struct_name {
-                            value: #value_transform,
+                            __value: #value_transform,
                         }
                     }
                 }
@@ -618,7 +619,7 @@ pub fn make_builder(
                 #[doc = #struct_name_str]
                 /// `].
                 pub const fn build(&self) -> #struct_name {
-                    self.value
+                    self.__value
                 }
             }
         });
@@ -630,17 +631,17 @@ pub fn make_builder(
 
     let default = if has_default {
         quote! { #builder_struct_name {
-            value: #struct_name::DEFAULT,
+            __value: #struct_name::DEFAULT,
         } }
     } else if base_data_size.exposed == base_data_size.internal {
         quote! { #builder_struct_name {
-            value: #struct_name::new_with_raw_value(0),
+            __value: #struct_name::new_with_raw_value(0),
         } }
     } else {
         quote! {
             const ZERO: #base_data_type = #base_data_type::new(0);
             #builder_struct_name {
-                value: #struct_name::new_with_raw_value(ZERO),
+                __value: #struct_name::new_with_raw_value(ZERO),
             }
         }
     };

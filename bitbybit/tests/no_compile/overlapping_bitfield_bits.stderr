@@ -62,8 +62,8 @@ error[E0599]: no method named `with_b` found for struct `PartialTestNonExhaustiv
    |
 help: one of the expressions' fields has a method of the same name
    |
-44 |         .value.with_b(0)
-   |          ++++++
+44 |         .__value.with_b(0)
+   |          ++++++++
 help: there is a method `with_c` with a similar name
    |
 44 -         .with_b(0)
@@ -88,8 +88,8 @@ error[E0599]: no method named `with_b` found for struct `PartialTestExhaustiveOv
            - `PartialTestExhaustiveOverlap<false, false>`
 help: one of the expressions' fields has a method of the same name
    |
-48 |         .value.with_b(0)
-   |          ++++++
+48 |         .__value.with_b(0)
+   |          ++++++++
 
 error[E0599]: no method named `build` found for struct `PartialTestExhaustiveOverlap<false, false>` in the current scope
   --> tests/no_compile/overlapping_bitfield_bits.rs:52:10
