@@ -17,8 +17,8 @@ error[E0599]: no method named `with_c` found for struct `PartialTest<true, true,
            - `PartialTest<false, b, false>`
 help: one of the expressions' fields has a method of the same name
    |
-30 |     Test::builder().with_a(u4::new(1)).with_b(u4::new(1)).__value.with_c(true).build();
-   |                                                           ++++++++
+30 |     Test::builder().with_a(u4::new(1)).with_b(u4::new(1)).0.with_c(true).build();
+   |                                                           ++
 
 error[E0599]: no method named `build` found for struct `PartialTest<false, false, true>` in the current scope
   --> tests/no_compile/invalid_field_range.rs:31:34
