@@ -171,7 +171,7 @@ Fields can be set in any order.
 For the `builder()` to be available, the following has to be true:
 
 - The bitfield has to be completely filled with writable fields (no gaps) OR there has to be a default value specified,
-- No writable fields overlap. If any to, there has to exist a subset of non-overlapping fields that cover the whole
+- No writable fields overlap. If any do, there has to exist a subset of non-overlapping fields that cover the whole
   bitfield.
 
 ## Non-contiguous bitranges
