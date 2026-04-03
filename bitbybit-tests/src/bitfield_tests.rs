@@ -431,10 +431,13 @@ fn builder_available_in_const_context() {
         a: u16,
     }
 
-    assert_eq!(const { Test::builder().with_a(123).build().raw_value() }, 123);
+    assert_eq!(
+        const { Test::builder().with_a(123).build().raw_value() },
+        123
+    );
     const {
         let raw = Test::builder().with_a(123).build().raw_value();
-        if  raw != 123 {
+        if raw != 123 {
             panic!("builder didn't build the right value `123`");
         }
     }
@@ -1179,6 +1182,86 @@ fn reserved_identifiers() {
         field.with_enum(5, BitEnum::r#enum),
         BitfieldWithBitEnum::new_with_raw_value(8192)
     );
+}
+
+#[test]
+fn builder_with_overlapping_fields() {
+    /// Floating Point Status Register
+    #[bitfield(u32, default = 0)]
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct FPSR {
+        #[bit(24, rw)]
+        flush_denorm_to_zero: bool,
+
+        #[bits(12..=13, rw)]
+        maskable_cause_bits: u2,
+
+        #[bit(13, rw)]
+        cause_underflow: bool,
+        #[bit(12, rw)]
+        cause_inexact_operation: bool,
+
+        #[bits(7..=8, rw)]
+        enable_bits: u2,
+
+        #[bit(8, rw)]
+        enable_underflow: bool,
+        #[bit(7, rw)]
+        enable_inexact_operation: bool,
+    }
+
+    FPSR::builder()
+        .with_flush_denorm_to_zero(true)
+        .with_enable_inexact_operation(false)
+        .with_enable_underflow(false)
+        .with_maskable_cause_bits(u2::ZERO)
+        .build();
+}
+
+#[test]
+fn builder_with_overlapping_fields_long() {
+    #[bitfield(u128)]
+    #[derive(PartialEq, Eq, Debug)]
+    pub struct Long {
+        #[bits(0..=119, rw)]
+        rest: u120,
+
+        #[bits(120..=121, rw)]
+        x: u2,
+        #[bits(122..=123, rw)]
+        y: u2,
+        #[bits(124..=125, rw)]
+        z: u2,
+        #[bits(126..=127, rw)]
+        q: u2,
+
+        #[bit(120, rw)]
+        a: bool,
+        #[bit(121, rw)]
+        c: bool,
+        #[bit(122, rw)]
+        d: bool,
+        #[bit(123, rw)]
+        e: bool,
+        #[bit(124, rw)]
+        f: bool,
+        #[bit(125, rw)]
+        g: bool,
+        #[bit(126, rw)]
+        h: bool,
+        #[bit(127, rw)]
+        i: bool,
+    }
+
+    Long::builder()
+        .with_h(true)
+        .with_i(true)
+        .with_z(u2::new(1))
+        .with_e(false)
+        .with_d(false)
+        .with_x(u2::new(1))
+        .with_rest(u120::ZERO)
+        .build();
 }
 
 #[test]
