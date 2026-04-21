@@ -6,7 +6,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::{quote, TokenStreamExt as _};
 use std::str::FromStr;
 use std::{collections::HashSet, ops::Range};
-use syn::{LitInt, Type, Visibility};
+use syn::{Generics, LitInt, Type, Visibility};
 
 /// Performs the codegen for the bitfield.
 ///
@@ -21,6 +21,7 @@ pub fn generate(
     base_data_size: BaseDataSize,
     internal_base_data_type: &Type,
     introspect: bool,
+    phantom_init: &TokenStream,
 ) -> Vec<TokenStream> {
     let one = syn::parse_str::<syn::LitInt>(format!("1u{}", base_data_size.internal).as_str())
         .unwrap_or_else(|_| panic!("bitfield!: Error parsing one literal"));
@@ -139,6 +140,7 @@ pub fn generate(
                         assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
+                            #phantom_init
                         }
                     }
                     #(#doc_comment)*
@@ -155,6 +157,7 @@ pub fn generate(
                     pub const fn #with_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
+                            #phantom_init
                         }
                     }
                     #(#doc_comment)*
@@ -447,9 +450,23 @@ pub fn make_builder(
     base_data_type: &Ident,
     base_data_size: BaseDataSize,
     field_definitions: &[FieldDefinition],
+    struct_generics: &Generics,
+    user_ty_args: &[TokenStream],
 ) -> (TokenStream, Vec<TokenStream>) {
     let builder_struct_name =
         syn::parse_str::<Ident>(format!("Partial{}", struct_name).as_str()).unwrap();
+    let (_impl_generics, ty_generics, where_clause) = struct_generics.split_for_impl();
+    let user_params = &struct_generics.params;
+    let build_impl_generics = if user_params.is_empty() {
+        quote!()
+    } else {
+        quote!(<#user_params>)
+    };
+    let user_sep = if user_params.is_empty() {
+        quote!()
+    } else {
+        quote!(,)
+    };
 
     let mut new_with_builder_chain: Vec<TokenStream> =
         Vec::with_capacity(field_definitions.len() + 2);
@@ -468,7 +485,7 @@ pub fn make_builder(
         /// Builder struct for partial initialization of [`
         #[doc = #struct_name_str]
         /// `].
-        #struct_vis struct #builder_struct_name<#( #params, )*>(#struct_name);
+        #struct_vis struct #builder_struct_name<#user_params #user_sep #(#params),*>(#struct_name #ty_generics) #where_clause;
     });
 
     let mut set_params: HashSet<Vec<bool>> = HashSet::default();
@@ -553,9 +570,9 @@ pub fn make_builder(
             let doc_comment = &field_definition.doc_comment;
             new_with_builder_chain.push(quote! {
                 #[allow(non_camel_case_types)]
-                impl<#( #params, )*> #builder_struct_name<#( #names, )*> {
+                impl<#user_params #user_sep #( #params ),*> #builder_struct_name<#(#user_ty_args,)* #( #names ),*> #where_clause {
                     #(#doc_comment)*
-                    pub const fn #with_name(&self, __value_mangled: #argument_type) -> #builder_struct_name<#( #result, )*> {
+                    pub const fn #with_name(&self, __value_mangled: #argument_type) -> #builder_struct_name<#(#user_ty_args,)* #( #result ),*> {
                         #builder_struct_name(#value_transform)
                     }
                 }
@@ -602,7 +619,7 @@ pub fn make_builder(
             .collect();
         // All non-overlapping fields must be specified for `.build()` to be callable.
         new_with_builder_chain.push(quote! {
-            impl #builder_struct_name<#( #set_params, )*> {
+            impl #build_impl_generics #builder_struct_name<#(#user_ty_args,)* #( #set_params ),*> #where_clause {
                 /// Builds the bitfield from the values passed into this builder.
                 ///
                 /// Every field *must* be set on [`
@@ -610,7 +627,7 @@ pub fn make_builder(
                 /// `] to be able to build a [`
                 #[doc = #struct_name_str]
                 /// `].
-                pub const fn build(&self) -> #struct_name {
+                pub const fn build(&self) -> #struct_name #ty_generics {
                     self.0
                 }
             }
@@ -634,7 +651,7 @@ pub fn make_builder(
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are
         /// initialized.
-        pub const fn builder() -> #builder_struct_name<#( #unset_params, )*> {
+        pub const fn builder() -> #builder_struct_name<#(#user_ty_args,)* #( #unset_params ),*> {
             #default
         }
     };

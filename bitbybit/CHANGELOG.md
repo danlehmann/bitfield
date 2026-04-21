@@ -1,5 +1,12 @@
 # Changelog
 
+## bitbybit 2.1.0
+
+- Add support for generics on bitfields - they aren't by the bitfield implementation itself but can be
+  useful in making bitfield structs more useful
+
+### Added
+
 ## bitbybit 2.0.0
 
 This version expects arbitrary-int 2.x.
