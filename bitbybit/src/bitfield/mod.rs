@@ -10,7 +10,7 @@ use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
 use syn::LitStr;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, GenericParam, LitInt, Token, Type};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
 /// from u1
@@ -278,6 +278,49 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     let struct_name = &input.ident;
     let struct_vis = &input.vis;
     let struct_attrs = &input.attrs;
+    let struct_generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = struct_generics.split_for_impl();
+    let user_ty_args: Vec<TokenStream2> = struct_generics
+        .params
+        .iter()
+        .map(|p| match p {
+            GenericParam::Type(t) => {
+                let i = &t.ident;
+                quote! { #i }
+            }
+            GenericParam::Const(c) => {
+                let i = &c.ident;
+                quote! { #i }
+            }
+            GenericParam::Lifetime(l) => {
+                let lt = &l.lifetime;
+                quote! { #lt }
+            }
+        })
+        .collect();
+    let phantom_types: Vec<TokenStream2> = struct_generics
+        .params
+        .iter()
+        .filter_map(|p| match p {
+            GenericParam::Type(t) => {
+                let i = &t.ident;
+                Some(quote! { fn() -> #i })
+            }
+            GenericParam::Lifetime(l) => {
+                let lt = &l.lifetime;
+                Some(quote! { & #lt () })
+            }
+            GenericParam::Const(_) => None,
+        })
+        .collect();
+    let (phantom_field, phantom_init) = if phantom_types.is_empty() {
+        (quote! {}, quote! {})
+    } else {
+        (
+            quote! { , _phantom: ::core::marker::PhantomData<( #(#phantom_types,)* )> },
+            quote! { , _phantom: ::core::marker::PhantomData },
+        )
+    };
 
     let fields = match &input.data {
         Data::Struct(struct_data) => &struct_data.fields,
@@ -299,6 +342,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         base_data_size,
         &internal_base_data_type,
         bitfield_attrs.introspect,
+        &phantom_init,
     );
 
     let (default_constructor, default_trait) = if let Some(default_value) =
@@ -332,7 +376,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         };
 
         let default_trait = quote! {
-            impl Default for #struct_name {
+            impl #impl_generics Default for #struct_name #ty_generics #where_clause {
                 fn default() -> Self {
                     Self::DEFAULT
                 }
@@ -366,6 +410,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         base_data_type,
         base_data_size,
         &field_definitions,
+        struct_generics,
+        &user_ty_args,
     );
 
     let raw_value_unwrap = if base_data_size.exposed == base_data_size.internal {
@@ -404,21 +450,28 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         /// No checks are performed on the value, so it is possible to set bits that don't have any
         /// accessors specified.
         #[inline]
-        pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
-            #struct_name {
+        pub const fn new_with_raw_value(value: #base_data_type) -> Self {
+            Self {
                 raw_value: #raw_value_unwrap
+                #phantom_init
             }
         }
     );
     let expanded = quote! {
-        #[derive(Copy, Clone)]
         #[repr(C)]
         #( #struct_attrs )*
-        #struct_vis struct #struct_name {
-            raw_value: #internal_base_data_type,
+        #struct_vis struct #struct_name #struct_generics #where_clause {
+            raw_value: #internal_base_data_type
+            #phantom_field
         }
 
-        impl #struct_name {
+        impl #impl_generics ::core::marker::Copy for #struct_name #ty_generics #where_clause {}
+        impl #impl_generics ::core::clone::Clone for #struct_name #ty_generics #where_clause {
+            #[inline]
+            fn clone(&self) -> Self { *self }
+        }
+
+        impl #impl_generics #struct_name #ty_generics #where_clause {
             #[doc = #zero_comment]
             pub const ZERO: Self = Self::new_with_raw_value(#zero);
 

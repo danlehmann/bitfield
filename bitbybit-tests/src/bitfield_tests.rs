@@ -431,10 +431,13 @@ fn builder_available_in_const_context() {
         a: u16,
     }
 
-    assert_eq!(const { Test::builder().with_a(123).build().raw_value() }, 123);
+    assert_eq!(
+        const { Test::builder().with_a(123).build().raw_value() },
+        123
+    );
     const {
         let raw = Test::builder().with_a(123).build().raw_value();
-        if  raw != 123 {
+        if raw != 123 {
             panic!("builder didn't build the right value `123`");
         }
     }
@@ -2129,6 +2132,118 @@ fn overlapping_fields_fully_covering_range() {
 
     let _ = Test::builder().with_a(0).build();
     let _ = Test::builder().with_b(0).build();
+}
+
+#[test]
+fn const_generic() {
+    // test support for arbitrary generics. These aren't used by bitfield itself but are allowed
+    // so that the user can add special methods
+    #[bitfield(u16)]
+    pub struct Test<const BE: bool> {
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    impl<const BE: bool> Test<BE> {
+        fn be() -> bool {
+            BE
+        }
+    }
+
+    assert!(Test::<true>::be());
+    assert!(!Test::<false>::be());
+
+    // builder still works through the generic
+    let t: Test<true> = Test::<true>::builder().with_b(0x1234).build();
+    assert_eq!(t.raw_value(), 0x1234);
+}
+
+#[test]
+fn type_generic() {
+    // type parameters are allowed even when the bitfield itself doesn't use them
+    trait Tag {
+        const NAME: &'static str;
+    }
+    struct A;
+    struct B;
+    impl Tag for A {
+        const NAME: &'static str = "a";
+    }
+    impl Tag for B {
+        const NAME: &'static str = "b";
+    }
+
+    #[bitfield(u16, default = 0)]
+    pub struct Test<T: Tag> {
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    impl<T: Tag> Test<T> {
+        fn tag_name() -> &'static str {
+            T::NAME
+        }
+    }
+
+    assert_eq!(Test::<A>::tag_name(), "a");
+    assert_eq!(Test::<B>::tag_name(), "b");
+    let t: Test<A> = Test::<A>::builder().with_b(7).build();
+    assert_eq!(t.raw_value(), 7);
+    assert_eq!(Test::<B>::ZERO.raw_value(), 0);
+}
+
+#[test]
+fn lifetime_generic() {
+    // lifetime parameters are also supported
+    #[bitfield(u16)]
+    pub struct Test<'a> {
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    impl<'a> Test<'a> {
+        fn from_slice(_s: &'a [u8]) -> Self {
+            Self::new_with_raw_value(0xABCD)
+        }
+    }
+
+    let data = [0u8; 4];
+    let t = Test::from_slice(&data);
+    assert_eq!(t.raw_value(), 0xABCD);
+}
+
+#[test]
+fn generic_with_where_clause() {
+    // where clauses should be forwarded to the generated struct and impls
+    trait Kind {
+        const K: u16;
+    }
+    struct X;
+    impl Kind for X {
+        const K: u16 = 42;
+    }
+
+    #[bitfield(u16, default = 0)]
+    pub struct Test<T>
+    where
+        T: Kind,
+    {
+        #[bits(0..=15, rw)]
+        b: u16,
+    }
+
+    impl<T> Test<T>
+    where
+        T: Kind,
+    {
+        fn kind() -> u16 {
+            T::K
+        }
+    }
+
+    assert_eq!(Test::<X>::kind(), 42);
+    let t: Test<X> = Test::<X>::builder().with_b(9).build();
+    assert_eq!(t.raw_value(), 9);
 }
 
 #[test]
