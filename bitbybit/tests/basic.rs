@@ -1,3 +1,4 @@
+#![deny(clippy::must_use_candidate)]
 use bitbybit::bitfield;
 
 #[bitfield(u32, default = 0)]
