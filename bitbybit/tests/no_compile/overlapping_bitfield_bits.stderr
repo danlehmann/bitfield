@@ -84,8 +84,7 @@ error[E0599]: no method named `with_b` found for struct `PartialTestExhaustiveOv
    | |_________|
    |
    |
-   = note: the method was found for
-           - `PartialTestExhaustiveOverlap<false, false>`
+   = note: the method was found for `PartialTestExhaustiveOverlap<false, false>`
 help: one of the expressions' fields has a method of the same name
    |
 48 |         .0.with_b(0)
