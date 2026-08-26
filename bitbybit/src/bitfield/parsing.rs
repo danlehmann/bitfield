@@ -522,18 +522,23 @@ enum ArgumentParser {
     ReadWrite,
 }
 
-/// Splits a token stream at its top-level commas, dropping empty entries so that
-/// a trailing comma doesn't produce one. Nested groups are opaque, so the commas
+/// Splits a token stream at its top-level commas. A trailing comma is allowed and
+/// does not produce an element, but any other empty element (e.g. a leading or a
+/// doubled comma) is rejected as an error. Nested groups are opaque, so the commas
 /// inside them stay where they are.
-fn split_at_commas(token_stream: TokenStream2) -> Vec<TokenStream2> {
+fn split_at_commas(token_stream: TokenStream2) -> Result<Vec<TokenStream2>> {
     let mut result = Vec::new();
     let mut current = TokenStream2::new();
     for token in token_stream {
         match &token {
             TokenTree::Punct(punct) if punct.as_char() == ',' => {
-                if !current.is_empty() {
-                    result.push(std::mem::take(&mut current));
+                if current.is_empty() {
+                    return Err(Error::new_spanned(
+                        punct,
+                        "bitfield!: Empty element in bit-range array. Expected bit-ranges separated by commas, for example [0..=1, 4..=5].",
+                    ));
                 }
+                result.push(std::mem::take(&mut current));
             }
             _ => current.extend([token]),
         }
@@ -541,7 +546,7 @@ fn split_at_commas(token_stream: TokenStream2) -> Vec<TokenStream2> {
     if !current.is_empty() {
         result.push(current);
     }
-    result
+    Ok(result)
 }
 
 impl ArgumentParser {
@@ -629,19 +634,23 @@ impl ArgumentParser {
         for meta in token_stream {
             match meta {
                 TokenTree::Group(group) => {
-                    if group.delimiter() != Delimiter::Bracket {
-                        return Err(Error::new_spanned(
-                            &group,
-                            "bitfield!: Invalid bit-range. Expected an array of bit-ranges, for example [0..=1, 4..=5].",
-                        ));
-                    }
-                    for range in split_at_commas(group.stream()) {
-                        Self::parse_argument_tokens(
-                            range,
-                            true,
-                            finished_argument,
-                            Some(token_id),
-                        )?;
+                    if group.delimiter() == Delimiter::Bracket {
+                        for range in split_at_commas(group.stream())? {
+                            Self::parse_argument_tokens(
+                                range,
+                                true,
+                                finished_argument,
+                                Some(token_id),
+                            )?;
+                        }
+                    } else {
+                        let message = match group.delimiter() {
+                            Delimiter::Parenthesis => "bitfield!: Invalid bit-range. A parenthesized range like (0..=1) must be enclosed in square brackets when given as an array, for example [0..=1, 4..=5].",
+                            Delimiter::Brace => "bitfield!: Invalid bit-range. A braced block is not a bit-range array; enclose the bit-ranges in square brackets, for example [0..=1, 4..=5].",
+                            Delimiter::None => "bitfield!: Invalid bit-range. Expected an array of bit-ranges enclosed in square brackets, for example [0..=1, 4..=5].",
+                            Delimiter::Bracket => unreachable!(),
+                        };
+                        return Err(Error::new_spanned(&group, message));
                     }
                 }
                 TokenTree::Ident(id) => {
