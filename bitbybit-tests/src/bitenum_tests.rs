@@ -293,5 +293,5 @@ fn cfg_in_enum_values() {
     #[cfg(not(feature = "test123"))]
     assert_eq!(Foo::new_with_raw_value(u2::new(3)), Ok(Foo::TestNot123));
     #[cfg(feature = "test123")]
-    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(3));
+    assert_eq!(Foo::new_with_raw_value(u2::new(3)), Err(u2::new(3)));
 }
