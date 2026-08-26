@@ -20,7 +20,7 @@ extra-traits = ["syn/extra-traits"]
 examples = ["arbitrary-int/defmt"]
 
 [dependencies]
-syn = { version = "3", features = ["full"] }
+syn = "3"
 quote = "1.0"
 proc-macro2 = "1.0"
 
