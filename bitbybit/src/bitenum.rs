@@ -2,12 +2,16 @@ use std::fmt;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, spanned::Spanned};
+use syn::punctuated::Punctuated;
 use syn::LitInt;
-use syn::{meta::ParseNestedMeta, Token};
+use syn::{meta::ParseNestedMeta, Data, DeriveInput, Token, Variant};
 
 use crate::bit_size::Bits;
 
+type Variants = Punctuated<Variant, Token![,]>;
+
 enum Error<'a> {
+    NotAnEnum,
     MissingSize,
     InvalidExhaustive,
     InvalidAttribute,
@@ -37,6 +41,7 @@ enum Error<'a> {
 impl fmt::Display for Error<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NotAnEnum => write!(f, "#[bitenum] can only be applied to an enum."),
             Self::MissingSize => write!(
                 f,
                 "Missing the storage type. It must be explicitly declared with #[bitenum(uN)], where N in range 1..=64"
@@ -166,9 +171,20 @@ impl Config {
 fn conditional_attr(attr: &syn::Attribute) -> bool {
     attr.path().is_ident("cfg")
 }
-fn check_explicit_conditional(config: &FullConfig, input: &syn::ItemEnum) -> syn::Result<()> {
-    let conditional_variant = |v: &syn::Variant| v.attrs.iter().any(conditional_attr);
-    let is_conditional = input.variants.iter().any(conditional_variant);
+
+/// The variants of the `enum` this attribute was applied to, or an error if it was applied to
+/// something that isn't an `enum`.
+fn variants(input: &DeriveInput) -> syn::Result<&Variants> {
+    match &input.data {
+        Data::Enum(data) => Ok(&data.variants),
+        Data::Struct(data) => Err(syn::Error::new(data.struct_token.span, Error::NotAnEnum)),
+        Data::Union(data) => Err(syn::Error::new(data.union_token.span, Error::NotAnEnum)),
+    }
+}
+
+fn check_explicit_conditional(config: &FullConfig, variants: &Variants) -> syn::Result<()> {
+    let conditional_variant = |v: &Variant| v.attrs.iter().any(conditional_attr);
+    let is_conditional = variants.iter().any(conditional_variant);
 
     if is_conditional && !config.exhaustive.is_conditional() {
         let span = config.exhaustive.span;
@@ -193,12 +209,9 @@ fn parse_expr(expr: &syn::Expr) -> Option<u128> {
     lit_int.base10_parse().ok()
 }
 
-fn check_explicit_exhaustive(
-    config: &FullConfig,
-    input: &syn::ItemEnum,
-) -> syn::Result<Vec<LitInt>> {
+fn check_explicit_exhaustive(config: &FullConfig, variants: &Variants) -> syn::Result<Vec<LitInt>> {
     let max_count = 1_u128 << config.bits.size;
-    let count = input.variants.len() as u128;
+    let count = variants.len() as u128;
     let actually_exhaustive = match count.cmp(&max_count) {
         std::cmp::Ordering::Equal => true,
         std::cmp::Ordering::Greater if !config.exhaustive.is_conditional() => {
@@ -220,7 +233,7 @@ fn check_explicit_exhaustive(
         return Err(syn::Error::new(config.exhaustive.span, err));
     }
     let (mut max_discr, mut next_implicit_discr, mut max_discr_span) = (0, 0, Span::call_site());
-    for variant in &input.variants {
+    for variant in variants {
         let (value, discr_span) = match variant.discriminant.as_ref() {
             None => (next_implicit_discr, variant.ident.span()),
             Some((_, discriminant)) => {
@@ -251,7 +264,7 @@ fn check_explicit_exhaustive(
 /// Generate _some code_ when the declared `#[bitenum]` is invalid,
 /// to avoid compilation errors caused by the `enum` not existing and missing
 /// methods.
-pub(crate) fn fallback_impl(input: &syn::ItemEnum) -> TokenStream {
+pub(crate) fn fallback_impl(input: &DeriveInput) -> TokenStream {
     let name = &input.ident;
     // Error string in unreachable! would be nice, but causes errors because a non-const
     // formatting macro is used in a const method.
@@ -270,10 +283,11 @@ pub(crate) fn fallback_impl(input: &syn::ItemEnum) -> TokenStream {
         }
     }
 }
-pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<TokenStream> {
+pub(crate) fn bitenum(config: Config, input: &DeriveInput) -> syn::Result<TokenStream> {
+    let variants = variants(input)?;
     let config = config.explicit()?;
-    check_explicit_conditional(&config, input)?;
-    let values = check_explicit_exhaustive(&config, input)?;
+    check_explicit_conditional(&config, variants)?;
+    let values = check_explicit_exhaustive(&config, variants)?;
 
     let bits = config.bits;
     let (base_type, qualified_type) = (bits.base_type()?, bits.qualified_path()?);
@@ -289,12 +303,12 @@ pub(crate) fn bitenum(config: Config, input: &syn::ItemEnum) -> syn::Result<Toke
         true => quote!(_ => Err(value)),
         false => quote!(_ => unreachable!()),
     };
-    let new_match_branches = input.variants.iter().zip(values).map(|(variant, value)| {
+    let new_match_branches = variants.iter().zip(values).map(|(variant, value)| {
         let cfg_attrs = variant.attrs.iter().filter(|a| conditional_attr(a));
         let variant_name = &variant.ident;
         quote!( #( #cfg_attrs )* (#value) => #ok(Self::#variant_name) )
     });
-    let (attrs, vis, name, variants) = (&input.attrs, &input.vis, &input.ident, &input.variants);
+    let (attrs, vis, name) = (&input.attrs, &input.vis, &input.ident);
     Ok(quote! {
         #[derive(Copy, Clone)]
         #( #attrs )*

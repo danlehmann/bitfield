@@ -28,7 +28,7 @@ pub fn bitenum(args: TokenStream1, input: TokenStream1) -> TokenStream1 {
     let config_parser = syn::meta::parser(|meta| config.parse(meta));
     parse_macro_input!(args with config_parser);
 
-    let input = parse_macro_input!(input as syn::ItemEnum);
+    let input = parse_macro_input!(input as syn::DeriveInput);
     match bitenum::bitenum(config, &input) {
         Ok(stream) => stream.into(),
         Err(err) => {
