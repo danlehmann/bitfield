@@ -2,12 +2,12 @@ use crate::bitfield::{
     is_int_size_regular_type, try_parse_arbitrary_int_type, ArrayInfo, BaseDataSize, CustomType,
     FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{Delimiter, Ident, Literal, Punct, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use syn::{
-    parse2, spanned::Spanned, Attribute, Error, ExprArray, Field, Fields, GenericArgument,
-    MetaList, PathArguments, Result, Type,
+    parse2, spanned::Spanned, Attribute, Error, Field, Fields, GenericArgument, MetaList,
+    PathArguments, Result, Type,
 };
 
 pub fn parse(fields: &Fields, base_data_size: BaseDataSize) -> Result<Vec<FieldDefinition>> {
@@ -522,6 +522,28 @@ enum ArgumentParser {
     ReadWrite,
 }
 
+/// Splits a token stream at its top-level commas, dropping empty entries so that
+/// a trailing comma doesn't produce one. Nested groups are opaque, so the commas
+/// inside them stay where they are.
+fn split_at_commas(token_stream: TokenStream2) -> Vec<TokenStream2> {
+    let mut result = Vec::new();
+    let mut current = TokenStream2::new();
+    for token in token_stream {
+        match &token {
+            TokenTree::Punct(punct) if punct.as_char() == ',' => {
+                if !current.is_empty() {
+                    result.push(std::mem::take(&mut current));
+                }
+            }
+            _ => current.extend([token]),
+        }
+    }
+    if !current.is_empty() {
+        result.push(current);
+    }
+    result
+}
+
 impl ArgumentParser {
     fn parse_literal_number(number: Literal) -> Result<usize> {
         number
@@ -607,10 +629,15 @@ impl ArgumentParser {
         for meta in token_stream {
             match meta {
                 TokenTree::Group(group) => {
-                    let range_array = parse2::<ExprArray>(group.to_token_stream()).unwrap();
-                    for range in range_array.elems {
+                    if group.delimiter() != Delimiter::Bracket {
+                        return Err(Error::new_spanned(
+                            &group,
+                            "bitfield!: Invalid bit-range. Expected an array of bit-ranges, for example [0..=1, 4..=5].",
+                        ));
+                    }
+                    for range in split_at_commas(group.stream()) {
                         Self::parse_argument_tokens(
-                            range.to_token_stream(),
+                            range,
                             true,
                             finished_argument,
                             Some(token_id),
