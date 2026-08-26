@@ -1,0 +1,5 @@
+error: bitfield!: Invalid bit-range. A parenthesized range like (0..=1) must be enclosed in square brackets when given as an array, for example [0..=1, 4..=5].
+ --> tests/no_compile/invalid_bit_range_array_delimiter.rs:7:12
+  |
+7 |     #[bits((0..=1), rw)]
+  |            ^^^^^^^

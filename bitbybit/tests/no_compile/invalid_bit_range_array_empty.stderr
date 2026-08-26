@@ -1,0 +1,5 @@
+error: bitfield!: Empty element in bit-range array. Expected bit-ranges separated by commas, for example [0..=1, 4..=5].
+ --> tests/no_compile/invalid_bit_range_array_empty.rs:6:19
+  |
+6 |     #[bits([0..=1,, 4..=5], rw)]
+  |                   ^

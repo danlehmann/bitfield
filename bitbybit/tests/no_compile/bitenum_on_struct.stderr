@@ -1,0 +1,5 @@
+error: #[bitenum] can only be applied to an enum.
+ --> tests/no_compile/bitenum_on_struct.rs:4:1
+  |
+4 | struct NotAnEnum {
+  | ^^^^^^
