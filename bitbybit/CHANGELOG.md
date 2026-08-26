@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `#[bitenum]` applied to a struct or a union now reports a dedicated "can only be applied to an enum"
+  error, and the original item is kept in the output instead of failing with a generic "expected
+  `enum`" error. (@seritools)
+- Clearer errors when the bit-range argument of `bit`/`bits` uses the wrong delimiters
+  (e.g. `(0..=1)`) or contains empty array elements (e.g. `[0..=1,, 4..=5]`); these no longer end in
+  a proc-macro panic. (@seritools)
+
+### Changed
+
+- Upgraded `syn` to version 3 and dropped its `full` feature, reducing proc-macro compile time. This
+  has no API impact for users of `bitbybit`. (@seritools)
+
 ## bitbybit 2.0.1
 
 Note: The 2.0.0 release on crates.io was accidentally published from a stale commit and is missing
