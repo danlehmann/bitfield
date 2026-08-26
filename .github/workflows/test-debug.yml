@@ -17,6 +17,20 @@ jobs:
           command: test
           args: --no-default-features --features "defmt"
 
+  # Build and run all feature combinations. The job above uses
+  # `--no-default-features`, which leaves cfg-gated tests compiled out -- e.g.
+  # bitbybit-tests' `test123` feature, which only exists to exercise `#[cfg]`
+  # handling in bitenums. A compile error in that disabled code (such as a type
+  # mismatch in an assertion) would otherwise go unnoticed until someone runs
+  # with `--all-features`.
+  test-all-features:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --all-features
+
   build-no-std:
     runs-on: ubuntu-latest
     steps:
