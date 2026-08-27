@@ -25,4 +25,6 @@ fn all_tests() {
     t.compile_fail("tests/no_compile/invalid_bit_pos/*.rs");
 
     t.compile_fail("tests/no_compile/missing_fields_in_builder.rs");
+
+    t.compile_fail("tests/no_compile/unused_must_use.rs");
 }

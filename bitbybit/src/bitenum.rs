@@ -295,6 +295,8 @@ pub(crate) fn bitenum(config: Config, input: &DeriveInput) -> syn::Result<TokenS
 
     let non_exhaustive = config.exhaustive.matches(false);
     let ok = non_exhaustive.then_some(quote!(Ok));
+    // `Result` is already `#[must_use]`, so only annotate the infallible constructor.
+    let new_must_use = (!non_exhaustive).then_some(quote!(#[must_use]));
     let new_return_type = match non_exhaustive {
         true => quote!(Result<Self, #qualified_type>),
         false => quote!(Self),
@@ -318,11 +320,13 @@ pub(crate) fn bitenum(config: Config, input: &DeriveInput) -> syn::Result<TokenS
 
         impl #name {
             /// Returns the underlying raw value of this bitfield.
+            #[must_use]
             pub const fn raw_value(self) -> #qualified_type {
                 #raw_value_constructor(self as #base_type)
             }
 
             /// Creates a new instance of this bitfield with the given raw value.
+            #new_must_use
             pub const fn new_with_raw_value(value: #qualified_type) -> #new_return_type {
                 match value #reader {
                     #( #new_match_branches ,)*
