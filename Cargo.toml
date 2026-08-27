@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "bitbybit",
     "bitbybit-tests",
+    "bitbybit-compile-checks",
 ]
 exclude = [
     "qemu-tests",

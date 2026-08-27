@@ -431,10 +431,13 @@ fn builder_available_in_const_context() {
         a: u16,
     }
 
-    assert_eq!(const { Test::builder().with_a(123).build().raw_value() }, 123);
+    assert_eq!(
+        const { Test::builder().with_a(123).build().raw_value() },
+        123
+    );
     const {
         let raw = Test::builder().with_a(123).build().raw_value();
-        if  raw != 123 {
+        if raw != 123 {
             panic!("builder didn't build the right value `123`");
         }
     }
@@ -1964,7 +1967,7 @@ fn test_forbidden_overlaps_okay_u8() {
         #[bit(0, rw)]
         bit_0: bool,
     }
-    Test::new_with_raw_value(0xFF);
+    let _ = Test::new_with_raw_value(0xFF);
 }
 
 #[test]
@@ -1983,12 +1986,12 @@ fn test_allowed_overlaps_okay_u16() {
         a: u2,
     }
 
-    Test::new_with_raw_value(0x1F1F);
-    Test::builder()
+    let _ = Test::new_with_raw_value(0x1F1F);
+    let _ = Test::builder()
         .with_upper(u4::new(0))
         .with_lower(u12::new(0))
         .build();
-    Test::builder()
+    let _ = Test::builder()
         .with_a(u2::new(0))
         .with_b(0)
         .with_c(u6::new(0))
@@ -2012,7 +2015,7 @@ fn test_forbidden_overlaps_okay_u16() {
         #[bits(0..=7, rw)]
         lower_bits: u8,
     }
-    Test::new_with_raw_value(0x1F1F);
+    let _ = Test::new_with_raw_value(0x1F1F);
 }
 
 #[test]
@@ -2034,7 +2037,7 @@ fn test_forbidden_overlaps_okay_u32() {
         #[bits(0..=7, rw)]
         lower_bits: u8,
     }
-    Test::new_with_raw_value(0x1F1FF1F1);
+    let _ = Test::new_with_raw_value(0x1F1FF1F1);
 }
 
 #[test]

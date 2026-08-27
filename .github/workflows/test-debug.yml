@@ -50,6 +50,8 @@ jobs:
         uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --examples
+      # Run clippy on the dedicated crate that enforces #[must_use] on generated code.
+      - run: cargo clippy -p bitbybit-compile-checks
 
   # Run some programs in QEMU 9
   qemu-test:

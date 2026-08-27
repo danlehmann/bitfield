@@ -1,0 +1,9 @@
+[package]
+name = "bitbybit-compile-checks"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+bitbybit = { path = "../bitbybit" }
+arbitrary-int = "2.1.0"
