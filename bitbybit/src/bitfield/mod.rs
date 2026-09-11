@@ -412,7 +412,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
     );
     let expanded = quote! {
         #[derive(Copy, Clone)]
-        #[repr(C)]
+        #[repr(transparent)]
         #( #struct_attrs )*
         #struct_vis struct #struct_name {
             raw_value: #internal_base_data_type,
