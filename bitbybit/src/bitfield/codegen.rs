@@ -2,8 +2,8 @@ use crate::bitfield::{
     const_name, mask_for_width_and_offset, mask_name, setter_name, with_name, ArrayInfo,
     BaseDataSize, BitfieldAttributes, CustomType, DefmtVariant, FieldDefinition, BITCOUNT_BOOL,
 };
-use proc_macro2::{Ident, TokenStream};
-use quote::{quote, TokenStreamExt as _};
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{quote, quote_spanned, TokenStreamExt as _};
 use std::str::FromStr;
 use std::{collections::HashSet, ops::Range};
 use syn::{LitInt, Type, Visibility};
@@ -675,6 +675,25 @@ pub fn generate_debug_trait_impl(
         }
     });
     debug_trait
+}
+
+pub fn generate_from_trait_impl(
+    struct_name: &Ident,
+    base_data_type: &Ident,
+    span: Span,
+) -> TokenStream {
+    quote_spanned! {span=>
+        impl ::core::convert::From<#base_data_type> for #struct_name {
+            fn from(item: #base_data_type) -> #struct_name {
+                #struct_name::new_with_raw_value(item)
+            }
+        }
+        impl ::core::convert::From<#struct_name> for #base_data_type {
+            fn from(item: #struct_name) -> #base_data_type {
+                item.raw_value()
+            }
+        }
+    }
 }
 
 pub fn generate_defmt_trait_impl(

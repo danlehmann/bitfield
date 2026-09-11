@@ -9,6 +9,7 @@ use quote::{quote, quote_spanned, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
+use syn::spanned::Spanned;
 use syn::LitStr;
 use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
 
@@ -148,6 +149,7 @@ struct BitfieldAttributes {
     pub default_val: Option<DefaultVal>,
     pub forbid_overlaps: bool,
     pub debug_trait: bool,
+    pub from_trait: Option<Ident>,
     pub introspect: bool,
     pub defmt_trait: Option<DefmtTrait>,
 }
@@ -224,6 +226,23 @@ impl BitfieldAttributes {
                 feature_gate,
             });
             return Ok(());
+        }
+        if meta.path.is_ident("derive") {
+            meta.parse_nested_meta(|meta| {
+                if meta.path.is_ident("Default") {
+                    if self.default_val.is_none() {
+                        let zero = DefaultVal::Lit(LitInt::new("0", meta.path.span()));
+                        self.default_val = Some(zero);
+                    }
+                } else if meta.path.is_ident("Debug") {
+                    self.debug_trait = true;
+                } else if meta.path.is_ident("From") {
+                    self.from_trait = Some(meta.path.require_ident()?.clone());
+                } else {
+                    return Err(syn::Error::new(meta.path.span(), "unsupported derive"));
+                }
+                Ok(())
+            })?;
         }
         Ok(())
     }
@@ -349,6 +368,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         debug_trait = codegen::generate_debug_trait_impl(struct_name, &field_definitions);
     }
 
+    let mut from_trait = TokenStream2::new();
+    if let Some(ref ident) = bitfield_attrs.from_trait {
+        from_trait = codegen::generate_from_trait_impl(struct_name, base_data_type, ident.span());
+    }
+
     let mut defmt_trait = TokenStream2::new();
     if bitfield_attrs.defmt_trait.is_some() {
         defmt_trait = codegen::generate_defmt_trait_impl(
@@ -438,6 +462,8 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         #default_trait
 
         #debug_trait
+
+        #from_trait
 
         #defmt_trait
 
