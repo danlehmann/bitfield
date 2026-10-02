@@ -1,0 +1,5 @@
+error: bitfield!: Expected a representation, for example repr(transparent)
+ --> tests/no_compile/empty_repr.rs:4:17
+  |
+4 | #[bitfield(u32, repr())]
+  |                 ^^^^^^

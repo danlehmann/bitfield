@@ -2156,3 +2156,23 @@ fn arbitrary_int_base() {
     assert_eq!(x.b(), u10::new(1));
     assert_eq!(x.raw_value, 1025);
 }
+
+#[test]
+fn custom_repr() {
+    #[bitfield(u32, repr(transparent))]
+    struct Transparent {
+        #[bits(0..=31, rw)]
+        a: u32,
+    }
+
+    #[bitfield(u20, repr(C, align(8)))]
+    struct Aligned {
+        #[bits(0..=19, rw)]
+        a: u20,
+    }
+
+    assert_eq!(core::mem::size_of::<Transparent>(), 4);
+    assert_eq!(core::mem::align_of::<Aligned>(), 8);
+    assert_eq!(Transparent::new_with_raw_value(0x1234).a(), 0x1234);
+    assert_eq!(Aligned::new_with_raw_value(u20::new(0x1234)).a().value(), 0x1234);
+}
