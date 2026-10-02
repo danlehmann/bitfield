@@ -4,6 +4,8 @@
 
 ### Added
 
+- `repr` specifier to choose the representation of a bitfield, e.g.
+  `#[bitfield(u32, repr(transparent))]`. Bitfields remain `#[repr(C)]` by default. (@pveierland)
 - `#[bitenum]` applied to a struct or a union now reports a dedicated "can only be applied to an enum"
   error, and the original item is kept in the output instead of failing with a generic "expected
   `enum`" error. (@seritools)

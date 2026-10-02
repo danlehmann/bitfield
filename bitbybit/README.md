@@ -204,6 +204,22 @@ struct NoOverlaps {
 }
 ```
 
+## Representation
+
+Bitfields are `#[repr(C)]` by default. A different representation can be chosen using the `repr`
+specifier:
+
+```rs
+#[bitfield(u64, repr(transparent))]
+struct Value {
+    #[bits(0..=63, rw)]
+    raw: u64,
+}
+```
+
+With `repr(transparent)`, the bitfield has the same ABI as its base data type. For example, an
+`Option<Value>` can then be returned in registers like an `Option<u64>`, rather than through memory.
+
 ## Debug
 
 The `bitfield` macro can generate a `Debug` implementation for you which prints

@@ -150,6 +150,7 @@ struct BitfieldAttributes {
     pub debug_trait: bool,
     pub introspect: bool,
     pub defmt_trait: Option<DefmtTrait>,
+    pub repr: Option<TokenStream2>,
 }
 
 impl BitfieldAttributes {
@@ -190,6 +191,16 @@ impl BitfieldAttributes {
         }
         if meta.path.is_ident("introspect") {
             self.introspect = true;
+            return Ok(());
+        }
+        if meta.path.is_ident("repr") {
+            let content;
+            syn::parenthesized!(content in meta.input);
+            if content.is_empty() {
+                return Err(meta
+                    .error("bitfield!: Expected a representation, for example repr(transparent)"));
+            }
+            self.repr = Some(content.parse()?);
             return Ok(());
         }
         let parse_feature_gate = |meta: ParseNestedMeta<'_>| -> Result<Option<String>, syn::Error> {
@@ -410,9 +421,11 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
     );
+    let repr = bitfield_attrs.repr.unwrap_or_else(|| quote! { C });
+
     let expanded = quote! {
         #[derive(Copy, Clone)]
-        #[repr(C)]
+        #[repr(#repr)]
         #( #struct_attrs )*
         #struct_vis struct #struct_name {
             raw_value: #internal_base_data_type,

@@ -9,6 +9,7 @@ mod bitfield;
 /// Defines a bitfield: `#[bitfield(<base-data-type>, default = 0)]`
 /// `<base-data-type>` is a data type like [`u32`] which is used to represent all the bits of the bitfield.
 /// `default` is an optional default when the bitfield is created
+/// `repr` optionally overrides the default `#[repr(C)]` of the generated struct, e.g. `repr(transparent)`
 #[proc_macro_attribute]
 pub fn bitfield(args: TokenStream1, input: TokenStream1) -> TokenStream1 {
     bitfield::bitfield(args, input)
