@@ -64,6 +64,7 @@ pub fn generate(
                     pub const #stride_name: usize = #stride;
                     #(#doc_comment)*
                     #[inline]
+                    #[must_use]
                     pub const fn #mask_name(index: usize) -> #internal_base_data_type {
                         assert!(index < #count);
                         (#mask) << (index * #stride)
@@ -74,6 +75,7 @@ pub fn generate(
                     #bits
                     #(#doc_comment)*
                     #[inline]
+                    #[must_use]
                     pub const fn #mask_name() -> #internal_base_data_type {
                         #mask
                     }
@@ -135,6 +137,7 @@ pub fn generate(
                 quote! {
                     #(#doc_comment)*
                     #[inline]
+                    #[must_use]
                     pub const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
                         assert!(index < #indexed_count);
                         Self {
@@ -152,6 +155,7 @@ pub fn generate(
                 quote! {
                     #(#doc_comment)*
                     #[inline]
+                    #[must_use]
                     pub const fn #with_name(&self, field_value: #setter_type) -> Self {
                         Self {
                             raw_value: #new_raw_value
@@ -209,6 +213,7 @@ fn generate_getters(
         quote! {
             #(#doc_comment)*
             #[inline]
+            #[must_use]
             pub const fn #field_name(&self, index: usize) -> #getter_type {
                 assert!(index < #indexed_count);
                 #converted
@@ -218,6 +223,7 @@ fn generate_getters(
         quote! {
             #(#doc_comment)*
             #[inline]
+            #[must_use]
             pub const fn #field_name(&self) -> #getter_type {
                 #converted
             }
@@ -520,7 +526,10 @@ pub fn make_builder(
 
                 (value_transform, array_type)
             } else {
-                (quote! { self.0.#with_name(__value_mangled)}, quote! { #setter_type })
+                (
+                    quote! { self.0.#with_name(__value_mangled)},
+                    quote! { #setter_type },
+                )
             };
 
             let mut params = vec![];
@@ -555,6 +564,7 @@ pub fn make_builder(
                 #[allow(non_camel_case_types)]
                 impl<#( #params, )*> #builder_struct_name<#( #names, )*> {
                     #(#doc_comment)*
+                    #[must_use]
                     pub const fn #with_name(&self, __value_mangled: #argument_type) -> #builder_struct_name<#( #result, )*> {
                         #builder_struct_name(#value_transform)
                     }
@@ -610,6 +620,7 @@ pub fn make_builder(
                 /// `] to be able to build a [`
                 #[doc = #struct_name_str]
                 /// `].
+                #[must_use]
                 pub const fn build(&self) -> #struct_name {
                     self.0
                 }
@@ -634,6 +645,7 @@ pub fn make_builder(
     let result_new_with_constructor = quote! {
         /// Creates a builder for this bitfield which ensures that all writable fields are
         /// initialized.
+        #[must_use]
         pub const fn builder() -> #builder_struct_name<#( #unset_params, )*> {
             #default
         }

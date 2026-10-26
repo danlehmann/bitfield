@@ -343,6 +343,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
 
                 /// Creates a new instance of this struct using the default value
                 #[deprecated(note = #deprecated_warning)]
+                #[must_use]
                 pub const fn new() -> Self {
                     Self::DEFAULT
                 }
@@ -422,6 +423,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         /// No checks are performed on the value, so it is possible to set bits that don't have any
         /// accessors specified.
         #[inline]
+        #[must_use]
         pub const fn new_with_raw_value(value: #base_data_type) -> #struct_name {
             #struct_name {
                 raw_value: #raw_value_unwrap
@@ -448,6 +450,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             #default_constructor
             /// Returns the underlying raw value of this bitfield
             #[inline]
+            #[must_use]
             pub const fn raw_value(&self) -> #base_data_type {
                 #raw_value_wrap
             }
