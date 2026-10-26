@@ -5,12 +5,13 @@ use proc_macro::Span;
 use proc_macro::TokenStream;
 use proc_macro2::Ident;
 use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::TokenTree;
 use quote::{quote, quote_spanned, ToTokens};
 use std::ops::Range;
 use std::str::FromStr;
 use syn::meta::ParseNestedMeta;
 use syn::LitStr;
-use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Token, Type};
+use syn::{parse_macro_input, Attribute, Data, DeriveInput, LitInt, Meta, Token, Type};
 
 /// In the code below, bools are considered to have 0 bits. This lets us distinguish them
 /// from u1
@@ -49,6 +50,23 @@ fn try_parse_arbitrary_int_type(s: &str, allow_signed: bool) -> Option<(usize, b
     } else {
         None
     }
+}
+
+/// Returns true if any `#[repr(...)]` on the struct chooses a layout (`C`, `transparent` or `Rust`),
+/// as opposed to only modifying it (e.g. `align(8)`). Validating the hints themselves is left to
+/// rustc.
+fn has_layout_repr(attrs: &[Attribute]) -> bool {
+    attrs.iter().any(|attr| match &attr.meta {
+        Meta::List(list) if list.path.is_ident("repr") => {
+            list.tokens.clone().into_iter().any(|token| match token {
+                TokenTree::Ident(ident) => {
+                    ident == "C" || ident == "transparent" || ident == "Rust"
+                }
+                _ => false,
+            })
+        }
+        _ => false,
+    })
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -410,9 +428,14 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
             }
         }
     );
+    let default_repr = if has_layout_repr(struct_attrs) {
+        quote! {}
+    } else {
+        quote! { #[repr(C)] }
+    };
     let expanded = quote! {
         #[derive(Copy, Clone)]
-        #[repr(C)]
+        #default_repr
         #( #struct_attrs )*
         #struct_vis struct #struct_name {
             raw_value: #internal_base_data_type,
