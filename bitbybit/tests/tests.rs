@@ -8,23 +8,6 @@ fn all_tests() {
     t.pass("tests/correct.rs");
     t.pass("tests/builder_value_field.rs");
 
-    t.compile_fail("tests/no_compile/exhaustive_bitenum.rs");
-    t.compile_fail("tests/no_compile/non_exhaustive_bitenum.rs");
-    t.compile_fail("tests/no_compile/invalid_field_range.rs");
-    t.compile_fail("tests/no_compile/invalid_field_access.rs");
-    t.compile_fail("tests/no_compile/bitenum_on_struct.rs");
-    t.compile_fail("tests/no_compile/bitenum_on_union.rs");
-    t.compile_fail("tests/no_compile/invalid_bit_range_array_delimiter.rs");
-    t.compile_fail("tests/no_compile/invalid_bit_range_array_empty.rs");
-
-    t.compile_fail("tests/no_compile/overlapping_bitfield_bits.rs");
-    t.compile_fail("tests/no_compile/overlapping_bitfield_u8_fields.rs");
-    t.compile_fail("tests/no_compile/overlapping_bitfield_arrays.rs");
-    t.compile_fail("tests/no_compile/overlapping_bitfield_arrays_with_stride.rs");
-
+    t.compile_fail("tests/no_compile/*.rs");
     t.compile_fail("tests/no_compile/invalid_bit_pos/*.rs");
-
-    t.compile_fail("tests/no_compile/missing_fields_in_builder.rs");
-
-    t.compile_fail("tests/no_compile/unused_must_use.rs");
 }
