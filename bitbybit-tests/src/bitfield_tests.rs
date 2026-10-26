@@ -2170,7 +2170,7 @@ fn repr_transparent() {
     assert_eq!(core::mem::size_of::<Transparent>(), 4);
     assert_eq!(core::mem::align_of::<Transparent>(), 4);
 
-    // For arbitrary-int base types, the struct is transparent over the internal integer type.
+    // repr(transparent) also works for arbitrary-int base types.
     #[bitfield(u20)]
     #[repr(transparent)]
     struct TransparentU20 {
@@ -2184,7 +2184,8 @@ fn repr_transparent() {
 #[test]
 fn repr_c() {
     // Opting into the current default explicitly keeps the C layout once the default changes to
-    // repr(transparent) in bitbybit 3.
+    // repr(transparent) in bitbybit 3. This only checks that the opt-in is accepted: rustc also
+    // accepts a duplicated repr(C), so it can't detect the default being emitted as well.
     #[bitfield(u32)]
     #[repr(C, align(8))]
     struct ExplicitC {
@@ -2211,7 +2212,8 @@ fn repr_rust() {
 
 #[test]
 fn repr_align() {
-    // Other repr hints are merged with the default repr(C).
+    // Modifiers like align(8) are combined with the default repr(C). For a single field the layout
+    // is the same with or without C, so this only checks that the alignment is applied.
     #[bitfield(u32)]
     #[repr(align(8))]
     struct Aligned {

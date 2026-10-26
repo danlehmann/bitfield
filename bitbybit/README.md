@@ -245,8 +245,8 @@ struct Register {
 }
 ```
 
-Note that for arbitrary-int base types, the struct is transparent over the internal integer type. A
-`#[bitfield(u20)]` is stored as a `u32`, so it has the same ABI as `u32`, not as `u20`.
+For arbitrary-int base types, the struct is transparent over the internal integer type, e.g. a
+`#[bitfield(u20)]` is stored as a `u32` and has the same ABI as `u32`.
 
 ## Introspection
 
