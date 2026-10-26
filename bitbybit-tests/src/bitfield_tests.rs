@@ -2156,3 +2156,69 @@ fn arbitrary_int_base() {
     assert_eq!(x.b(), u10::new(1));
     assert_eq!(x.raw_value, 1025);
 }
+
+#[test]
+fn repr_transparent() {
+    // Would fail with "conflicting representation hints" if the default repr(C) were still emitted.
+    #[bitfield(u32)]
+    #[repr(transparent)]
+    struct Transparent {
+        #[bits(0..=31, rw)]
+        value: u32,
+    }
+
+    assert_eq!(core::mem::size_of::<Transparent>(), 4);
+    assert_eq!(core::mem::align_of::<Transparent>(), 4);
+
+    // For arbitrary-int base types, the struct is transparent over the internal integer type.
+    #[bitfield(u20)]
+    #[repr(transparent)]
+    struct TransparentU20 {
+        #[bits(0..=19, rw)]
+        value: u20,
+    }
+
+    assert_eq!(core::mem::size_of::<TransparentU20>(), 4);
+}
+
+#[test]
+fn repr_c() {
+    // Opting into the current default explicitly keeps the C layout once the default changes to
+    // repr(transparent) in bitbybit 3.
+    #[bitfield(u32)]
+    #[repr(C, align(8))]
+    struct ExplicitC {
+        #[bits(0..=31, rw)]
+        value: u32,
+    }
+
+    assert_eq!(core::mem::size_of::<ExplicitC>(), 8);
+    assert_eq!(core::mem::align_of::<ExplicitC>(), 8);
+}
+
+#[test]
+fn repr_rust() {
+    // Would fail with "conflicting representation hints" if the default repr(C) were still emitted.
+    #[bitfield(u32)]
+    #[repr(Rust)]
+    struct RustRepr {
+        #[bits(0..=31, rw)]
+        value: u32,
+    }
+
+    assert_eq!(core::mem::size_of::<RustRepr>(), 4);
+}
+
+#[test]
+fn repr_align() {
+    // Other repr hints are merged with the default repr(C).
+    #[bitfield(u32)]
+    #[repr(align(8))]
+    struct Aligned {
+        #[bits(0..=31, rw)]
+        value: u32,
+    }
+
+    assert_eq!(core::mem::size_of::<Aligned>(), 8);
+    assert_eq!(core::mem::align_of::<Aligned>(), 8);
+}

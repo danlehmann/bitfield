@@ -227,6 +227,27 @@ struct GICD_TYPER {
 }
 ```
 
+## Representation
+
+Bitfields are `#[repr(C)]` by default. A `repr` on the struct that chooses a layout
+(`#[repr(C)]`, `#[repr(transparent)]` or `#[repr(Rust)]`) replaces the default, while modifiers like
+`#[repr(align(8))]` are combined with it.
+
+The default is planned to change to `#[repr(transparent)]` in the next major release (bitbybit 3).
+Bitfields that rely on the C layout should specify `#[repr(C)]` explicitly to keep it.
+
+```rs
+#[bitfield(u32)]
+#[repr(transparent)]
+struct Register {
+    #[bits(0..=7, rw)]
+    value: u8,
+}
+```
+
+Note that for arbitrary-int base types, the struct is transparent over the internal integer type. A
+`#[bitfield(u20)]` is stored as a `u32`, so it has the same ABI as `u32`, not as `u20`.
+
 ## Introspection
 
 If information like bit offsets or mask values are needed at runtime, use the `introspect` specifier:

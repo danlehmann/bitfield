@@ -4,6 +4,10 @@
 
 ### Added
 
+- A `repr` that chooses a layout (`#[repr(C)]`, `#[repr(transparent)]` or `#[repr(Rust)]`) can now be
+  applied to a bitfield struct and replaces the default `#[repr(C)]`. Modifiers such as
+  `#[repr(align(8))]` are still combined with the default. The default is planned to change to
+  `#[repr(transparent)]` in bitbybit 3; specify `#[repr(C)]` explicitly to keep the C layout.
 - `#[bitenum]` applied to a struct or a union now reports a dedicated "can only be applied to an enum"
   error, and the original item is kept in the output instead of failing with a generic "expected
   `enum`" error. (@seritools)
