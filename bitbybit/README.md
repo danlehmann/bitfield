@@ -46,11 +46,37 @@ How this works:
 - Single bit fields are declared as "bit", all other fields as "bits"
 - Valid data types for fields are the basic types u8, u16, u32, u64, u128, bool as well as enums (see below) or types
   like u1, u2, u3 from [arbitrary-int](https://crates.io/crates/arbitrary-int)
+- The arbitrary-int types like u9 are aliases that pick the smallest fitting underlying type (u9 is `UInt<u16, 9>`). To
+  choose a different underlying type, spell out the type, e.g. `UInt<u32, 8>` or `Int<i32, 7>` (see below)
 - Bit numbering is LSB0, which means that bits are counted from the bottom: bit(0) has a value of 0x1, bit(1) is 0x2,
   bit(2) is 0x4, bit(15) is 0x8000 and so on. An MSB0 mode (to match documentation of some big endian devices) can be
   added later, if there is demand.
 - Fields are declared as "r" for read-only, "w" for write-only or "rw" as read/write. In the example above, all fields
   are read-only as this specific register is only used to read values.
+
+## Choosing the underlying type of arbitrary-ints
+
+Fields declared as e.g. `u5` or `u9` use the smallest built-in type that fits (`UInt<u8, 5>` and `UInt<u16, 9>`).
+Sometimes a different underlying type is preferable, for example on platforms (like GPUs) that only natively support
+32 bit integers. In that case, the arbitrary-int type can be spelled out, which also allows widths like 8 that would
+otherwise be a regular `u8`:
+
+```rs
+#[bitfield(u32)]
+struct GpuCmd {
+    #[bits(0..=15, rw)]
+    fields: UInt<u32, 16>,
+
+    // Signed numbers work the same way
+    #[bits(16..=23, rw)]
+    offset: Int<i32, 8>,
+
+    #[bits(24..=31, rw)]
+    cmd: UInt<u32, 8>,
+}
+```
+
+Here, `cmd()` returns a `UInt<u32, 8>` and `with_cmd()` expects one.
 
 ## Enumerations
 
