@@ -6,8 +6,8 @@ use proc_macro2::{Delimiter, Ident, Literal, Punct, TokenStream as TokenStream2,
 use quote::{quote, ToTokens};
 use std::ops::{Deref, Range};
 use syn::{
-    parse2, spanned::Spanned, Attribute, Error, Field, Fields, GenericArgument, MetaList,
-    PathArguments, Result, Type,
+    parse2, spanned::Spanned, Attribute, Error, Expr, ExprLit, Field, Fields, GenericArgument, Lit,
+    MetaList, PathArguments, Result, Type,
 };
 
 pub fn parse(fields: &Fields, base_data_size: BaseDataSize) -> Result<Vec<FieldDefinition>> {
@@ -53,11 +53,98 @@ fn parse_scalar_field(ty: &Type) -> Result<Option<(usize, bool)>> {
         _ => Err(Error::new(
             ty.span(),
             format!(
-                "bitfield!: Field type {} not valid. Supported types: bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g., u1, u3, u62, i81). Their arrays are also supported.",
+                "bitfield!: Field type {} not valid. Supported types: bool, u8, i8, u16, i16, u32, i32, u64, i64, u128, i128, arbitrary int (e.g., u1, u3, u62, i81, UInt<u32, 8>, Int<i32, 7>). Their arrays are also supported.",
                 ty.into_token_stream()
             ),
         )),
     }
+}
+
+/// Formats a type for use in error messages. The token stream on its own adds spaces around
+/// punctuation (e.g. `UInt < u32, 8 >`), which this removes (`UInt<u32, 8>`).
+fn type_to_string(ty: &Type) -> String {
+    ty.to_token_stream()
+        .to_string()
+        .replace(' ', "")
+        .replace(',', ", ")
+}
+
+/// Parses an explicitly spelled-out arbitrary-int, e.g. `UInt<u32, 8>` or `Int<i32, 7>`. This allows
+/// choosing the underlying data type, which the type aliases (e.g. u8, u9) don't.
+///
+/// Returns Some((size, is_signed)) if successful, None if the type isn't an explicit arbitrary-int.
+fn parse_explicit_arbitrary_int(ty: &Type) -> Result<Option<(usize, bool)>> {
+    let Type::Path(path) = ty else {
+        return Ok(None);
+    };
+    let Some(last_segment) = path.path.segments.last() else {
+        return Ok(None);
+    };
+    let is_signed = match last_segment.ident.to_string().as_str() {
+        "UInt" => false,
+        "Int" => true,
+        _ => return Ok(None),
+    };
+    let PathArguments::AngleBracketed(args) = &last_segment.arguments else {
+        return Ok(None);
+    };
+    if args.args.len() != 2 {
+        return Ok(None);
+    }
+
+    let underlying_type = &args.args[0];
+    let underlying_ident = match underlying_type {
+        GenericArgument::Type(Type::Path(p)) if p.qself.is_none() => p
+            .path
+            .segments
+            .last()
+            .filter(|segment| segment.arguments.is_none())
+            .map(|segment| segment.ident.to_string()),
+        _ => None,
+    };
+    let underlying_type_str = underlying_ident.unwrap_or_default();
+    let underlying_bits = match underlying_type_str.as_str() {
+        "u8" | "i8" => 8,
+        "u16" | "i16" => 16,
+        "u32" | "i32" => 32,
+        "u64" | "i64" => 64,
+        "u128" | "i128" => 128,
+        _ => 0,
+    };
+    let expected_prefix = if is_signed { 'i' } else { 'u' };
+    if underlying_bits == 0 || !underlying_type_str.starts_with(expected_prefix) {
+        return Err(Error::new_spanned(
+            underlying_type,
+            format!(
+                "bitfield!: {}<T, BITS> requires T to be one of {expected_prefix}8, {expected_prefix}16, {expected_prefix}32, {expected_prefix}64, {expected_prefix}128",
+                last_segment.ident,
+            ),
+        ));
+    }
+
+    let bits_arg = &args.args[1];
+    let bits = match bits_arg {
+        GenericArgument::Const(Expr::Lit(ExprLit {
+            lit: Lit::Int(lit), ..
+        })) => lit.base10_parse::<usize>().ok(),
+        _ => None,
+    };
+    let Some(bits) = bits else {
+        return Err(Error::new_spanned(
+            bits_arg,
+            "bitfield!: Expected an integer literal for the number of bits",
+        ));
+    };
+    if bits == 0 || bits > underlying_bits {
+        return Err(Error::new_spanned(
+            bits_arg,
+            format!(
+                "bitfield!: Number of bits must be between 1 and {underlying_bits} for an underlying type of {underlying_type_str}"
+            ),
+        ));
+    }
+
+    Ok(Some((bits, is_signed)))
 }
 
 fn parse_enumeration(ty: &Type, number_of_bits: usize) -> Result<(CustomType, Type, Type)> {
@@ -146,7 +233,11 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
             _ => (&field.ty, None),
         }
     };
-    let field_type_size_from_data_type = parse_scalar_field(ty)?;
+    let explicit_arbitrary_int = parse_explicit_arbitrary_int(ty)?;
+    let field_type_size_from_data_type = match explicit_arbitrary_int {
+        Some(v) => Some(v),
+        None => parse_scalar_field(ty)?,
+    };
     let unsigned_field_type = if let Some((bits, is_signed)) = field_type_size_from_data_type {
         if is_signed {
             Some(
@@ -352,7 +443,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     } else if number_of_bits != field_type_size {
         return Err(Error::new_spanned(
             &field.ty,
-            format!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, ty.to_token_stream(), number_of_bits)
+            format!("bitfield!: Field {} has type {}, which doesn't match the number of bits ({}) that are being used for it", field_name, type_to_string(ty), number_of_bits)
         ));
     }
 
@@ -378,6 +469,8 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
     };
 
     let use_regular_int = match field_type_size_from_data_type {
+        // UInt<u32, 8> has 8 bits, but it is still an arbitrary-int
+        Some(_) if explicit_arbitrary_int.is_some() => false,
         Some((i, _is_signed)) => is_int_size_regular_type(i),
         None => {
             // For CustomTypes (e.g. enums), prefer u1 over bool
@@ -410,6 +503,7 @@ fn parse_field(base_data_size: usize, field: &Field) -> Result<FieldDefinition> 
         field_type_size_from_data_type: field_type_size_from_data_type.map(|v| v.0),
         is_signed: field_type_size_from_data_type.is_some_and(|v| v.1),
         unsigned_field_type,
+        explicit_arbitrary_int_type: explicit_arbitrary_int.map(|_| ty.clone()),
     })
 }
 
