@@ -4,6 +4,8 @@
 
 ### Added
 
+- Fields can use spelled-out arbitrary-int types such as `UInt<u32, 8>` or `Int<i32, 7>`, which choose the
+  underlying data type instead of the smallest fitting one picked by aliases like `u8` or `i7`.
 - A `repr` that chooses a layout (`#[repr(C)]`, `#[repr(transparent)]` or `#[repr(Rust)]`) can now be
   applied to a bitfield struct and replaces the default `#[repr(C)]`. Modifiers such as
   `#[repr(align(8))]` are still combined with the default. The default is planned to change to
