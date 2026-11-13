@@ -1,0 +1,29 @@
+error: bitfield!: Int<T, BITS> requires T to be one of i8, i16, i32, i64, i128
+ --> tests/no_compile/invalid_explicit_arbitrary_int.rs:6:12
+  |
+6 |     a: Int<u32, 7>,
+  |            ^^^
+
+error: bitfield!: UInt<T, BITS> requires T to be one of u8, u16, u32, u64, u128
+  --> tests/no_compile/invalid_explicit_arbitrary_int.rs:12:13
+   |
+12 |     a: UInt<i32, 7>,
+   |             ^^^
+
+error: bitfield!: Number of bits must be between 1 and 8 for an underlying type of u8
+  --> tests/no_compile/invalid_explicit_arbitrary_int.rs:18:17
+   |
+18 |     a: UInt<u8, 9>,
+   |                 ^
+
+error: bitfield!: Number of bits must be between 1 and 16 for an underlying type of u16
+  --> tests/no_compile/invalid_explicit_arbitrary_int.rs:24:18
+   |
+24 |     a: UInt<u16, 0>,
+   |                  ^
+
+error: bitfield!: Field a has type UInt<u32, 8>, which doesn't match the number of bits (9) that are being used for it
+  --> tests/no_compile/invalid_explicit_arbitrary_int.rs:30:8
+   |
+30 |     a: UInt<u32, 8>,
+   |        ^^^^^^^^^^^^

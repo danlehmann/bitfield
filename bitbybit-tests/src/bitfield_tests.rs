@@ -2227,3 +2227,155 @@ fn repr_align() {
     assert_eq!(core::mem::size_of::<Aligned>(), 8);
     assert_eq!(core::mem::align_of::<Aligned>(), 8);
 }
+
+#[test]
+fn explicit_arbitrary_int_types() {
+    #[bitfield(u32, debug)]
+    struct GpuCmd {
+        #[bits(0..=22, rw)]
+        fields: UInt<u32, 23>,
+
+        #[bit(23, rw)]
+        flag: UInt<u32, 1>,
+
+        #[bits(24..=31, rw)]
+        cmd: UInt<u32, 8>,
+    }
+
+    let t = GpuCmd::new_with_raw_value(0xAB12_3456);
+    let cmd: UInt<u32, 8> = t.cmd();
+    assert_eq!(cmd, UInt::<u32, 8>::new(0xAB));
+    assert_eq!(cmd.value(), 0xABu32);
+    assert_eq!(t.flag(), UInt::<u32, 1>::new(0));
+    assert_eq!(t.fields(), UInt::<u32, 23>::new(0x12_3456));
+
+    let t = t
+        .with_cmd(UInt::<u32, 8>::new(0x7F))
+        .with_flag(UInt::<u32, 1>::new(1));
+    assert_eq!(t.raw_value(), 0x7F92_3456);
+
+    let mut t = t;
+    t.set_fields(UInt::<u32, 23>::new(0x7F_FFFF));
+    assert_eq!(t.raw_value(), 0x7FFF_FFFF);
+
+    let t = GpuCmd::builder()
+        .with_fields(UInt::<u32, 23>::new(1))
+        .with_flag(UInt::<u32, 1>::new(0))
+        .with_cmd(UInt::<u32, 8>::new(2))
+        .build();
+    assert_eq!(t.raw_value(), 0x0200_0001);
+    assert_eq!(format!("{:?}", t), "GpuCmd { fields: 1, flag: 0, cmd: 2 }");
+}
+
+#[test]
+fn explicit_arbitrary_int_types_with_different_underlying_types() {
+    #[bitfield(u16, default = 0)]
+    struct Test {
+        // Underlying type larger than the bitfield
+        #[bits(0..=8, rw)]
+        a: UInt<u64, 9>,
+
+        // Underlying type smaller than the bitfield, and fully qualified path
+        #[bits(9..=11, rw)]
+        b: arbitrary_int::UInt<u8, 3>,
+
+        // Equivalent to u4
+        #[bits(12..=15, rw)]
+        c: UInt<u8, 4>,
+    }
+
+    let t = Test::new_with_raw_value(0xFFFF);
+    assert_eq!(t.a(), UInt::<u64, 9>::MAX);
+    assert_eq!(t.b(), u3::MAX);
+    assert_eq!(t.c(), u4::MAX);
+
+    let t = Test::DEFAULT
+        .with_a(UInt::<u64, 9>::new(0x123))
+        .with_b(u3::new(0b101))
+        .with_c(u4::new(0xC));
+    assert_eq!(t.raw_value(), 0xCB23);
+}
+
+#[test]
+fn explicit_arbitrary_int_full_width() {
+    #[bitfield(u32)]
+    struct Test {
+        #[bits(0..=31, rw)]
+        all: UInt<u32, 32>,
+    }
+
+    let t = Test::new_with_raw_value(0xDEAD_BEEF);
+    assert_eq!(t.all().value(), 0xDEAD_BEEF);
+    assert_eq!(t.with_all(UInt::<u32, 32>::new(5)).raw_value(), 5);
+}
+
+#[test]
+fn explicit_arbitrary_int_signed() {
+    #[bitfield(u32, default = 0)]
+    struct Test {
+        #[bits(0..=6, rw)]
+        a: Int<i32, 7>,
+
+        #[bits(7..=14, rw)]
+        b: Int<i32, 8>,
+
+        #[bits(15..=17, rw)]
+        c: Int<i8, 3>,
+
+        #[bits(18..=31, rw)]
+        d: Int<i16, 14>,
+    }
+
+    let t = Test::new_with_raw_value(0xFFFF_FFFF);
+    assert_eq!(t.a().value(), -1i32);
+    assert_eq!(t.b().value(), -1i32);
+    assert_eq!(t.c(), i3::new(-1));
+    assert_eq!(t.d(), i14::new(-1));
+
+    // Writing negative values must not pollute neighboring fields
+    let t = Test::DEFAULT.with_a(Int::<i32, 7>::new(-1));
+    assert_eq!(t.raw_value(), 0x7F);
+    assert_eq!(t.b().value(), 0);
+
+    let t = Test::DEFAULT
+        .with_a(Int::<i32, 7>::new(-64))
+        .with_b(Int::<i32, 8>::new(127))
+        .with_c(i3::new(-4))
+        .with_d(i14::new(-2));
+    assert_eq!(t.a(), Int::<i32, 7>::new(-64));
+    assert_eq!(t.b(), Int::<i32, 8>::new(127));
+    assert_eq!(t.c(), i3::new(-4));
+    assert_eq!(t.d(), i14::new(-2));
+    assert_eq!(
+        t.raw_value(),
+        (0x3FFE << 18) | (0b100 << 15) | (127 << 7) | 0x40
+    );
+}
+
+#[test]
+fn explicit_arbitrary_int_arrays_and_noncontiguous() {
+    #[bitfield(u64, default = 0)]
+    struct Test {
+        #[bits(0..=7, rw)]
+        bytes: [UInt<u32, 8>; 4],
+
+        #[bits(32..=38, rw, stride = 8)]
+        signed: [Int<i32, 7>; 2],
+
+        #[bits([48..=51, 60..=63], rw)]
+        split: UInt<u32, 8>,
+    }
+
+    let t = Test::new_with_raw_value(0xA000_0744_8344_3322);
+    assert_eq!(t.bytes(0), UInt::<u32, 8>::new(0x22));
+    assert_eq!(t.bytes(3), UInt::<u32, 8>::new(0x83));
+    assert_eq!(t.signed(0), Int::<i32, 7>::new(0x44 - 128));
+    assert_eq!(t.signed(1), Int::<i32, 7>::new(7));
+    assert_eq!(t.split(), UInt::<u32, 8>::new(0xA0));
+
+    let t = Test::DEFAULT
+        .with_bytes(2, UInt::<u32, 8>::new(0xFF))
+        .with_signed(1, Int::<i32, 7>::new(-1))
+        .with_split(UInt::<u32, 8>::new(0x5A));
+    assert_eq!(t.raw_value(), 0x5000_7F00_00FF_0000 | (0xA << 48));
+}
