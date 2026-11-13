@@ -541,26 +541,26 @@ fn repeated_bitrange_single_bits_with_stride() {
 
     const VALUE: u64 = 0x1234_5678_ABCD_EFFF;
     let nibble_bits = NibbleBits64::new_with_raw_value(VALUE);
-    assert_eq!(true, nibble_bits.nibble_bit0(0));
-    assert_eq!(true, nibble_bits.nibble_bit0(1));
-    assert_eq!(true, nibble_bits.nibble_bit0(2));
-    assert_eq!(false, nibble_bits.nibble_bit0(3));
-    assert_eq!(true, nibble_bits.nibble_bit0(4));
-    assert_eq!(false, nibble_bits.nibble_bit0(5));
-    assert_eq!(true, nibble_bits.nibble_bit0(6));
-    assert_eq!(false, nibble_bits.nibble_bit0(7));
+    assert!(nibble_bits.nibble_bit0(0));
+    assert!(nibble_bits.nibble_bit0(1));
+    assert!(nibble_bits.nibble_bit0(2));
+    assert!(!nibble_bits.nibble_bit0(3));
+    assert!(nibble_bits.nibble_bit0(4));
+    assert!(!nibble_bits.nibble_bit0(5));
+    assert!(nibble_bits.nibble_bit0(6));
+    assert!(!nibble_bits.nibble_bit0(7));
 
-    assert_eq!(false, nibble_bits.nibble_bit0(8));
-    assert_eq!(true, nibble_bits.nibble_bit0(9));
-    assert_eq!(false, nibble_bits.nibble_bit0(10));
-    assert_eq!(true, nibble_bits.nibble_bit0(11));
-    assert_eq!(false, nibble_bits.nibble_bit0(12));
-    assert_eq!(true, nibble_bits.nibble_bit0(13));
-    assert_eq!(false, nibble_bits.nibble_bit0(14));
-    assert_eq!(true, nibble_bits.nibble_bit0(15));
-    assert_eq!(false, nibble_bits.nibble_bit1(15));
-    assert_eq!(false, nibble_bits.nibble_bit2(15));
-    assert_eq!(false, nibble_bits.nibble_bit3(15));
+    assert!(!nibble_bits.nibble_bit0(8));
+    assert!(nibble_bits.nibble_bit0(9));
+    assert!(!nibble_bits.nibble_bit0(10));
+    assert!(nibble_bits.nibble_bit0(11));
+    assert!(!nibble_bits.nibble_bit0(12));
+    assert!(nibble_bits.nibble_bit0(13));
+    assert!(!nibble_bits.nibble_bit0(14));
+    assert!(nibble_bits.nibble_bit0(15));
+    assert!(!nibble_bits.nibble_bit1(15));
+    assert!(!nibble_bits.nibble_bit2(15));
+    assert!(!nibble_bits.nibble_bit3(15));
 
     assert_eq!(
         0x1234_5678_ABCD_EFFE,
@@ -679,15 +679,15 @@ fn repeated_bitrange_single_bits_without_stride() {
     }
 
     let bits8 = Bits8::new_with_raw_value(0b0110_1110);
-    assert_eq!(false, bits8.bit(0));
-    assert_eq!(true, bits8.bit(1));
-    assert_eq!(true, bits8.bit(2));
-    assert_eq!(true, bits8.bit(3));
+    assert!(!bits8.bit(0));
+    assert!(bits8.bit(1));
+    assert!(bits8.bit(2));
+    assert!(bits8.bit(3));
 
-    assert_eq!(false, bits8.bit(4));
-    assert_eq!(true, bits8.bit(5));
-    assert_eq!(true, bits8.bit(6));
-    assert_eq!(false, bits8.bit(7));
+    assert!(!bits8.bit(4));
+    assert!(bits8.bit(5));
+    assert!(bits8.bit(6));
+    assert!(!bits8.bit(7));
 
     assert_eq!(0b0110_0110, bits8.with_bit(3, false).raw_value());
     assert_eq!(0b1110_1110, bits8.with_bit(7, true).raw_value());
@@ -1171,7 +1171,7 @@ fn reserved_identifiers() {
     }
 
     let field = BitfieldWithBitEnum::DEFAULT;
-    assert_eq!(field.r#priv(), false);
+    assert!(!field.r#priv());
     assert_eq!(
         field.with_priv(true),
         BitfieldWithBitEnum::new_with_raw_value(64)
