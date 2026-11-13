@@ -90,7 +90,7 @@ fn parse_enumeration(ty: &Type, number_of_bits: usize) -> Result<(CustomType, Ty
                                 };
 
                                 let result_type_string = format!(
-                                    "Result<{}, {}>",
+                                    "::core::result::Result<{}, {}>",
                                     generic_type.to_token_stream(),
                                     enum_fallback_value.to_token_stream(),
                                 );
