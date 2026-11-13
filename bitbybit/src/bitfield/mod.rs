@@ -351,7 +351,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         };
 
         let default_trait = quote! {
-            impl Default for #struct_name {
+            impl ::core::default::Default for #struct_name {
                 fn default() -> Self {
                     Self::DEFAULT
                 }
@@ -436,7 +436,7 @@ pub fn bitfield(args: TokenStream, input: TokenStream) -> TokenStream {
         quote! { #[repr(C)] }
     };
     let expanded = quote! {
-        #[derive(Copy, Clone)]
+        #[derive(::core::marker::Copy, ::core::clone::Clone)]
         #default_repr
         #( #struct_attrs )*
         #struct_vis struct #struct_name {

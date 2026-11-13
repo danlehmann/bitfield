@@ -269,15 +269,15 @@ pub(crate) fn fallback_impl(input: &DeriveInput) -> TokenStream {
     // Error string in unreachable! would be nice, but causes errors because a non-const
     // formatting macro is used in a const method.
     quote! {
-        #[derive(Copy, Clone)]
+        #[derive(::core::marker::Copy, ::core::clone::Clone)]
         #input
 
         impl #name {
             pub const fn raw_value<T>(self) -> T {
-                unreachable!()
+                ::core::unreachable!()
             }
             pub const fn new_with_raw_value<T>(value: T) -> Self {
-                unreachable!()
+                ::core::unreachable!()
             }
             pub fn unwrap(self) -> Self { self }
         }
@@ -294,16 +294,16 @@ pub(crate) fn bitenum(config: Config, input: &DeriveInput) -> syn::Result<TokenS
     let (raw_value_constructor, reader) = (bits.constructor()?, bits.reader());
 
     let non_exhaustive = config.exhaustive.matches(false);
-    let ok = non_exhaustive.then_some(quote!(Ok));
+    let ok = non_exhaustive.then_some(quote!(::core::result::Result::Ok));
     // `Result` is already `#[must_use]`, so only annotate the infallible constructor.
     let new_must_use = (!non_exhaustive).then_some(quote!(#[must_use]));
     let new_return_type = match non_exhaustive {
-        true => quote!(Result<Self, #qualified_type>),
+        true => quote!(::core::result::Result<Self, #qualified_type>),
         false => quote!(Self),
     };
     let new_default_branch = match non_exhaustive {
-        true => quote!(_ => Err(value)),
-        false => quote!(_ => unreachable!()),
+        true => quote!(_ => ::core::result::Result::Err(value)),
+        false => quote!(_ => ::core::unreachable!()),
     };
     let new_match_branches = variants.iter().zip(values).map(|(variant, value)| {
         let cfg_attrs = variant.attrs.iter().filter(|a| conditional_attr(a));
@@ -312,7 +312,7 @@ pub(crate) fn bitenum(config: Config, input: &DeriveInput) -> syn::Result<TokenS
     });
     let (attrs, vis, name) = (&input.attrs, &input.vis, &input.ident);
     Ok(quote! {
-        #[derive(Copy, Clone)]
+        #[derive(::core::marker::Copy, ::core::clone::Clone)]
         #( #attrs )*
         #vis enum #name {
             #variants

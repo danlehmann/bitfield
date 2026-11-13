@@ -8,3 +8,5 @@ mod bitfield_tests;
 mod bitfield_tests_legacy;
 #[cfg(test)]
 pub mod doc;
+#[cfg(test)]
+mod shadowed_prelude_tests;

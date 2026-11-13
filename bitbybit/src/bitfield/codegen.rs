@@ -38,14 +38,14 @@ pub fn generate(
                 let end = field_definition.ranges[0].end-1;
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: core::ops::RangeInclusive<usize> = #start..=#end;
+                    pub const #bits_name: ::core::ops::RangeInclusive<usize> = #start..=#end;
                 }
             } else {
                 let range_starts = field_definition.ranges.iter().map(|r| r.start);
                 let range_ends = field_definition.ranges.iter().map(|r| r.end-1);
                 quote! {
                     #(#doc_comment)*
-                    pub const #bits_name: [core::ops::RangeInclusive<usize>; #ranges_len] =
+                    pub const #bits_name: [::core::ops::RangeInclusive<usize>; #ranges_len] =
                         [#(#range_starts..=#range_ends),*];
                 }
             };
@@ -66,7 +66,7 @@ pub fn generate(
                     #[inline]
                     #[must_use]
                     pub const fn #mask_name(index: usize) -> #internal_base_data_type {
-                        assert!(index < #count);
+                        ::core::assert!(index < #count);
                         (#mask) << (index * #stride)
                     }
                 }
@@ -139,7 +139,7 @@ pub fn generate(
                     #[inline]
                     #[must_use]
                     pub const fn #with_name(&self, index: usize, field_value: #setter_type) -> Self {
-                        assert!(index < #indexed_count);
+                        ::core::assert!(index < #indexed_count);
                         Self {
                             raw_value: #new_raw_value
                         }
@@ -147,7 +147,7 @@ pub fn generate(
                     #(#doc_comment)*
                     #[inline]
                     pub fn #setter_name(&mut self, index: usize, field_value: #setter_type) {
-                        assert!(index < #indexed_count);
+                        ::core::assert!(index < #indexed_count);
                         self.raw_value = #new_raw_value;
                     }
                 }
@@ -215,7 +215,7 @@ fn generate_getters(
             #[inline]
             #[must_use]
             pub const fn #field_name(&self, index: usize) -> #getter_type {
-                assert!(index < #indexed_count);
+                ::core::assert!(index < #indexed_count);
                 #converted
             }
         }
@@ -669,18 +669,18 @@ pub fn generate_debug_trait_impl(
             if let Some(array_info) = field.array {
                 let num_entries = array_info.count;
                 return quote! {
-                    .field(stringify!(#field_name), &core::array::from_fn::<_, #num_entries, _>(|i| self.#field_name(i)))
+                    .field(::core::stringify!(#field_name), &::core::array::from_fn::<_, #num_entries, _>(|i| self.#field_name(i)))
                 };
             }
             quote! {
-                .field(stringify!(#field_name), &self.#field_name())
+                .field(::core::stringify!(#field_name), &self.#field_name())
             }
         })
         .collect();
     debug_trait.append_all(quote! {
         impl ::core::fmt::Debug for #struct_name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                f.debug_struct(stringify!(#struct_name))
+                f.debug_struct(::core::stringify!(#struct_name))
                     #(#debug_fields)*
                     .finish()
             }
