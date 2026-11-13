@@ -119,6 +119,7 @@ fn enum_with_16bits() {
 fn enum_with_32bits() {
     #[bitenum(u32, exhaustive = false)]
     #[derive(Eq, PartialEq, Debug)]
+    #[repr(u32)]
     enum Foo {
         Zero = 0,
         One = 0xFFFFFFFF,
@@ -141,6 +142,7 @@ fn enum_with_32bits() {
 fn enum_with_63bits() {
     #[bitenum(u63, exhaustive = false)]
     #[derive(Eq, PartialEq, Debug)]
+    #[repr(u64)]
     enum Foo {
         Zero = 0,
         One = 0x7FFF_FFFF_FFFF_FFFF,

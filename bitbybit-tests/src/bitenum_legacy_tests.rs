@@ -106,6 +106,7 @@ fn enum_with_16bits() {
 fn enum_with_32bits() {
     #[bitenum(u32, exhaustive: false)]
     #[derive(Eq, PartialEq, Debug)]
+    #[repr(u32)]
     enum Foo {
         Zero = 0,
         One = 0xFFFFFFFF,
