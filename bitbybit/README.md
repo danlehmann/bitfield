@@ -19,6 +19,9 @@ A bit field is created similar to a regular Rust struct. Annotations define the 
 consider the following definition, which specifies a bit field:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u32)]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
@@ -58,6 +61,9 @@ Very often, fields aren't just numbers but really enums. This is supported by fi
 that inside of a bitfield:
 
 ```rust
+use bitbybit::{bitenum, bitfield};
+use arbitrary_int::prelude::*;
+
 #[bitenum(u2, exhaustive = false)]
 enum NonExhaustiveEnum {
     Zero = 0b00,
@@ -97,6 +103,9 @@ Sometimes, bits inside bitfields are repeated. To support this, this crate allow
 example, the following struct gives read/write access to each individual nibble (hex character) of a u64:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u64, default = 0)]
 struct Nibble64 {
      #[bits(0..=3, rw)]
@@ -108,6 +117,9 @@ Arrays can also have a stride. This is useful in the case of multiple smaller va
 following definition provides access to each bit of each nibble:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u64, default = 0)]
 struct NibbleBits64 {
     #[bit(0, rw, stride = 4)]
@@ -128,13 +140,16 @@ struct NibbleBits64 {
 
 Bitfields can always be created through new_with_raw_value():
 
-```rust
+```rust,ignore
 let a = NibbleBits64::new_with_raw_value(0x43218765);
 ```
 
 However, pretty often a specific value can be considered the default (for example 0). This can be specified like this:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u32, default = 0x1234)]
 struct Bitfield1 {
   #[bits(0..=3, rw)]
@@ -144,7 +159,7 @@ struct Bitfield1 {
 
 If a default value is specified, the bitfield can easily be created with this specific value:
 
-```rust
+```rust,ignore
 let a = Bitfield1::Default;
 const A: Bitfield1 = Bitfield1::DEFAULT;
 ```
@@ -155,7 +170,7 @@ Default values are used as-is, even if they affect bits that aren't defined with
 
 It is possible to set all fields at once, like this:
 
-```rust
+```rust,ignore
 const T: Test = Test::builder()
     .with_baudrate(0x12)
     .with_some_other_bits(u4::new(0x2))
@@ -180,11 +195,14 @@ Occasionally it can be useful for bitranges to not be contiguous. For example, R
 immediates in a way that they have to be reassembled. This can be achieved like this:
 
 ```rust
-  #[bitfield(u32)]
-  struct SBFormat {
-      #[bits([8..=11, 25..=30, 7, 31], rw)]
-      imm_half: u12,
-  }
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
+#[bitfield(u32)]
+struct SBFormat {
+    #[bits([8..=11, 25..=30, 7, 31], rw)]
+    imm_half: u12,
+}
 ```
 
 ## Field overlap checking
@@ -194,7 +212,9 @@ The macro code generator can be instructed to do this using the `forbid_overlaps
 
 For example, the following code will not compile:
 
-```rust
+```rust,compile_fail
+use bitbybit::bitfield;
+
 #[bitfield(u32, forbid_overlaps)]
 struct NoOverlaps {
     #[bits(4..=11, r)]
@@ -211,6 +231,9 @@ the `Debug` implementation of the inner fields. You can do this using the `debug
 specifier:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u32, debug)]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
@@ -237,6 +260,8 @@ The default is planned to change to `#[repr(transparent)]` in the next major rel
 Bitfields that rely on the C layout should specify `#[repr(C)]` explicitly to keep it.
 
 ```rust
+use bitbybit::bitfield;
+
 #[bitfield(u32)]
 #[repr(transparent)]
 struct Register {
@@ -253,6 +278,9 @@ For arbitrary-int base types, the struct is transparent over the internal intege
 If information like bit offsets or mask values are needed at runtime, use the `introspect` specifier:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u32, introspect)]
 struct Bitfield {
     #[bits(0..=7)]
@@ -304,6 +332,9 @@ you can use `defmt_bitfields(feature = "defmt")` or `defmt_fields(feature = "def
 Example:
 
 ```rust
+use bitbybit::bitfield;
+use arbitrary_int::prelude::*;
+
 #[bitfield(u32, defmt_bitfields(feature = "defmt"))]
 struct GICD_TYPER {
     #[bits(11..=15, r)]
@@ -335,7 +366,7 @@ Even though bitfields feel somewhat like structs, they are internally implemente
 Therefore, they provide an immutable interface: Instead of changing the value of a field, any change operation will
 return a new bitfield with that field modified.
 
-```rust
+```rust,ignore
 let a = NibbleBits64::new_with_raw_value(0x12345678_ABCDEFFF);
 // Read a value
 assert_eq!(u4::new(0xE), a.nibble(3));
