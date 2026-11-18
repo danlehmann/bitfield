@@ -14,6 +14,7 @@
 - Clearer errors when the bit-range argument of `bit`/`bits` uses the wrong delimiters
   (e.g. `(0..=1)`) or contains empty array elements (e.g. `[0..=1,, 4..=5]`); these no longer end in
   a proc-macro panic. (@seritools)
+- Added repository readme as crate-level documentation. (@seritools)
 
 ### Changed
 
