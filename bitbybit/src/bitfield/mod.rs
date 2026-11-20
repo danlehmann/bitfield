@@ -89,6 +89,8 @@ struct FieldDefinition {
     /// If non-null: (count, stride)
     use_regular_int: bool,
     primitive_type: TokenStream2,
+    /// Set if the field type is a spelled-out arbitrary-int like `UInt<u32, 8>`
+    explicit_arbitrary_int_type: Option<Type>,
     custom_type: CustomType,
     doc_comment: Vec<Attribute>,
 }

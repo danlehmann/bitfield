@@ -291,10 +291,13 @@ fn extracted_bits(
             quote! {  #packed as #primitive_type }
         }
     } else {
-        let prefix = if field_definition.is_signed { "i" } else { "u" };
-        let custom_type =
+        let custom_type = if let Some(ty) = &field_definition.explicit_arbitrary_int_type {
+            quote! { <#ty> }
+        } else {
+            let prefix = if field_definition.is_signed { "i" } else { "u" };
             TokenStream::from_str(format!("arbitrary_int::{prefix}{total_number_bits}").as_str())
-                .unwrap();
+                .unwrap()
+        };
         let extract =
             TokenStream::from_str(format!("extract_u{}", base_data_size.internal).as_str())
                 .unwrap();
